@@ -217,6 +217,16 @@ function OrderDetailModal({ detail, onClose }) {
         {items.length === 0 && !notes && photos.length === 0 && (
           <div style={S.empty}>此訂單尚無詳細資料</div>
         )}
+
+        {/* 🔍 暫時除錯：顯示原始 API 回傳 */}
+        <details style={{ marginTop: '20px' }}>
+          <summary style={{ fontSize: '12px', color: '#a0aec0', cursor: 'pointer' }}>
+            🔍 原始資料（除錯用）
+          </summary>
+          <pre style={{ fontSize: '11px', color: '#4a5568', background: '#f7fafc', padding: '12px', borderRadius: '6px', overflowX: 'auto', marginTop: '8px', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+            {JSON.stringify(detail, null, 2)}
+          </pre>
+        </details>
       </div>
     </div>
   );
