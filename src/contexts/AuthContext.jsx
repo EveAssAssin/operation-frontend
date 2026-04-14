@@ -61,10 +61,9 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   const roleLabel = {
-    super_admin:      '超級管理員',
-    dept_head:        '營運部主管',
-    operation_lead:   '營運組長',
-    operation_staff:  '營運部員工',
+    super_admin:     '超級管理員',
+    operation_lead:  '營運部主管',
+    operation_staff: '營運部部員',
   };
 
   return (

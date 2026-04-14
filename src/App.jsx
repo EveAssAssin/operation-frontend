@@ -3,18 +3,24 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import Layout from './components/Layout';
 import LoginPage from './pages/auth/LoginPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
+import PersonnelPage from './pages/personnel/PersonnelPage';
 import BillingPage from './pages/billing/BillingPage';
 
-// 通用簽收頁面（LINE LIFF / Web）
+// 通用簽收頁面（LINE LIFF / Web，不需登入）
 import UniversalSignPage from './pages/sign/UniversalSignPage';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#718096' }}>載入中...</div>;
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#718096', fontFamily: 'system-ui' }}>
+      載入中...
+    </div>
+  );
   if (!user) return <Navigate to="/login" replace />;
-  return children;
+  return <Layout>{children}</Layout>;
 }
 
 function AppRoutes() {
@@ -22,17 +28,16 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* 登入 */}
+      {/* 登入（不需 Layout） */}
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
 
-      {/* 通用簽收（不需登入） */}
+      {/* 通用簽收（不需登入，不需 Layout） */}
       <Route path="/sign" element={<UniversalSignPage />} />
 
-      {/* 主應用（需登入） */}
+      {/* 主應用（需登入，套 Layout） */}
       <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
-
-      {/* 開帳系統（需登入，operation_lead 以上） */}
-      <Route path="/billing" element={<PrivateRoute><BillingPage /></PrivateRoute>} />
+      <Route path="/personnel" element={<PrivateRoute><PersonnelPage /></PrivateRoute>} />
+      <Route path="/billing"   element={<PrivateRoute><BillingPage /></PrivateRoute>} />
 
       {/* 未來功能模組在此新增路由 */}
 
