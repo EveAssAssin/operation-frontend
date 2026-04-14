@@ -12,10 +12,9 @@ const isLocalhost =
   (window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1');
 
-// ⚠️ 部署時改成營運部後端的 Render URL
 const baseURL = isLocalhost
   ? '/api'
-  : (import.meta.env.VITE_API_URL || '/api');
+  : (import.meta.env.VITE_API_URL || 'https://operation-backend.onrender.com/api');
 
 const api = axios.create({
   baseURL,
