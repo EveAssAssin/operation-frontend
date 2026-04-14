@@ -78,6 +78,9 @@ export const billingApi = {
     api.post('/billing/sync', month ? { month } : {}),
   getSyncLogs: (limit = 10) =>
     api.get('/billing/sync/logs', { params: { limit } }),
+  // Method B：從市場 API 取得含照片/完工備註的完整訂單明細
+  getOrderDetail: (sourceType, sourceId) =>
+    api.get(`/billing/order-detail/${sourceType}/${sourceId}`),
 };
 
 // System API (系統用戶管理)
