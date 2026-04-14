@@ -68,6 +68,18 @@ export const personnelApi = {
   getSyncDetail: (logId) => api.get(`/personnel/sync/status/${logId}`),
 };
 
+// Billing API（開帳系統，operation_lead 以上）
+export const billingApi = {
+  getSummary:  (month) =>
+    api.get('/billing/summary', { params: { month } }),
+  getOrders:   (month, store_erpid) =>
+    api.get('/billing/orders', { params: { month, store_erpid } }),
+  sync:        (month) =>
+    api.post('/billing/sync', month ? { month } : {}),
+  getSyncLogs: (limit = 10) =>
+    api.get('/billing/sync/logs', { params: { limit } }),
+};
+
 // System API (系統用戶管理)
 export const systemApi = {
   getEmployees:   (params = {}) => api.get('/system/employees', { params }),

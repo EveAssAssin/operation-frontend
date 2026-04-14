@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/auth/LoginPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
+import BillingPage from './pages/billing/BillingPage';
 
 // 通用簽收頁面（LINE LIFF / Web）
 import UniversalSignPage from './pages/sign/UniversalSignPage';
@@ -29,6 +30,9 @@ function AppRoutes() {
 
       {/* 主應用（需登入） */}
       <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+
+      {/* 開帳系統（需登入，operation_lead 以上） */}
+      <Route path="/billing" element={<PrivateRoute><BillingPage /></PrivateRoute>} />
 
       {/* 未來功能模組在此新增路由 */}
 
