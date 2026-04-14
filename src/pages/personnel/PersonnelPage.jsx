@@ -2,7 +2,7 @@
 // 人員管理：顯示所有在職員工、所屬門市/部門、系統角色，並支援授權操作
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { systemApi } from '../../services/api';
+import { systemApi, personnelApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 // ── 角色定義 ────────────────────────────────────────────────
@@ -114,6 +114,10 @@ export default function PersonnelPage() {
   const [modalTarget, setModalTarget] = useState(null);
   const [saving, setSaving]       = useState(false);
 
+  // 同步
+  const [syncing, setSyncing]     = useState(false);
+  const [lastSync, setLastSync]   = useState(null);
+
   // ── 載入資料 ────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
@@ -128,7 +132,15 @@ export default function PersonnelPage() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // 載入最後同步記錄
+  const loadLastSync = useCallback(async () => {
+    try {
+      const res = await personnelApi.getSyncStatus();
+      setLastSync(res.data?.[0] || null);
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => { load(); loadLastSync(); }, [load, loadLastSync]);
 
   // ── 門市清單（從資料中提取）────────────────────────────
   const storeList = useMemo(() => {
@@ -154,6 +166,21 @@ export default function PersonnelPage() {
     total:      allData.length,
     authorized: allData.filter(e => e.has_access).length,
   }), [allData]);
+
+  // ── 手動同步 ────────────────────────────────────────────────
+  async function handleSync() {
+    setSyncing(true);
+    setMessage(null);
+    try {
+      await personnelApi.triggerSync();
+      setMessage({ type: 'success', text: '人員同步已啟動，約 1-2 分鐘後重新整理可見最新資料' });
+      setTimeout(() => { load(); loadLastSync(); }, 8000);
+    } catch (err) {
+      setMessage({ type: 'error', text: `同步失敗：${err.message}` });
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   // ── 授權 / 修改角色 ─────────────────────────────────────
   async function handleSave(target, role) {
@@ -186,14 +213,28 @@ export default function PersonnelPage() {
   return (
     <div style={s.page}>
       {/* 頁首 */}
-      <div style={s.header}>
+      <div style={{ ...s.header, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h1 style={s.title}>人員管理</h1>
           <div style={s.stats}>
             共 <strong>{stats.total}</strong> 位在職員工 ·
             已授權 <strong style={{ color: '#2b6cb0' }}>{stats.authorized}</strong> 人
+            {lastSync && (
+              <span style={{ marginLeft: '8px', color: '#a0aec0' }}>
+                · 上次同步 {new Date(lastSync.completed_at || lastSync.started_at).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
           </div>
         </div>
+        {hasRole('operation_lead') && (
+          <button
+            style={{ ...s.btnPrimary, display: 'flex', alignItems: 'center', gap: '6px' }}
+            onClick={handleSync}
+            disabled={syncing}
+          >
+            {syncing ? '同步中...' : '🔄 同步人員'}
+          </button>
+        )}
       </div>
 
       {/* 篩選列 */}
