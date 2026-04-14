@@ -143,12 +143,11 @@ const S = {
 };
 
 // ─── 完整明細 Modal ──────────────────────────────────────────
+// completion_notes 和 photo_urls 在每個 item 內部，不在訂單頂層
 function OrderDetailModal({ detail, onClose }) {
   if (!detail) return null;
 
   const items = detail.items || [];
-  const photos = detail.photo_urls || detail.photos || [];
-  const notes  = detail.completion_notes || detail.notes || detail.remark || '';
 
   return (
     <div style={S.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -163,70 +162,68 @@ function OrderDetailModal({ detail, onClose }) {
           <button style={S.closeBtn} onClick={onClose}>✕</button>
         </div>
 
-        {/* 項目清單 */}
-        {items.length > 0 && (
-          <>
-            <div style={S.label}>項目明細</div>
-            <table style={S.subTable}>
-              <thead>
-                <tr>
-                  <th style={S.subTh}>項目名稱</th>
-                  <th style={S.subTh}>規格／說明</th>
-                  <th style={S.subThR}>數量</th>
-                  <th style={S.subThR}>單價</th>
-                  <th style={S.subThR}>小計</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item, idx) => (
-                  <tr key={idx}>
-                    <td style={S.subTd}>{item.name || item.item_name || '-'}</td>
-                    <td style={S.subTd}>{item.spec || item.description || '-'}</td>
-                    <td style={S.subTdR}>{item.quantity ?? '-'}</td>
-                    <td style={S.subTdR}>{item.unit_price != null ? `$ ${formatAmount(item.unit_price)}` : '-'}</td>
-                    <td style={S.subTdR}>{item.subtotal != null ? `$ ${formatAmount(item.subtotal)}` : '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-
-        {/* 完工備註 */}
-        {notes && (
-          <>
-            <div style={S.label}>完工備註</div>
-            <div style={S.infoText}>{notes}</div>
-          </>
-        )}
-
-        {/* 照片 */}
-        {photos.length > 0 && (
-          <>
-            <div style={S.label}>照片（{photos.length} 張）</div>
-            <div style={S.photoGrid}>
-              {photos.map((url, idx) => (
-                <a key={idx} href={url} target="_blank" rel="noreferrer">
-                  <img src={url} alt={`照片${idx + 1}`} style={S.photo} />
-                </a>
-              ))}
-            </div>
-          </>
-        )}
-
-        {items.length === 0 && !notes && photos.length === 0 && (
+        {items.length === 0 && (
           <div style={S.empty}>此訂單尚無詳細資料</div>
         )}
 
-        {/* 🔍 暫時除錯：顯示原始 API 回傳 */}
-        <details style={{ marginTop: '20px' }}>
-          <summary style={{ fontSize: '12px', color: '#a0aec0', cursor: 'pointer' }}>
-            🔍 原始資料（除錯用）
-          </summary>
-          <pre style={{ fontSize: '11px', color: '#4a5568', background: '#f7fafc', padding: '12px', borderRadius: '6px', overflowX: 'auto', marginTop: '8px', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-            {JSON.stringify(detail, null, 2)}
-          </pre>
-        </details>
+        {/* 每個項目獨立一個區塊，含完工說明與照片 */}
+        {items.map((item, idx) => {
+          const photos = item.photo_urls || item.photos || [];
+          const notes  = item.completion_notes || item.notes || '';
+
+          return (
+            <div key={idx} style={{ borderTop: idx > 0 ? '1px solid #e2e8f0' : 'none', paddingTop: idx > 0 ? '20px' : '0', marginTop: idx > 0 ? '20px' : '0' }}>
+              {/* 項目標題列 */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div style={{ fontWeight: '600', fontSize: '15px', color: '#2d3748' }}>
+                  {item.item_name || item.name || `項目 ${idx + 1}`}
+                </div>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  {item.status && (
+                    <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '999px', background: item.status === 'completed' ? '#f0fff4' : '#fffbeb', color: item.status === 'completed' ? '#276749' : '#92400e', border: `1px solid ${item.status === 'completed' ? '#9ae6b4' : '#fcd34d'}` }}>
+                      {item.status === 'completed' ? '已完工' : item.status}
+                    </span>
+                  )}
+                  {item.amount != null && (
+                    <span style={{ fontWeight: '600', color: '#2b6cb0' }}>$ {formatAmount(item.amount)}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* 問題描述 */}
+              {item.description && (
+                <>
+                  <div style={S.label}>問題描述</div>
+                  <div style={{ ...S.infoText, marginBottom: '8px' }}>{item.description}</div>
+                </>
+              )}
+
+              {/* 完工說明 */}
+              {notes && (
+                <>
+                  <div style={S.label}>完工說明</div>
+                  <div style={{ ...S.infoText, background: '#f0fff4', padding: '10px 14px', borderRadius: '6px', borderLeft: '3px solid #68d391', marginBottom: '8px' }}>
+                    {notes}
+                  </div>
+                </>
+              )}
+
+              {/* 照片 */}
+              {photos.length > 0 && (
+                <>
+                  <div style={S.label}>照片（{photos.length} 張）</div>
+                  <div style={S.photoGrid}>
+                    {photos.map((url, pIdx) => (
+                      <a key={pIdx} href={url} target="_blank" rel="noreferrer">
+                        <img src={url} alt={`照片${pIdx + 1}`} style={S.photo} />
+                      </a>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -543,20 +540,24 @@ export default function BillingPage() {
                               <thead>
                                 <tr>
                                   <th style={S.subTh}>項目名稱</th>
-                                  <th style={S.subTh}>規格／說明</th>
-                                  <th style={S.subThR}>數量</th>
-                                  <th style={S.subThR}>單價</th>
-                                  <th style={S.subThR}>小計</th>
+                                  <th style={S.subTh}>問題描述</th>
+                                  <th style={S.subTh}>完工說明</th>
+                                  <th style={S.subThR}>金額</th>
+                                  <th style={S.subTh}>狀態</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {o.items.map((item, idx) => (
                                   <tr key={idx}>
-                                    <td style={S.subTd}>{item.name || item.item_name || '-'}</td>
-                                    <td style={S.subTd}>{item.spec || item.description || '-'}</td>
-                                    <td style={S.subTdR}>{item.quantity ?? '-'}</td>
-                                    <td style={S.subTdR}>{item.unit_price != null ? `$ ${formatAmount(item.unit_price)}` : '-'}</td>
-                                    <td style={S.subTdR}>{item.subtotal != null ? `$ ${formatAmount(item.subtotal)}` : '-'}</td>
+                                    <td style={{ ...S.subTd, fontWeight: '500' }}>{item.item_name || item.name || '-'}</td>
+                                    <td style={{ ...S.subTd, color: '#718096' }}>{item.description || '-'}</td>
+                                    <td style={{ ...S.subTd, color: '#276749' }}>{item.completion_notes || item.notes || '-'}</td>
+                                    <td style={S.subTdR}>{item.amount != null ? `$ ${formatAmount(item.amount)}` : '-'}</td>
+                                    <td style={S.subTd}>
+                                      {item.status === 'completed'
+                                        ? <span style={{ fontSize: '12px', color: '#276749' }}>✓ 完工</span>
+                                        : <span style={{ fontSize: '12px', color: '#92400e' }}>{item.status || '-'}</span>}
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>
