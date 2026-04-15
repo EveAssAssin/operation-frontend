@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { VendorAuthProvider, useVendorAuth } from './contexts/VendorAuthContext';
 import Layout from './components/Layout';
 import LoginPage from './pages/auth/LoginPage';
+import SsoPage   from './pages/auth/SsoPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import PersonnelPage from './pages/personnel/PersonnelPage';
 import BillingPage       from './pages/billing/BillingPage';
@@ -52,6 +53,9 @@ function AppRoutes() {
     <Routes>
       {/* 登入（不需 Layout） */}
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+
+      {/* SSO 統一入口：/sso?app_number=XXXXX */}
+      <Route path="/sso" element={<SsoPage />} />
 
       {/* 通用簽收（不需登入，不需 Layout） */}
       <Route path="/sign" element={<UniversalSignPage />} />

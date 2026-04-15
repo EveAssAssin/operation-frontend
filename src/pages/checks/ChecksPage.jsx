@@ -1358,9 +1358,9 @@ function CreateBatchModal({ subjects, subjectsTree = [], onClose, onSaved }) {
             >
               <option value="">— 選擇科目 —</option>
               {selectedCategory && (
-                subjectsTree.find(c => c.id === selectedCategory)?.children?.map(s => (
+                (subjectsTree.find(c => String(c.id) === String(selectedCategory))?.children || []).map(s => (
                   <option key={s.id} value={s.id}>{s.name}</option>
-                )) || []
+                ))
               )}
             </select>
           </div>

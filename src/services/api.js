@@ -53,7 +53,8 @@ api.interceptors.response.use(
 // Auth API
 export const authApi = {
   login: (app_number) => api.post('/auth/login', { app_number }),
-  me: () => api.get('/auth/me'),
+  me:    () => api.get('/auth/me'),
+  sso:   (app_number) => api.get('/auth/sso', { params: { app_number } }),
 };
 
 // Personnel API
