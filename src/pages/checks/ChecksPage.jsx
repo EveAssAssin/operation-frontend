@@ -845,8 +845,9 @@ function MergeSubjectsModal({ subjects, onClose, onSaved }) {
   const [mergeIds,  setMergeIds]  = useState([]);   // 要被合併掉的
   const [saving,    setSaving]    = useState(false);
 
-  // 切換「被合併」選項（keepId 那個不能選）
+  // 切換「被合併」選項（keepId 那個不能勾）
   function toggleMerge(id) {
+    if (id === keepId) return; // 不能把保留的科目自己合併掉
     setMergeIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
