@@ -404,11 +404,9 @@ function BatchesPanel({ user }) {
             <button onClick={() => setShowCreate(true)} style={{ ...btnStyle, background: C.dark }}>
               ＋ 新增批次
             </button>
-            {user?.role === 'super_admin' && (
-              <button onClick={handleClearAll} style={{ ...btnStyle, background: '#c53030' }} title="清除全部資料後重新匯入">
-                🗑 清除全部
-              </button>
-            )}
+            <button onClick={handleClearAll} style={{ ...btnStyle, background: '#c53030' }} title="清除全部資料後重新匯入">
+              🗑 清除全部
+            </button>
           </>
         )}
       </div>
