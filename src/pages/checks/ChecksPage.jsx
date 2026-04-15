@@ -283,15 +283,19 @@ function BatchesPanel({ user }) {
   const [showMerge, setShowMerge] = useState(false);
   const [showSubjects, setShowSubjects] = useState(false);
 
+  const [subjectsTree, setSubjectsTree] = useState([]); // 樹狀母分類
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [b, s] = await Promise.all([
+      const [b, s, st] = await Promise.all([
         checksApi.getBatches({ status: filterStatus || undefined, drawer_name: filterDrawer || undefined }),
         checksApi.getSubjects(),
+        checksApi.getSubjectsTree(),
       ]);
       setBatches(b.data || []);
       setSubjects(s.data || []);
+      setSubjectsTree(st.data || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [filterStatus, filterDrawer]);
@@ -405,6 +409,9 @@ function BatchesPanel({ user }) {
             </button>
             <button onClick={() => setShowMerge(true)} style={{ ...btnStyle, background: C.mid }}>
               🔀 合併科目
+            </button>
+            <button onClick={() => setShowCreate(true)} style={{ ...btnStyle, background: C.dark }}>
+              ＋ 新增批次
             </button>
           </>
         )}
@@ -562,6 +569,7 @@ function BatchesPanel({ user }) {
       {showCreate && (
         <CreateBatchModal
           subjects={subjects}
+          subjectsTree={subjectsTree}
           onClose={() => setShowCreate(false)}
           onSaved={() => { setShowCreate(false); load(); }}
         />
@@ -858,11 +866,18 @@ function NotifyPanel({ user }) {
 // 科目管理 Modal（新增 / 改名）
 // ════════════════════════════════════════════════════════════
 function SubjectsModal({ subjects: initSubjects, onClose, onSaved }) {
-  const [list,       setList]       = useState(initSubjects);
-  const [editingId,  setEditingId]  = useState(null);   // 正在改名的 id
-  const [editName,   setEditName]   = useState('');
-  const [newName,    setNewName]    = useState('');
-  const [saving,     setSaving]     = useState(false);
+  const [list,      setList]      = useState(initSubjects);
+  const [editingId, setEditingId] = useState(null);
+  const [editName,  setEditName]  = useState('');
+  const [saving,    setSaving]    = useState(false);
+  // 新增表單
+  const [newCatName,  setNewCatName]  = useState('');   // 新母分類
+  const [newSubName,  setNewSubName]  = useState('');   // 新子科目
+  const [newSubParent,setNewSubParent]= useState('');   // 子科目的母分類
+
+  const categories = list.filter(s => !s.parent_id);
+  const childrenOf = (catId) => list.filter(s => s.parent_id === catId);
+  const orphans    = list.filter(s => s.parent_id && !list.find(c => c.id === s.parent_id));
 
   async function handleRename(id) {
     if (!editName.trim()) return;
@@ -876,93 +891,110 @@ function SubjectsModal({ subjects: initSubjects, onClose, onSaved }) {
     finally { setSaving(false); }
   }
 
-  async function handleCreate() {
-    if (!newName.trim()) return;
+  async function handleCreateCat() {
+    if (!newCatName.trim()) return;
     setSaving(true);
     try {
-      const res = await checksApi.createSubject(newName.trim());
+      const res = await checksApi.createSubject(newCatName.trim(), null);
       setList(prev => [...prev, res.data]);
-      setNewName('');
+      setNewCatName('');
       onSaved();
     } catch(e) { alert(e.message || '新增失敗'); }
     finally { setSaving(false); }
   }
 
-  return (
-    <Modal title="⚙️ 科目管理" onClose={onClose} width={480}>
-      {/* 科目清單 */}
-      <div style={{
-        border: `1px solid ${C.border}`, borderRadius: 8,
-        maxHeight: 360, overflowY: 'auto', marginBottom: 20,
+  async function handleCreateSub() {
+    if (!newSubName.trim() || !newSubParent) return;
+    setSaving(true);
+    try {
+      const res = await checksApi.createSubject(newSubName.trim(), newSubParent);
+      setList(prev => [...prev, res.data]);
+      setNewSubName('');
+      onSaved();
+    } catch(e) { alert(e.message || '新增失敗'); }
+    finally { setSaving(false); }
+  }
+
+  function renderRow(s, indent = false) {
+    return (
+      <div key={s.id} style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: indent ? '8px 14px 8px 32px' : '10px 14px',
+        borderBottom: `1px solid ${C.border}`,
+        background: editingId === s.id ? '#faf5ee' : (indent ? '#fafaf8' : '#fff'),
       }}>
-        {list.length === 0 && (
-          <div style={{ padding: 20, color: C.textLight, textAlign: 'center' }}>尚無科目</div>
+        {indent && <span style={{ color: C.textLight, fontSize: 12 }}>└</span>}
+        {!indent && <span style={{ fontSize: 13, color: C.mid }}>📁</span>}
+        {editingId === s.id ? (
+          <>
+            <input value={editName} onChange={e => setEditName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleRename(s.id); if (e.key === 'Escape') setEditingId(null); }}
+              style={{ ...inputStyle, flex: 1, marginBottom: 0, fontSize: 13 }} autoFocus />
+            <button onClick={() => handleRename(s.id)} disabled={saving}
+              style={{ ...btnStyle, background: C.dark, padding: '4px 10px', fontSize: 11 }}>儲存</button>
+            <button onClick={() => setEditingId(null)}
+              style={{ ...btnStyle, background: '#e2e8f0', color: C.textDark, padding: '4px 8px', fontSize: 11 }}>取消</button>
+          </>
+        ) : (
+          <>
+            <span style={{ flex: 1, fontSize: indent ? 13 : 14, color: C.textDark, fontWeight: indent ? 400 : 600 }}>{s.name}</span>
+            <button onClick={() => { setEditingId(s.id); setEditName(s.name); }}
+              style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, padding: '3px 8px', cursor: 'pointer', color: C.textMid, fontSize: 11 }}>
+              ✏️ 改名
+            </button>
+          </>
         )}
-        {list.map((s, i) => (
-          <div key={s.id} style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: '10px 14px',
-            borderBottom: i < list.length - 1 ? `1px solid ${C.border}` : 'none',
-            background: editingId === s.id ? '#faf5ee' : '#fff',
-          }}>
-            {editingId === s.id ? (
-              <>
-                <input
-                  value={editName}
-                  onChange={e => setEditName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleRename(s.id); if (e.key === 'Escape') setEditingId(null); }}
-                  style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
-                  autoFocus
-                />
-                <button
-                  onClick={() => handleRename(s.id)}
-                  disabled={saving}
-                  style={{ ...btnStyle, background: C.dark, padding: '5px 12px', fontSize: 12 }}
-                >儲存</button>
-                <button
-                  onClick={() => setEditingId(null)}
-                  style={{ ...btnStyle, background: '#e2e8f0', color: C.textDark, padding: '5px 10px', fontSize: 12 }}
-                >取消</button>
-              </>
-            ) : (
-              <>
-                <span style={{ flex: 1, fontSize: 14, color: C.textDark }}>{s.name}</span>
-                <button
-                  onClick={() => { setEditingId(s.id); setEditName(s.name); }}
-                  style={{
-                    background: 'none', border: `1px solid ${C.border}`,
-                    borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
-                    color: C.textMid, fontSize: 12,
-                  }}
-                >✏️ 改名</button>
-              </>
-            )}
+      </div>
+    );
+  }
+
+  return (
+    <Modal title="⚙️ 科目管理" onClose={onClose} width={520}>
+      {/* 樹狀科目清單 */}
+      <div style={{ border: `1px solid ${C.border}`, borderRadius: 8, maxHeight: 340, overflowY: 'auto', marginBottom: 20 }}>
+        {list.length === 0 && <div style={{ padding: 20, color: C.textLight, textAlign: 'center' }}>尚無科目</div>}
+        {categories.map(cat => (
+          <div key={cat.id}>
+            {renderRow(cat, false)}
+            {childrenOf(cat.id).map(child => renderRow(child, true))}
           </div>
         ))}
+        {orphans.map(s => renderRow(s, false))}
       </div>
 
-      {/* 新增科目 */}
-      <div style={{ marginBottom: 8 }}>
-        <label style={labelStyle}>新增科目</label>
+      {/* 新增母分類 */}
+      <div style={{ marginBottom: 14 }}>
+        <label style={labelStyle}>新增母分類</label>
         <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
-            placeholder="輸入科目名稱"
-            style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
-          />
-          <button
-            onClick={handleCreate}
-            disabled={saving || !newName.trim()}
-            style={{ ...btnStyle, background: C.dark, opacity: (!newName.trim() || saving) ? 0.5 : 1, whiteSpace: 'nowrap' }}
-          >＋ 新增</button>
+          <input value={newCatName} onChange={e => setNewCatName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCreateCat()}
+            placeholder="例如：林口、潭子、永豐" style={{ ...inputStyle, flex: 1, marginBottom: 0 }} />
+          <button onClick={handleCreateCat} disabled={saving || !newCatName.trim()}
+            style={{ ...btnStyle, background: C.mid, opacity: (!newCatName.trim() || saving) ? 0.5 : 1, whiteSpace: 'nowrap' }}>＋ 新增</button>
+        </div>
+      </div>
+
+      {/* 新增子科目 */}
+      <div style={{ marginBottom: 8 }}>
+        <label style={labelStyle}>新增子科目</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <select value={newSubParent} onChange={e => setNewSubParent(e.target.value)}
+            style={{ ...inputStyle, width: 140, marginBottom: 0, flexShrink: 0 }}>
+            <option value="">選母分類</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <input value={newSubName} onChange={e => setNewSubName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCreateSub()}
+            placeholder="子科目名稱" style={{ ...inputStyle, flex: 1, marginBottom: 0 }} />
+          <button onClick={handleCreateSub} disabled={saving || !newSubName.trim() || !newSubParent}
+            style={{ ...btnStyle, background: C.dark, opacity: (!newSubName.trim() || !newSubParent || saving) ? 0.5 : 1, whiteSpace: 'nowrap' }}>＋ 新增</button>
         </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
         <button onClick={onClose} style={{ ...btnStyle, background: '#e2e8f0', color: C.textDark }}>關閉</button>
       </div>
+
     </Modal>
   );
 }
@@ -1216,11 +1248,12 @@ function EditBatchModal({ batch, subjects, onClose, onSaved }) {
 // ════════════════════════════════════════════════════════════
 // 新增批次 Modal
 // ════════════════════════════════════════════════════════════
-function CreateBatchModal({ subjects, onClose, onSaved }) {
+function CreateBatchModal({ subjects, subjectsTree = [], onClose, onSaved }) {
   const [form, setForm] = useState({
     subject_id: '', drawer_name: '黃信儒', bank_name: '高銀',
     renewal_needed: false, notes: '',
   });
+  const [selectedCategory, setSelectedCategory] = useState(''); // 母分類 id
   const [checks, setChecks] = useState([
     { seq_no: 1, due_date: '', amount: '', check_no: '' },
   ]);
@@ -1276,14 +1309,42 @@ function CreateBatchModal({ subjects, onClose, onSaved }) {
   return (
     <Modal title="新增支票批次" onClose={onClose} width={700}>
       <form onSubmit={handleSubmit}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+        {/* 科目：兩層選擇（母分類 → 子科目） */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
           <div>
-            <label style={labelStyle}>支票科目</label>
-            <select value={form.subject_id} onChange={e => setForm(p => ({ ...p, subject_id: e.target.value }))} style={inputStyle}>
-              <option value="">— 選擇科目 —</option>
-              {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            <label style={labelStyle}>母分類</label>
+            <select
+              value={selectedCategory}
+              onChange={e => {
+                setSelectedCategory(e.target.value);
+                setForm(p => ({ ...p, subject_id: '' })); // 重置子科目
+              }}
+              style={inputStyle}
+            >
+              <option value="">— 選擇母分類 —</option>
+              {subjectsTree.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
             </select>
           </div>
+          <div>
+            <label style={labelStyle}>子科目</label>
+            <select
+              value={form.subject_id}
+              onChange={e => setForm(p => ({ ...p, subject_id: e.target.value }))}
+              style={{ ...inputStyle, opacity: !selectedCategory ? 0.5 : 1 }}
+              disabled={!selectedCategory}
+            >
+              <option value="">— 選擇科目 —</option>
+              {selectedCategory && (
+                subjectsTree.find(c => c.id === selectedCategory)?.children?.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                )) || []
+              )}
+            </select>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
           <div>
             <label style={labelStyle}>出款人 *</label>
             <select value={form.drawer_name} onChange={e => setForm(p => ({ ...p, drawer_name: e.target.value }))} style={inputStyle} required>

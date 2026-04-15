@@ -159,7 +159,8 @@ export const vendorApi = {
 export const checksApi = {
   // 科目
   getSubjects:     ()              => api.get('/checks/subjects'),
-  createSubject:   (name)          => api.post('/checks/subjects', { name }),
+  getSubjectsTree: ()              => api.get('/checks/subjects/tree'),
+  createSubject:   (name, parentId) => api.post('/checks/subjects', { name, parent_id: parentId || null }),
   updateSubject:   (id, data)      => api.patch(`/checks/subjects/${id}`, data),
   // 批次
   getBatches:      (params = {})   => api.get('/checks/batches', { params }),
