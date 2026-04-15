@@ -126,8 +126,52 @@ function TodayPanel() {
   if (loading) return <Loading />;
 
   const today = data?.date || '—';
+  const summary = data?.summary || [];
   const grouped = data?.grouped || {};
-  const drawerNames = Object.keys(grouped);
+
+  // 渲染單一支票列
+  function CheckRow({ c, i }) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        padding: '12px 18px',
+        borderTop: i > 0 ? `1px solid ${C.border}` : 'none',
+        background: c.is_overdue ? '#fff8f0' : (i % 2 === 0 ? '#fff' : '#faf7f4'),
+      }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600, color: C.textDark, fontSize: 14 }}>
+            {c.batch?.subject?.name || '—'}
+            <span style={{ fontWeight: 400, color: C.textMid, marginLeft: 8, fontSize: 13 }}>
+              第 {c.seq_no} 張
+            </span>
+            {c.is_overdue && (
+              <span style={{
+                marginLeft: 8, fontSize: 11, fontWeight: 700,
+                background: '#fed7d7', color: '#c53030',
+                padding: '1px 7px', borderRadius: 999,
+              }}>逾期</span>
+            )}
+          </div>
+          <div style={{ color: C.textLight, fontSize: 12, marginTop: 2 }}>
+            到期日：{c.due_date}
+            {c.check_no && ` · 票號：${c.check_no}`}
+            {c.batch?.bank_name && ` · ${c.batch.bank_name}`}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', minWidth: 100 }}>
+          <div style={{ fontWeight: 700, color: c.is_overdue ? '#c53030' : C.dark, fontSize: 16 }}>{fmtAmt(c.amount)}</div>
+        </div>
+        <button onClick={() => handlePay(c.id)} style={{
+          marginLeft: 16, padding: '6px 14px',
+          background: C.mid, color: '#fff',
+          border: 'none', borderRadius: 6, cursor: 'pointer',
+          fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+        }}>
+          標記已出款
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -141,67 +185,50 @@ function TodayPanel() {
           <div style={{ fontSize: 13, color: C.light, marginBottom: 2 }}>今日應付票據</div>
           <div style={{ fontSize: 22, fontWeight: 700 }}>{today}</div>
         </div>
-        <div style={{
-          background: data?.total > 0 ? '#e53e3e' : '#38a169',
-          borderRadius: 999, padding: '6px 18px', fontSize: 15, fontWeight: 700,
-        }}>
-          {data?.total > 0 ? `⚠ ${data.total} 張待出款` : '✓ 今日無應付票據'}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {data?.overdue_count > 0 && (
+            <div style={{
+              background: '#c53030', borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700,
+            }}>逾期 {data.overdue_count} 張</div>
+          )}
+          <div style={{
+            background: data?.total > 0 ? '#e53e3e' : '#38a169',
+            borderRadius: 999, padding: '6px 18px', fontSize: 15, fontWeight: 700,
+          }}>
+            {data?.total > 0 ? `⚠ ${data.total} 張待出款` : '✓ 今日無應付票據'}
+          </div>
         </div>
       </div>
 
       {/* 出款清單（依出款人分群）*/}
-      {drawerNames.length === 0 ? (
+      {summary.length === 0 ? (
         <EmptyBox text="今日無需出款的票據" />
       ) : (
-        drawerNames.map(drawer => (
-          <div key={drawer} style={{ marginBottom: 20 }}>
-            <div style={{
-              background: C.mid, color: '#fff',
-              padding: '10px 18px', borderRadius: '10px 10px 0 0',
-              fontWeight: 700, fontSize: 15,
-            }}>
-              👤 {drawer}
-              <span style={{ fontWeight: 400, fontSize: 12, marginLeft: 10, color: C.light }}>
-                共 {grouped[drawer].length} 張
-              </span>
+        summary.map(s => {
+          const drawerChecks = grouped[s.drawer_name] || { today: [], overdue: [] };
+          const allChecks = [...(drawerChecks.today || []), ...(drawerChecks.overdue || [])];
+          return (
+            <div key={s.drawer_name} style={{ marginBottom: 20 }}>
+              <div style={{
+                background: C.mid, color: '#fff',
+                padding: '10px 18px', borderRadius: '10px 10px 0 0',
+                fontWeight: 700, fontSize: 15,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <span>
+                  👤 {s.drawer_name}
+                  <span style={{ fontWeight: 400, fontSize: 12, marginLeft: 10, color: C.light }}>
+                    共 {allChecks.length} 張
+                  </span>
+                </span>
+                <span style={{ fontSize: 14 }}>合計 {fmtAmt(s.total_amount)}</span>
+              </div>
+              <div style={{ border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
+                {allChecks.map((c, i) => <CheckRow key={c.id} c={c} i={i} />)}
+              </div>
             </div>
-            <div style={{ border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
-              {grouped[drawer].map((c, i) => (
-                <div key={c.id} style={{
-                  display: 'flex', alignItems: 'center',
-                  padding: '12px 18px',
-                  borderTop: i > 0 ? `1px solid ${C.border}` : 'none',
-                  background: i % 2 === 0 ? '#fff' : '#faf7f4',
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, color: C.textDark, fontSize: 14 }}>
-                      {c.batch?.subject?.name || '—'}
-                      <span style={{ fontWeight: 400, color: C.textMid, marginLeft: 8, fontSize: 13 }}>
-                        第 {c.seq_no} 張
-                      </span>
-                    </div>
-                    <div style={{ color: C.textLight, fontSize: 12, marginTop: 2 }}>
-                      到期日：{c.due_date}
-                      {c.check_no && ` · 票號：${c.check_no}`}
-                      {c.batch?.bank_name && ` · ${c.batch.bank_name}`}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', minWidth: 100 }}>
-                    <div style={{ fontWeight: 700, color: C.dark, fontSize: 16 }}>{fmtAmt(c.amount)}</div>
-                  </div>
-                  <button onClick={() => handlePay(c.id)} style={{
-                    marginLeft: 16, padding: '6px 14px',
-                    background: C.mid, color: '#fff',
-                    border: 'none', borderRadius: 6, cursor: 'pointer',
-                    fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
-                  }}>
-                    標記已出款
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))
+          );
+        })
       )}
 
       {/* 近 7 天預告 */}
