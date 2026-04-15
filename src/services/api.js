@@ -155,26 +155,36 @@ export const vendorApi = {
   submitBill:   (id) => vendorApi_base.post(`/bills/${id}/submit`),
 };
 
-// Checks API（支票紀錄系統）
+// Checks API（支票紀錄系統 v2）
 export const checksApi = {
+  // 科目
+  getSubjects:     ()              => api.get('/checks/subjects'),
+  createSubject:   (name)          => api.post('/checks/subjects', { name }),
+  updateSubject:   (id, data)      => api.patch(`/checks/subjects/${id}`, data),
   // 批次
-  getBatches:   (params = {}) => api.get('/checks/batches', { params }),
-  getBatch:     (id) => api.get(`/checks/batches/${id}`),
-  createBatch:  (data) => api.post('/checks/batches', data),
-  updateBatch:  (id, data) => api.patch(`/checks/batches/${id}`, data),
+  getBatches:      (params = {})   => api.get('/checks/batches', { params }),
+  getBatch:        (id)            => api.get(`/checks/batches/${id}`),
+  createBatch:     (data)          => api.post('/checks/batches', data),
+  updateBatch:     (id, data)      => api.patch(`/checks/batches/${id}`, data),
   // 個別支票
-  updateCheck:  (id, data) => api.patch(`/checks/${id}`, data),
-  payCheck:     (id) => api.post(`/checks/${id}/pay`),
-  voidCheck:    (id, reason) => api.post(`/checks/${id}/void`, { void_reason: reason }),
-  // 到期查詢
-  getDue:       (date) => api.get('/checks/due', { params: date ? { date } : {} }),
-  getUpcoming:  (days = 7) => api.get('/checks/upcoming', { params: { days } }),
+  updateCheck:     (id, data)      => api.patch(`/checks/checks/${id}`, data),
+  payCheck:        (id)            => api.post(`/checks/checks/${id}/pay`),
+  voidCheck:       (id, reason)    => api.post(`/checks/checks/${id}/void`, { void_reason: reason }),
+  bounceCheck:     (id)            => api.post(`/checks/checks/${id}/bounce`),
+  // 出款清單
+  getToday:        ()              => api.get('/checks/today'),
+  getUpcoming:     (days = 7)      => api.get('/checks/upcoming', { params: { days } }),
+  // 台灣假日
+  refreshHolidays: (year)          => api.post('/checks/holidays/refresh', null, { params: { year } }),
   // 通知名單
-  getTargets:   () => api.get('/checks/notify-targets'),
-  createTarget: (data) => api.post('/checks/notify-targets', data),
-  updateTarget: (id, data) => api.patch(`/checks/notify-targets/${id}`, data),
-  deleteTarget: (id) => api.delete(`/checks/notify-targets/${id}`),
-  testNotify:   () => api.post('/checks/notify-targets/test'),
+  getTargets:      ()              => api.get('/checks/notify-targets'),
+  createTarget:    (data)          => api.post('/checks/notify-targets', data),
+  updateTarget:    (id, data)      => api.patch(`/checks/notify-targets/${id}`, data),
+  deleteTarget:    (id)            => api.delete(`/checks/notify-targets/${id}`),
+  testNotify:      ()              => api.post('/checks/notify-targets/test'),
+  // Excel 匯入
+  importParse:     (formData)      => api.post('/checks/import/parse', formData),
+  importConfirm:   (data)          => api.post('/checks/import/confirm', data),
 };
 
 // System API (系統用戶管理)
