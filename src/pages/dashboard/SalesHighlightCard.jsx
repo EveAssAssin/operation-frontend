@@ -59,9 +59,10 @@ function KpiRow({ kpi }) {
 export default function SalesHighlightCard({ loading, success, data }) {
   const [collapsed, setCollapsed] = useState(false); // 業績卡預設展開（最重要）
 
-  const kpis      = data?.kpis      || [];
-  const sameStore = data?.same_store || null;
-  const period    = data?.period     || '';
+  const kpis      = data?.kpis        || [];
+  const sameStore = data?.same_store  || null;
+  const period    = data?.period      || '';
+  const dataAsOf  = data?.data_as_of  || null;
 
   // 主 KPI：total_revenue
   const mainKpi = kpis.find(k => k.key === 'total_revenue') || kpis[0];
@@ -99,10 +100,13 @@ export default function SalesHighlightCard({ loading, success, data }) {
         <div style={{ fontSize: 20 }}>📊</div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 700, fontSize: 15, color: '#1a202c' }}>業績摘要</span>
             {period && (
               <span style={{ fontSize: 12, color: '#9a8878' }}>{period}</span>
+            )}
+            {dataAsOf && (
+              <span style={{ fontSize: 11, color: '#b0a090' }}>資料至 {dataAsOf}</span>
             )}
           </div>
 
