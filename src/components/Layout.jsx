@@ -35,6 +35,12 @@ const NAV_ITEMS = [
     icon:  '📊',
     minRole: 'operation_staff',
   },
+  {
+    path:  '/checks',
+    label: '支票紀錄',
+    icon:  '🏦',
+    minRole: 'operation_staff',
+  },
 ];
 
 // 角色中文標籤

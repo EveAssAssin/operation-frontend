@@ -155,6 +155,28 @@ export const vendorApi = {
   submitBill:   (id) => vendorApi_base.post(`/bills/${id}/submit`),
 };
 
+// Checks API（支票紀錄系統）
+export const checksApi = {
+  // 批次
+  getBatches:   (params = {}) => api.get('/checks/batches', { params }),
+  getBatch:     (id) => api.get(`/checks/batches/${id}`),
+  createBatch:  (data) => api.post('/checks/batches', data),
+  updateBatch:  (id, data) => api.patch(`/checks/batches/${id}`, data),
+  // 個別支票
+  updateCheck:  (id, data) => api.patch(`/checks/${id}`, data),
+  payCheck:     (id) => api.post(`/checks/${id}/pay`),
+  voidCheck:    (id, reason) => api.post(`/checks/${id}/void`, { void_reason: reason }),
+  // 到期查詢
+  getDue:       (date) => api.get('/checks/due', { params: date ? { date } : {} }),
+  getUpcoming:  (days = 7) => api.get('/checks/upcoming', { params: { days } }),
+  // 通知名單
+  getTargets:   () => api.get('/checks/notify-targets'),
+  createTarget: (data) => api.post('/checks/notify-targets', data),
+  updateTarget: (id, data) => api.patch(`/checks/notify-targets/${id}`, data),
+  deleteTarget: (id) => api.delete(`/checks/notify-targets/${id}`),
+  testNotify:   () => api.post('/checks/notify-targets/test'),
+};
+
 // System API (系統用戶管理)
 export const systemApi = {
   getEmployees:   (params = {}) => api.get('/system/employees', { params }),

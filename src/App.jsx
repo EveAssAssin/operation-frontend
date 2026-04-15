@@ -11,6 +11,7 @@ import PersonnelPage from './pages/personnel/PersonnelPage';
 import BillingPage       from './pages/billing/BillingPage';
 import BillingV2Page     from './pages/billing/BillingV2Page';
 import BillingReportPage from './pages/billing/BillingReportPage';
+import ChecksPage        from './pages/checks/ChecksPage';
 
 // 廠商後台
 import VendorLoginPage  from './pages/vendor/VendorLoginPage';
@@ -61,6 +62,7 @@ function AppRoutes() {
       <Route path="/billing"        element={<PrivateRoute><BillingPage /></PrivateRoute>} />
       <Route path="/billing-v2"     element={<PrivateRoute><BillingV2Page /></PrivateRoute>} />
       <Route path="/billing-report" element={<PrivateRoute><BillingReportPage /></PrivateRoute>} />
+      <Route path="/checks"         element={<PrivateRoute><ChecksPage /></PrivateRoute>} />
 
       {/* 廠商後台（獨立 JWT，獨立 Layout） */}
       <Route path="/vendor/login" element={vendor ? <Navigate to="/vendor/bills" replace /> : <VendorLoginPage />} />
