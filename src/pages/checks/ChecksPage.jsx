@@ -3,7 +3,7 @@
 // 品牌色：#50422d / #8b6f4e / #cdbea2 / #ffffff
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { checksApi } from '../../services/api';
+import { checksApi, personnelApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 // ── 品牌色 ───────────────────────────────────────────────────
@@ -493,11 +493,92 @@ function BatchesPanel({ user }) {
 // ════════════════════════════════════════════════════════════
 // Tab 3：通知設定
 // ════════════════════════════════════════════════════════════
+// ── 人員快搜元件 ─────────────────────────────────────────────
+function EmployeePicker({ onSelect }) {
+  const [keyword, setKeyword]   = useState('');
+  const [results, setResults]   = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [open, setOpen]         = useState(false);
+  const timer = useRef(null);
+
+  function handleChange(e) {
+    const v = e.target.value;
+    setKeyword(v);
+    setOpen(true);
+    clearTimeout(timer.current);
+    if (!v.trim()) { setResults([]); return; }
+    timer.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await personnelApi.getEmployees({ keyword: v, limit: 20 });
+        setResults(res.data?.employees || []);
+      } catch { setResults([]); }
+      finally { setSearching(false); }
+    }, 300);
+  }
+
+  function handleSelect(emp) {
+    onSelect({ name: emp.name, app_number: emp.app_number });
+    setKeyword(emp.name);
+    setOpen(false);
+    setResults([]);
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <label style={labelStyle}>搜尋人員 *</label>
+      <input
+        value={keyword}
+        onChange={handleChange}
+        onFocus={() => keyword && setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        style={inputStyle}
+        placeholder="輸入姓名搜尋..."
+        autoComplete="off"
+      />
+      {open && (results.length > 0 || searching) && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+          background: '#fff', border: `1px solid ${C.border}`,
+          borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+          maxHeight: 220, overflowY: 'auto',
+        }}>
+          {searching && (
+            <div style={{ padding: '10px 14px', color: C.textLight, fontSize: 13 }}>搜尋中...</div>
+          )}
+          {results.map(emp => (
+            <div
+              key={emp.id}
+              onMouseDown={() => handleSelect(emp)}
+              style={{
+                padding: '10px 14px', cursor: 'pointer', fontSize: 13,
+                borderTop: `1px solid ${C.border}`,
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#faf7f4'}
+              onMouseLeave={e => e.currentTarget.style.background = ''}
+            >
+              <div style={{ fontWeight: 600, color: C.textDark }}>{emp.name}</div>
+              <div style={{ color: C.textLight, fontSize: 11 }}>
+                {emp.jobtitle} · {emp.store_name} · {emp.app_number}
+              </div>
+            </div>
+          ))}
+          {!searching && results.length === 0 && keyword && (
+            <div style={{ padding: '10px 14px', color: C.textLight, fontSize: 13 }}>找不到符合的人員</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NotifyPanel({ user }) {
-  const [targets, setTargets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: '', app_number: '', notes: '' });
+  const [targets, setTargets]   = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [showAdd, setShowAdd]   = useState(false);
+  const [selected, setSelected] = useState(null);  // { name, app_number }
+  const [notes, setNotes]       = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -525,11 +606,12 @@ function NotifyPanel({ user }) {
 
   async function handleAdd(e) {
     e.preventDefault();
-    if (!form.name || !form.app_number) return alert('請填寫姓名與員工編號');
+    if (!selected?.app_number) return alert('請先選擇人員');
     try {
-      await checksApi.createTarget(form);
+      await checksApi.createTarget({ ...selected, notes });
       setShowAdd(false);
-      setForm({ name: '', app_number: '', notes: '' });
+      setSelected(null);
+      setNotes('');
       load();
     } catch(e) { alert(e.message || '操作失敗'); }
   }
@@ -544,20 +626,24 @@ function NotifyPanel({ user }) {
 
   return (
     <div style={{ maxWidth: 600 }}>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <div style={{ flex: 1, color: C.textMid, fontSize: 13, lineHeight: 1.6 }}>
-          每天早上 10:00，系統會自動推播當日應付票據提醒給以下人員（透過 LINE）
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={handleTest} style={{ ...btnStyle, background: C.mid }}>
-            🧪 測試推播
+      {/* 說明列 */}
+      <div style={{
+        background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10,
+        padding: '14px 18px', marginBottom: 16, fontSize: 13, color: C.textMid, lineHeight: 1.7,
+      }}>
+        📱 每天早上 <strong>10:00</strong>，透過<strong>工單系統 LINE Bot</strong> 推播出款提醒給以下人員。<br />
+        格式：「有 XX 戶名，NT$XXX 要出款」，逾期未出款也會一併列出。
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}>
+        <button onClick={handleTest} style={{ ...btnStyle, background: C.mid }}>
+          🧪 測試推播
+        </button>
+        {canManage(user?.role) && (
+          <button onClick={() => setShowAdd(!showAdd)} style={{ ...btnStyle, background: C.dark }}>
+            ＋ 新增通知對象
           </button>
-          {canManage(user?.role) && (
-            <button onClick={() => setShowAdd(!showAdd)} style={{ ...btnStyle, background: C.dark }}>
-              ＋ 新增
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {showAdd && (
@@ -566,25 +652,32 @@ function NotifyPanel({ user }) {
           borderRadius: 10, padding: 20, marginBottom: 16,
         }}>
           <div style={{ fontWeight: 700, color: C.textDark, marginBottom: 14 }}>新增通知對象</div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 140 }}>
-              <label style={labelStyle}>姓名</label>
-              <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                style={inputStyle} placeholder="e.g. 王小明" required />
+          <EmployeePicker onSelect={emp => setSelected(emp)} />
+
+          {/* 選定後顯示確認卡片 */}
+          {selected && (
+            <div style={{
+              marginTop: 10, padding: '10px 14px',
+              background: '#faf5ee', border: `1px solid ${C.mid}`,
+              borderRadius: 8, fontSize: 13, color: C.textDark,
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}>
+              <span style={{ fontSize: 18 }}>✓</span>
+              <div>
+                <div style={{ fontWeight: 700 }}>{selected.name}</div>
+                <div style={{ color: C.textLight, fontSize: 11 }}>app_number：{selected.app_number}</div>
+              </div>
             </div>
-            <div style={{ flex: 1, minWidth: 140 }}>
-              <label style={labelStyle}>員工編號（app_number）</label>
-              <input value={form.app_number} onChange={e => setForm(p => ({ ...p, app_number: e.target.value }))}
-                style={inputStyle} placeholder="e.g. A001" required />
-            </div>
-          </div>
-          <div style={{ marginTop: 10 }}>
+          )}
+
+          <div style={{ marginTop: 12 }}>
             <label style={labelStyle}>備註（選填）</label>
-            <input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+            <input value={notes} onChange={e => setNotes(e.target.value)}
               style={inputStyle} placeholder="選填" />
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
-            <button type="button" onClick={() => setShowAdd(false)} style={{ ...btnStyle, background: '#e2e8f0', color: C.textDark }}>取消</button>
+            <button type="button" onClick={() => { setShowAdd(false); setSelected(null); setNotes(''); }}
+              style={{ ...btnStyle, background: '#e2e8f0', color: C.textDark }}>取消</button>
             <button type="submit" style={{ ...btnStyle, background: C.dark }}>新增</button>
           </div>
         </form>
@@ -601,7 +694,9 @@ function NotifyPanel({ user }) {
             }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, color: C.textDark }}>{t.name}</div>
-                <div style={{ color: C.textLight, fontSize: 12 }}>{t.app_number}</div>
+                <div style={{ color: C.textLight, fontSize: 12 }}>
+                  📱 工單系統 LINE Bot · {t.app_number}
+                </div>
                 {t.notes && <div style={{ color: C.textLight, fontSize: 12 }}>{t.notes}</div>}
               </div>
               <span style={{
