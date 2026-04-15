@@ -8,8 +8,9 @@ import Layout from './components/Layout';
 import LoginPage from './pages/auth/LoginPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import PersonnelPage from './pages/personnel/PersonnelPage';
-import BillingPage   from './pages/billing/BillingPage';
-import BillingV2Page from './pages/billing/BillingV2Page';
+import BillingPage       from './pages/billing/BillingPage';
+import BillingV2Page     from './pages/billing/BillingV2Page';
+import BillingReportPage from './pages/billing/BillingReportPage';
 
 // 廠商後台
 import VendorLoginPage  from './pages/vendor/VendorLoginPage';
@@ -57,8 +58,9 @@ function AppRoutes() {
       {/* 主應用（需登入，套 Layout） */}
       <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
       <Route path="/personnel" element={<PrivateRoute><PersonnelPage /></PrivateRoute>} />
-      <Route path="/billing"    element={<PrivateRoute><BillingPage /></PrivateRoute>} />
-      <Route path="/billing-v2" element={<PrivateRoute><BillingV2Page /></PrivateRoute>} />
+      <Route path="/billing"        element={<PrivateRoute><BillingPage /></PrivateRoute>} />
+      <Route path="/billing-v2"     element={<PrivateRoute><BillingV2Page /></PrivateRoute>} />
+      <Route path="/billing-report" element={<PrivateRoute><BillingReportPage /></PrivateRoute>} />
 
       {/* 廠商後台（獨立 JWT，獨立 Layout） */}
       <Route path="/vendor/login" element={vendor ? <Navigate to="/vendor/bills" replace /> : <VendorLoginPage />} />

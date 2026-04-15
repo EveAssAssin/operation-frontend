@@ -5,6 +5,249 @@ import { useState, useEffect, useCallback } from 'react';
 import { billingV2Api, personnelApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
+// ── 廠商帳號管理面板 ──────────────────────────────────────────
+function VendorAccountsPanel({ sources }) {
+  const [accounts, setAccounts]   = useState([]);
+  const [loading, setLoading]     = useState(false);
+  const [showForm, setShowForm]   = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [error, setError]         = useState('');
+  const [msg, setMsg]             = useState('');
+  const [resetPwdId, setResetPwdId] = useState(null);
+  const [newPwd, setNewPwd]       = useState('');
+  const [form, setForm] = useState({
+    source_id: '',
+    username: '',
+    password: '',
+    notes: '',
+  });
+
+  const vendorSources = sources.filter(s => s.source_type === 'vendor');
+
+  const loadAccounts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await billingV2Api.getVendorAccounts();
+      if (res.success) setAccounts(res.data);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadAccounts(); }, [loadAccounts]);
+
+  const handleCreate = async () => {
+    setError('');
+    if (!form.source_id || !form.username || !form.password) {
+      setError('請填寫：廠商來源、帳號名稱、初始密碼');
+      return;
+    }
+    if (form.password.length < 6) { setError('密碼至少 6 個字元'); return; }
+    setSaving(true);
+    try {
+      const res = await billingV2Api.createVendorAccount(form);
+      if (res.success) {
+        setMsg('✓ 帳號建立成功');
+        setShowForm(false);
+        setForm({ source_id: '', username: '', password: '', notes: '' });
+        loadAccounts();
+      } else setError(res.message);
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  };
+
+  const toggleActive = async (account) => {
+    try {
+      const res = await billingV2Api.updateVendorAccount(account.id, { is_active: !account.is_active });
+      if (res.success) {
+        setMsg(`✓ 帳號已${!account.is_active ? '啟用' : '停用'}`);
+        loadAccounts();
+      }
+    } catch (err) { setMsg(`✗ ${err.message}`); }
+  };
+
+  const handleResetPwd = async (id) => {
+    if (!newPwd || newPwd.length < 6) { alert('密碼至少 6 個字元'); return; }
+    try {
+      const res = await billingV2Api.updateVendorAccount(id, { password: newPwd });
+      if (res.success) {
+        setMsg('✓ 密碼已重設');
+        setResetPwdId(null);
+        setNewPwd('');
+      }
+    } catch (err) { setMsg(`✗ ${err.message}`); }
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>廠商帳號管理</h3>
+        <button onClick={() => { setShowForm(!showForm); setError(''); }} style={primaryBtn}>
+          {showForm ? '取消' : '＋ 新增帳號'}
+        </button>
+      </div>
+
+      {msg && (
+        <div style={msg.startsWith('✓') ? successBox : errorBox}>{msg}
+          <button onClick={() => setMsg('')}
+            style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13 }}>✕</button>
+        </div>
+      )}
+
+      {showForm && (
+        <div style={{ background: '#f7fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+          {error && <div style={errorBox}>{error}</div>}
+          {vendorSources.length === 0 ? (
+            <div style={{ color: '#718096', fontSize: 13 }}>
+              ⚠️ 目前沒有「廠商費用」類型的來源單位，請先在「來源單位」分頁建立廠商。
+            </div>
+          ) : (
+            <>
+              <div style={formGrid}>
+                <div style={formField}>
+                  <label style={labelStyle}>廠商來源 *</label>
+                  <select style={selectStyle} value={form.source_id}
+                    onChange={e => setForm(f => ({ ...f, source_id: e.target.value }))}>
+                    <option value="">— 選擇廠商 —</option>
+                    {vendorSources.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={formField}>
+                  <label style={labelStyle}>帳號名稱 *</label>
+                  <input style={inputStyle} value={form.username} placeholder="如：vendor_abc"
+                    onChange={e => setForm(f => ({ ...f, username: e.target.value }))} />
+                </div>
+                <div style={formField}>
+                  <label style={labelStyle}>初始密碼 * （至少6字元）</label>
+                  <input type="password" style={inputStyle} value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+                </div>
+                <div style={formField}>
+                  <label style={labelStyle}>備註</label>
+                  <input style={inputStyle} value={form.notes} placeholder="如：ABC廠商聯絡人帳號"
+                    onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                <button onClick={() => setShowForm(false)} style={cancelBtn}>取消</button>
+                <button onClick={handleCreate} disabled={saving} style={primaryBtn}>
+                  {saving ? '建立中…' : '建立帳號'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ padding: 32, textAlign: 'center', color: '#718096' }}>載入中…</div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: '#f7fafc' }}>
+              <th style={th}>帳號</th>
+              <th style={th}>對應廠商</th>
+              <th style={th}>狀態</th>
+              <th style={th}>最後登入</th>
+              <th style={th}>備註</th>
+              <th style={th}>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {accounts.map(acc => (
+              <>
+                <tr key={acc.id} style={trHover}>
+                  <td style={{ ...td, fontWeight: 600 }}>{acc.username}</td>
+                  <td style={td}>
+                    <span style={{
+                      display: 'inline-block', fontSize: 11, padding: '2px 8px',
+                      borderRadius: 99, background: '#f0e6ff', color: '#6b46c1',
+                      border: '1px solid #d6bcfa', fontWeight: 600,
+                    }}>
+                      {acc.billing_sources?.name || '—'}
+                    </span>
+                  </td>
+                  <td style={td}>
+                    <span style={{
+                      fontSize: 12, fontWeight: 600,
+                      color: acc.is_active ? '#38a169' : '#e53e3e',
+                    }}>
+                      {acc.is_active ? '✓ 啟用中' : '✗ 已停用'}
+                    </span>
+                  </td>
+                  <td style={{ ...td, color: '#718096' }}>
+                    {acc.last_login_at
+                      ? new Date(acc.last_login_at).toLocaleString('zh-TW', { dateStyle: 'short', timeStyle: 'short' })
+                      : '從未登入'}
+                  </td>
+                  <td style={{ ...td, color: '#718096' }}>{acc.notes || '—'}</td>
+                  <td style={td}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => toggleActive(acc)}
+                        style={{
+                          ...smallBtn,
+                          background: acc.is_active ? '#fff5f5' : '#f0fff4',
+                          color:      acc.is_active ? '#c53030' : '#276749',
+                          border:     acc.is_active ? '1px solid #fed7d7' : '1px solid #c6f6d5',
+                        }}>
+                        {acc.is_active ? '停用' : '啟用'}
+                      </button>
+                      <button
+                        onClick={() => { setResetPwdId(acc.id); setNewPwd(''); }}
+                        style={{ ...smallBtn, background: '#ebf8ff', color: '#2b6cb0', border: '1px solid #bee3f8' }}>
+                        重設密碼
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                {resetPwdId === acc.id && (
+                  <tr key={`${acc.id}-pwd`} style={{ background: '#fffaf0' }}>
+                    <td colSpan={6} style={{ padding: '8px 12px' }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span style={{ fontSize: 12, color: '#718096' }}>
+                          為 <strong>{acc.username}</strong> 設定新密碼：
+                        </span>
+                        <input
+                          type="password"
+                          style={{ ...inputStyle, width: 200 }}
+                          placeholder="新密碼（至少6字元）"
+                          value={newPwd}
+                          onChange={e => setNewPwd(e.target.value)}
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => handleResetPwd(acc.id)}
+                          style={{ ...primaryBtn, background: '#d69e2e' }}>
+                          確認重設
+                        </button>
+                        <button
+                          onClick={() => setResetPwdId(null)}
+                          style={cancelBtn}>
+                          取消
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </>
+            ))}
+            {accounts.length === 0 && (
+              <tr>
+                <td colSpan={6} style={{ ...td, textAlign: 'center', color: '#a0aec0', padding: 32 }}>
+                  尚無廠商帳號
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 // ── 工具函式 ──────────────────────────────────────────────────
 const ROLES_LEVEL = { operation_staff: 1, operation_lead: 2, dept_head: 3, super_admin: 4 };
 const canConfirm  = (role) => (ROLES_LEVEL[role] || 0) >= 2;
@@ -764,7 +1007,8 @@ export default function BillingV2Page() {
 
   const TABS = [
     { key: 'bills',   label: '帳單列表' },
-    { key: 'sources', label: '來源單位', hidden: !canManage(user?.role) },
+    { key: 'sources', label: '來源單位',   hidden: !canManage(user?.role) },
+    { key: 'vendors', label: '廠商帳號管理', hidden: !canManage(user?.role) },
   ].filter(t => !t.hidden);
 
   return (
@@ -890,6 +1134,11 @@ export default function BillingV2Page() {
       {/* 來源單位管理 */}
       {tab === 'sources' && (
         <SourcePanel sources={sources} onRefresh={refreshSources} />
+      )}
+
+      {/* 廠商帳號管理 */}
+      {tab === 'vendors' && (
+        <VendorAccountsPanel sources={sources} />
       )}
 
       {/* 帳單詳情 Modal */}

@@ -110,6 +110,10 @@ export const billingV2Api = {
     api.post(`/billing-v2/bills/${id}/void`, { void_reason: reason }),
   // 月報
   getReport:        (period) => api.get(`/billing-v2/report/${period}`),
+  // 廠商帳號管理（後台用）
+  getVendorAccounts: (params = {}) => api.get('/billing-v2/vendors', { params }),
+  createVendorAccount: (data) => api.post('/billing-v2/vendors', data),
+  updateVendorAccount: (id, data) => api.patch(`/billing-v2/vendors/${id}`, data),
 };
 
 // Vendor API（廠商後台，獨立 JWT）

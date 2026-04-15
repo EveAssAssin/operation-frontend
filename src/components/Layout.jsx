@@ -29,6 +29,12 @@ const NAV_ITEMS = [
     icon:  '🧾',
     minRole: 'operation_staff',
   },
+  {
+    path:  '/billing-report',
+    label: '帳單月報',
+    icon:  '📊',
+    minRole: 'operation_staff',
+  },
 ];
 
 // 角色中文標籤
