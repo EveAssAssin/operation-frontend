@@ -193,6 +193,9 @@ export const checksApi = {
   bulkPayPast:     ()              => api.post('/checks/bulk-pay-past'),
   // 科目合併
   mergeSubjects:   (keepId, mergeIds) => api.post('/checks/subjects/merge', { keep_id: keepId, merge_ids: mergeIds }),
+  // 續票提醒
+  getRenewalReminders: ()   => api.get('/checks/renewal-reminders'),
+  resolveRenewal:      (id) => api.patch(`/checks/batches/${id}`, { renewal_needed: false }),
 };
 
 // System API (系統用戶管理)

@@ -95,19 +95,22 @@ export default function ChecksPage() {
 // Tab 1：今日出款清單
 // ════════════════════════════════════════════════════════════
 function TodayPanel() {
-  const [data, setData]       = useState(null);
-  const [upcoming, setUpcoming] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [data, setData]               = useState(null);
+  const [upcoming, setUpcoming]       = useState([]);
+  const [renewals, setRenewals]       = useState([]);
+  const [loading, setLoading]         = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [t, u] = await Promise.all([
+      const [t, u, r] = await Promise.all([
         checksApi.getToday(),
         checksApi.getUpcoming(7),
+        checksApi.getRenewalReminders(),
       ]);
       setData(t.data);
       setUpcoming(u.data || []);
+      setRenewals(r.data || []);
     } catch (e) {
       console.error(e);
     } finally { setLoading(false); }
@@ -119,6 +122,14 @@ function TodayPanel() {
     if (!window.confirm('確定標記此張支票為「已出款」？')) return;
     try {
       await checksApi.payCheck(checkId);
+      load();
+    } catch (e) { alert(e.message || '操作失敗'); }
+  }
+
+  async function handleResolveRenewal(batchId, batchNo) {
+    if (!window.confirm(`確定銷除「${batchNo || '此批次'}」的續票提醒？\n（請確認已完成續票後再銷除）`)) return;
+    try {
+      await checksApi.resolveRenewal(batchId);
       load();
     } catch (e) { alert(e.message || '操作失敗'); }
   }
@@ -229,6 +240,121 @@ function TodayPanel() {
             </div>
           );
         })
+      )}
+
+      {/* ── 續票提醒 ── */}
+      {renewals.length > 0 && (
+        <div style={{ margin: '28px 0 4px' }}>
+          {/* 標題 */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            marginBottom: 14,
+          }}>
+            <span style={{ fontSize: 18 }}>🔄</span>
+            <span style={{ fontWeight: 700, color: '#c53030', fontSize: 15 }}>
+              續票提醒
+            </span>
+            <span style={{
+              background: '#c53030', color: '#fff',
+              fontSize: 11, fontWeight: 700,
+              padding: '1px 9px', borderRadius: 999,
+            }}>{renewals.length}</span>
+            <span style={{ color: '#9a8878', fontSize: 12 }}>
+              — 以下批次需要辦理續票，完成後請點「已續票，銷除提醒」
+            </span>
+          </div>
+
+          {/* 各筆續票卡片 */}
+          {renewals.map(b => {
+            const pending  = (b.checks || []).filter(c => c.status === 'pending').length;
+            const total    = (b.checks || []).length;
+            const paid     = (b.checks || []).filter(c => c.status === 'paid').length;
+            const remAmt   = (b.checks || [])
+              .filter(c => c.status === 'pending')
+              .reduce((s, c) => s + (parseFloat(c.amount) || 0), 0);
+            // 最後一張到期日
+            const lastDue  = (b.checks || [])
+              .map(c => c.due_date)
+              .sort()
+              .slice(-1)[0];
+
+            return (
+              <div key={b.id} style={{
+                background: '#fff8f0',
+                border: '2px solid #f56565',
+                borderLeft: '5px solid #c53030',
+                borderRadius: 12,
+                padding: '16px 20px',
+                marginBottom: 14,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                boxShadow: '0 2px 8px rgba(197,48,48,0.08)',
+              }}>
+                {/* 左側：圖示 */}
+                <div style={{
+                  fontSize: 32, lineHeight: 1,
+                  flexShrink: 0,
+                }}>🔄</div>
+
+                {/* 中段：資訊 */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontWeight: 700, color: '#c53030', fontSize: 16,
+                    marginBottom: 4,
+                  }}>
+                    {b.subject?.name || '未指定科目'}
+                    {b.batch_no && (
+                      <span style={{
+                        marginLeft: 8, fontSize: 12, fontWeight: 400,
+                        color: '#9a8878',
+                      }}>#{b.batch_no}</span>
+                    )}
+                  </div>
+                  <div style={{ color: '#3a2e1e', fontSize: 13, marginBottom: 4 }}>
+                    出款人：<strong>{b.drawer_name}</strong>
+                    {b.bank_name && (
+                      <span style={{ color: '#9a8878', marginLeft: 8 }}>· {b.bank_name}</span>
+                    )}
+                  </div>
+                  <div style={{
+                    display: 'flex', flexWrap: 'wrap', gap: '4px 16px',
+                    fontSize: 12, color: '#6b5640',
+                  }}>
+                    <span>共 {total} 張｜已出款 {paid} 張｜待出款 {pending} 張</span>
+                    {remAmt > 0 && (
+                      <span style={{ color: '#c53030', fontWeight: 600 }}>
+                        尚餘 {fmtAmt(remAmt)}
+                      </span>
+                    )}
+                    {lastDue && (
+                      <span>最後到期日：{lastDue}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 右側：按鈕 */}
+                <button
+                  onClick={() => handleResolveRenewal(b.id, b.batch_no)}
+                  style={{
+                    flexShrink: 0,
+                    padding: '10px 18px',
+                    background: '#c53030', color: '#fff',
+                    border: 'none', borderRadius: 8,
+                    cursor: 'pointer', fontSize: 13,
+                    fontWeight: 700, whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 6px rgba(197,48,48,0.25)',
+                    transition: 'opacity 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                >
+                  ✓ 已續票，銷除提醒
+                </button>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {/* 近 7 天預告 */}
