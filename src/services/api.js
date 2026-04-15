@@ -189,6 +189,8 @@ export const checksApi = {
   deleteBatch:     (id)            => api.delete(`/checks/batches/${id}`),
   clearAll:        ()              => api.post('/checks/clear-all'),
   bulkPayPast:     ()              => api.post('/checks/bulk-pay-past'),
+  // 科目合併
+  mergeSubjects:   (keepId, mergeIds) => api.post('/checks/subjects/merge', { keep_id: keepId, merge_ids: mergeIds }),
 };
 
 // System API (系統用戶管理)
