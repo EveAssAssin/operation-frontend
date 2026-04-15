@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { checksApi, dashboardApi } from '../../services/api';
+import SalesHighlightCard        from './SalesHighlightCard';
 import TrainingHighlightCard     from './TrainingHighlightCard';
 import EngineeringHighlightCard  from './EngineeringHighlightCard';
 
@@ -138,8 +139,9 @@ export default function DashboardPage() {
   });
 
   // 各模組的資料（從聚合結果取出）
-  const trainingResult     = highlights.data?.training;
+  const salesResult        = highlights.data?.sales;
   const engineeringResult  = highlights.data?.engineering;
+  const trainingResult     = highlights.data?.training;
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: '860px', fontFamily: 'system-ui, sans-serif' }}>
@@ -159,6 +161,13 @@ export default function DashboardPage() {
         <SectionTitle>📌 今日重點</SectionTitle>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* 業績摘要（最重要，第一張）*/}
+          <SalesHighlightCard
+            loading={highlights.loading}
+            success={salesResult?.success ?? false}
+            data={salesResult?.data ?? null}
+          />
 
           {/* 支票出款 */}
           <ChecksHighlightCard
