@@ -875,86 +875,77 @@ function MergeSubjectsModal({ subjects, onClose, onSaved }) {
   const keepName = subjects.find(s => s.id === keepId)?.name || '';
 
   return (
-    <div style={overlayStyle}>
-      <div style={{ ...modalStyle, maxWidth: 500 }}>
-        <div style={modalHeader}>
-          <span>🔀 合併科目</span>
-          <button onClick={onClose} style={closeBtn}>✕</button>
-        </div>
-        <div style={{ padding: '20px 24px' }}>
+    <Modal title="🔀 合併科目" onClose={onClose} width={500}>
+      {/* Step 1：選保留科目 */}
+      <div style={{ marginBottom: 20 }}>
+        <label style={labelStyle}>① 選擇要保留的科目（主科目）</label>
+        <select value={keepId} onChange={e => handleKeepChange(e.target.value)} style={inputStyle}>
+          <option value="">— 請選擇 —</option>
+          {subjects.map(s => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+      </div>
 
-          {/* Step 1：選保留科目 */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={labelStyle}>① 選擇要保留的科目（主科目）</label>
-            <select value={keepId} onChange={e => handleKeepChange(e.target.value)} style={inputStyle}>
-              <option value="">— 請選擇 —</option>
-              {subjects.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Step 2：勾選要合併掉的 */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={labelStyle}>② 勾選要合併掉的科目（將被刪除）</label>
-            <div style={{
-              border: `1px solid ${C.border}`, borderRadius: 8,
-              maxHeight: 280, overflowY: 'auto', background: '#faf7f4',
+      {/* Step 2：勾選要合併掉的 */}
+      <div style={{ marginBottom: 20 }}>
+        <label style={labelStyle}>② 勾選要合併掉的科目（將被刪除）</label>
+        <div style={{
+          border: `1px solid ${C.border}`, borderRadius: 8,
+          maxHeight: 260, overflowY: 'auto', background: '#faf7f4',
+        }}>
+          {subjects.filter(s => s.id !== keepId).map(s => (
+            <label key={s.id} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 14px',
+              borderBottom: `1px solid ${C.border}`,
+              cursor: 'pointer',
+              background: mergeIds.includes(s.id) ? '#fff3cd' : 'transparent',
             }}>
-              {subjects.filter(s => s.id !== keepId).map(s => (
-                <label key={s.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '10px 14px',
-                  borderBottom: `1px solid ${C.border}`,
-                  cursor: 'pointer',
-                  background: mergeIds.includes(s.id) ? '#fff3cd' : 'transparent',
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={mergeIds.includes(s.id)}
-                    onChange={() => toggleMerge(s.id)}
-                    style={{ width: 16, height: 16, accentColor: C.mid }}
-                  />
-                  <span style={{ fontSize: 14, color: C.textDark }}>{s.name}</span>
-                </label>
-              ))}
-              {subjects.length <= 1 && (
-                <div style={{ padding: 16, color: C.textLight, textAlign: 'center' }}>沒有可合併的科目</div>
-              )}
-            </div>
-          </div>
-
-          {/* 預覽 */}
-          {keepId && mergeIds.length > 0 && (
-            <div style={{
-              background: '#fff8ec', border: '1px solid #e5c99a',
-              borderRadius: 8, padding: '12px 16px', marginBottom: 20, fontSize: 13,
-            }}>
-              <strong style={{ color: C.dark }}>合併預覽：</strong>
-              <div style={{ marginTop: 6, color: C.textMid }}>
-                {mergeIds.map(id => subjects.find(s => s.id === id)?.name).join('、')}
-                <span style={{ color: C.textLight }}> → 全部改為 </span>
-                <strong style={{ color: C.dark }}>「{keepName}」</strong>
-              </div>
-              <div style={{ color: '#c53030', fontSize: 12, marginTop: 6 }}>
-                ⚠ 被合併的科目將永久刪除，操作無法復原
-              </div>
-            </div>
+              <input
+                type="checkbox"
+                checked={mergeIds.includes(s.id)}
+                onChange={() => toggleMerge(s.id)}
+                style={{ width: 16, height: 16, accentColor: C.mid }}
+              />
+              <span style={{ fontSize: 14, color: C.textDark }}>{s.name}</span>
+            </label>
+          ))}
+          {subjects.length <= 1 && (
+            <div style={{ padding: 16, color: C.textLight, textAlign: 'center' }}>沒有可合併的科目</div>
           )}
-
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button onClick={onClose} style={{ ...btnStyle, background: '#e2e8f0', color: C.textDark }}>取消</button>
-            <button
-              onClick={handleSave}
-              disabled={saving || !keepId || mergeIds.length === 0}
-              style={{ ...btnStyle, background: C.dark, opacity: (saving || !keepId || mergeIds.length === 0) ? 0.5 : 1 }}
-            >
-              {saving ? '合併中...' : `✓ 確認合併（${mergeIds.length} 個）`}
-            </button>
-          </div>
         </div>
       </div>
-    </div>
+
+      {/* 預覽 */}
+      {keepId && mergeIds.length > 0 && (
+        <div style={{
+          background: '#fff8ec', border: '1px solid #e5c99a',
+          borderRadius: 8, padding: '12px 16px', marginBottom: 20, fontSize: 13,
+        }}>
+          <strong style={{ color: C.dark }}>合併預覽：</strong>
+          <div style={{ marginTop: 6, color: C.textMid }}>
+            {mergeIds.map(id => subjects.find(s => s.id === id)?.name).join('、')}
+            <span style={{ color: C.textLight }}> → 全部改為 </span>
+            <strong style={{ color: C.dark }}>「{keepName}」</strong>
+          </div>
+          <div style={{ color: '#c53030', fontSize: 12, marginTop: 6 }}>
+            ⚠ 被合併的科目將永久刪除，操作無法復原
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+        <button onClick={onClose} style={{ ...btnStyle, background: '#e2e8f0', color: C.textDark }}>取消</button>
+        <button
+          onClick={handleSave}
+          disabled={saving || !keepId || mergeIds.length === 0}
+          style={{ ...btnStyle, background: C.dark, opacity: (saving || !keepId || mergeIds.length === 0) ? 0.5 : 1 }}
+        >
+          {saving ? '合併中...' : `✓ 確認合併（${mergeIds.length} 個）`}
+        </button>
+      </div>
+    </Modal>
   );
 }
 
