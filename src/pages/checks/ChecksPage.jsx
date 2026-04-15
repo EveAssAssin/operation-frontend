@@ -281,6 +281,7 @@ function BatchesPanel({ user }) {
   const [showImport, setShowImport] = useState(false);
   const [editingBatch, setEditingBatch] = useState(null); // batch object to edit
   const [showMerge, setShowMerge] = useState(false);
+  const [showSubjects, setShowSubjects] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -398,6 +399,9 @@ function BatchesPanel({ user }) {
           <>
             <button onClick={handleBulkPayPast} style={{ ...btnStyle, background: '#8b6f4e' }} title="將今天以前的所有待出款票一鍵標記為已付款">
               ✅ 補標已出款
+            </button>
+            <button onClick={() => setShowSubjects(true)} style={{ ...btnStyle, background: C.mid }}>
+              ⚙️ 科目管理
             </button>
             <button onClick={() => setShowMerge(true)} style={{ ...btnStyle, background: C.mid }}>
               🔀 合併科目
@@ -600,6 +604,14 @@ function BatchesPanel({ user }) {
           subjects={subjects}
           onClose={() => setShowMerge(false)}
           onSaved={() => { setShowMerge(false); load(); }}
+        />
+      )}
+
+      {showSubjects && (
+        <SubjectsModal
+          subjects={subjects}
+          onClose={() => setShowSubjects(false)}
+          onSaved={() => load()}
         />
       )}
     </div>
@@ -834,6 +846,119 @@ function NotifyPanel({ user }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// 科目管理 Modal（新增 / 改名）
+// ════════════════════════════════════════════════════════════
+function SubjectsModal({ subjects: initSubjects, onClose, onSaved }) {
+  const [list,       setList]       = useState(initSubjects);
+  const [editingId,  setEditingId]  = useState(null);   // 正在改名的 id
+  const [editName,   setEditName]   = useState('');
+  const [newName,    setNewName]    = useState('');
+  const [saving,     setSaving]     = useState(false);
+
+  async function handleRename(id) {
+    if (!editName.trim()) return;
+    setSaving(true);
+    try {
+      const res = await checksApi.updateSubject(id, { name: editName.trim() });
+      setList(prev => prev.map(s => s.id === id ? { ...s, name: res.data.name } : s));
+      setEditingId(null);
+      onSaved();
+    } catch(e) { alert(e.message || '改名失敗'); }
+    finally { setSaving(false); }
+  }
+
+  async function handleCreate() {
+    if (!newName.trim()) return;
+    setSaving(true);
+    try {
+      const res = await checksApi.createSubject(newName.trim());
+      setList(prev => [...prev, res.data]);
+      setNewName('');
+      onSaved();
+    } catch(e) { alert(e.message || '新增失敗'); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Modal title="⚙️ 科目管理" onClose={onClose} width={480}>
+      {/* 科目清單 */}
+      <div style={{
+        border: `1px solid ${C.border}`, borderRadius: 8,
+        maxHeight: 360, overflowY: 'auto', marginBottom: 20,
+      }}>
+        {list.length === 0 && (
+          <div style={{ padding: 20, color: C.textLight, textAlign: 'center' }}>尚無科目</div>
+        )}
+        {list.map((s, i) => (
+          <div key={s.id} style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 14px',
+            borderBottom: i < list.length - 1 ? `1px solid ${C.border}` : 'none',
+            background: editingId === s.id ? '#faf5ee' : '#fff',
+          }}>
+            {editingId === s.id ? (
+              <>
+                <input
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleRename(s.id); if (e.key === 'Escape') setEditingId(null); }}
+                  style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+                  autoFocus
+                />
+                <button
+                  onClick={() => handleRename(s.id)}
+                  disabled={saving}
+                  style={{ ...btnStyle, background: C.dark, padding: '5px 12px', fontSize: 12 }}
+                >儲存</button>
+                <button
+                  onClick={() => setEditingId(null)}
+                  style={{ ...btnStyle, background: '#e2e8f0', color: C.textDark, padding: '5px 10px', fontSize: 12 }}
+                >取消</button>
+              </>
+            ) : (
+              <>
+                <span style={{ flex: 1, fontSize: 14, color: C.textDark }}>{s.name}</span>
+                <button
+                  onClick={() => { setEditingId(s.id); setEditName(s.name); }}
+                  style={{
+                    background: 'none', border: `1px solid ${C.border}`,
+                    borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
+                    color: C.textMid, fontSize: 12,
+                  }}
+                >✏️ 改名</button>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* 新增科目 */}
+      <div style={{ marginBottom: 8 }}>
+        <label style={labelStyle}>新增科目</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
+            placeholder="輸入科目名稱"
+            style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+          />
+          <button
+            onClick={handleCreate}
+            disabled={saving || !newName.trim()}
+            style={{ ...btnStyle, background: C.dark, opacity: (!newName.trim() || saving) ? 0.5 : 1, whiteSpace: 'nowrap' }}
+          >＋ 新增</button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+        <button onClick={onClose} style={{ ...btnStyle, background: '#e2e8f0', color: C.textDark }}>關閉</button>
+      </div>
+    </Modal>
   );
 }
 
