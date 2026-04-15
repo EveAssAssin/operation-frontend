@@ -58,7 +58,7 @@ function SubSection({ label, color }) {
 // 主卡片
 // ════════════════════════════════════════════════════════════
 export default function TrainingHighlightCard({ loading, success, data }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   // ── 判斷緊急層級 ─────────────────────────────────────
   const sosCount    = data?.sos_active?.length      || 0;
