@@ -398,7 +398,6 @@ function BatchesPanel({ user }) {
   const [batches, setBatches]       = useState([]);
   const [subjects, setSubjects]     = useState([]);
   const [loading, setLoading]       = useState(true);
-  const [filterStatus, setFilterStatus] = useState('');
   const [filterDrawer, setFilterDrawer] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [expandedData, setExpandedData] = useState(null);
@@ -408,6 +407,7 @@ function BatchesPanel({ user }) {
   const [editingBatch, setEditingBatch] = useState(null); // batch object to edit
   const [showMerge, setShowMerge] = useState(false);
   const [showSubjects, setShowSubjects] = useState(false);
+  const [showDone, setShowDone]     = useState(false); // 已完成批次是否展開
 
   const [subjectsTree, setSubjectsTree] = useState([]); // 樹狀母分類
 
@@ -415,7 +415,7 @@ function BatchesPanel({ user }) {
     setLoading(true);
     try {
       const [b, s, st] = await Promise.all([
-        checksApi.getBatches({ status: filterStatus || undefined, drawer_name: filterDrawer || undefined }),
+        checksApi.getBatches({ drawer_name: filterDrawer || undefined }),
         checksApi.getSubjects(),
         checksApi.getSubjectsTree(),
       ]);
@@ -424,7 +424,7 @@ function BatchesPanel({ user }) {
       setSubjectsTree(st.data || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [filterStatus, filterDrawer]);
+  }, [filterDrawer]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -510,16 +510,158 @@ function BatchesPanel({ user }) {
     voided:    { bg: '#f5f5f5', text: '#888',    border: '#ddd' },
   };
 
+  // ── 依狀態分群（client-side） ──────────────────────────
+  const activeBatches = batches.filter(b => b.status === 'active');
+  const doneBatches   = batches.filter(b => b.status === 'completed' || b.status === 'voided');
+
+  // ── 單一批次列 renderer（共用）──────────────────────────
+  function BatchRow({ b }) {
+    const sc = BATCH_STATUS_COLOR[b.status] || BATCH_STATUS_COLOR.active;
+    const paidCnt    = (b.checks || []).filter(c => c.status === 'paid').length;
+    const pendingCnt = (b.checks || []).filter(c => c.status === 'pending').length;
+    const isExpanded = expandedId === b.id;
+
+    return (
+      <div style={{
+        background: '#fff', border: `1px solid ${C.border}`,
+        borderRadius: 10, overflow: 'hidden',
+      }}>
+        {/* 批次列 */}
+        <div
+          onClick={() => expandBatch(b.id)}
+          style={{
+            display: 'flex', alignItems: 'center',
+            padding: '14px 18px', cursor: 'pointer',
+            borderBottom: isExpanded ? `1px solid ${C.border}` : 'none',
+            background: isExpanded ? '#faf7f4' : '#fff',
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <span style={{ fontWeight: 700, color: C.textDark, fontSize: 15 }}>
+                {b.subject?.name || '（未分類）'}
+              </span>
+              <span style={{
+                ...badgeStyle,
+                background: sc.bg, color: sc.text, border: `1px solid ${sc.border}`,
+              }}>
+                {BATCH_STATUS_LABEL[b.status]}
+              </span>
+              {b.renewal_needed && (
+                <span style={{ ...badgeStyle, background: '#fff5f5', color: '#c53030', border: '1px solid #feb2b2' }}>
+                  需續票
+                </span>
+              )}
+            </div>
+            <div style={{ color: C.textLight, fontSize: 12, display: 'flex', gap: 14 }}>
+              <span>👤 {b.drawer_name}</span>
+              <span>🏦 {b.bank_name}</span>
+              <span>📋 {b.batch_no}</span>
+              <span>✓ {paidCnt} / {b.check_count} 張</span>
+              {pendingCnt > 0 && <span style={{ color: '#e53e3e' }}>待出款 {pendingCnt} 張</span>}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right', marginRight: 14 }}>
+            {b.total_amount && (
+              <div style={{ fontWeight: 700, color: C.dark, fontSize: 15 }}>{fmtAmt(b.total_amount)}</div>
+            )}
+            <div style={{ color: C.textLight, fontSize: 11 }}>{b.check_count} 張</div>
+          </div>
+          {canManage(user?.role) && (
+            <>
+              <button
+                onClick={e => { e.stopPropagation(); setEditingBatch(b); }}
+                title="編輯批次"
+                style={{
+                  background: 'none', border: `1px solid ${C.border}`,
+                  borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
+                  color: C.textMid, fontSize: 14, marginRight: 4,
+                }}
+              >✏️</button>
+              <button
+                onClick={e => handleDeleteBatch(e, b.id, b.batch_no)}
+                title="刪除此批次"
+                style={{
+                  background: 'none', border: '1px solid #fed7d7',
+                  borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
+                  color: '#c53030', fontSize: 14, marginRight: 8,
+                }}
+              >🗑</button>
+            </>
+          )}
+          <span style={{ color: C.light, fontSize: 18 }}>{isExpanded ? '▲' : '▼'}</span>
+        </div>
+
+        {/* 展開：個別支票列表 */}
+        {isExpanded && (
+          expandedLoading ? (
+            <div style={{ padding: 20, textAlign: 'center', color: C.textLight }}>載入中...</div>
+          ) : expandedData?.checks?.map((c, i) => {
+            const sc2 = STATUS_COLOR[c.status] || STATUS_COLOR.pending;
+            return (
+              <div key={c.id} style={{
+                display: 'flex', alignItems: 'center',
+                padding: '10px 22px 10px 32px',
+                borderTop: `1px solid ${C.border}`,
+                background: i % 2 === 0 ? '#fff' : '#faf7f4',
+              }}>
+                <div style={{ width: 28, color: C.textLight, fontSize: 12 }}>#{c.seq_no}</div>
+                <div style={{ flex: 1 }}>
+                  <span style={{ color: C.textDark, fontSize: 13, fontWeight: 500 }}>
+                    到期：{c.due_date}
+                  </span>
+                  {c.display_date && c.display_date !== c.due_date && (
+                    <span style={{ color: C.textLight, fontSize: 11, marginLeft: 8 }}>
+                      （提醒日：{c.display_date}）
+                    </span>
+                  )}
+                  {c.check_no && (
+                    <span style={{ color: C.textLight, fontSize: 11, marginLeft: 8 }}>票號：{c.check_no}</span>
+                  )}
+                </div>
+                <div style={{ fontWeight: 600, color: C.dark, width: 110, textAlign: 'right' }}>
+                  {fmtAmt(c.amount)}
+                </div>
+                <div style={{ width: 70, textAlign: 'center' }}>
+                  <span style={{
+                    ...badgeStyle,
+                    background: sc2.bg, color: sc2.text, border: `1px solid ${sc2.border}`,
+                  }}>
+                    {STATUS_LABEL[c.status]}
+                  </span>
+                </div>
+                {canManage(user?.role) && c.status === 'pending' && (
+                  <div style={{ display: 'flex', gap: 6, marginLeft: 8 }}>
+                    <button onClick={() => handlePay(c.id)} style={{
+                      ...smallBtnStyle, background: '#38a169', color: '#fff',
+                    }}>出款</button>
+                    <button onClick={() => handleVoid(c.id)} style={{
+                      ...smallBtnStyle, background: '#a0aec0', color: '#fff',
+                    }}>作廢</button>
+                  </div>
+                )}
+                {canManage(user?.role) && c.status === 'paid' && (
+                  <div style={{ display: 'flex', gap: 6, marginLeft: 8 }}>
+                    <button onClick={() => handleBounce(c.id)} style={{
+                      ...smallBtnStyle, background: '#e53e3e', color: '#fff',
+                    }}>退票</button>
+                  </div>
+                )}
+                {(c.status === 'voided' || c.status === 'bounced') && (
+                  <div style={{ width: 80, marginLeft: 8 }} />
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* 操作列 */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={selectStyle}>
-          <option value="">全部狀態</option>
-          <option value="active">進行中</option>
-          <option value="completed">已完成</option>
-          <option value="voided">已作廢</option>
-        </select>
         <select value={filterDrawer} onChange={e => setFilterDrawer(e.target.value)} style={selectStyle}>
           <option value="">全部出款人</option>
           {DRAWER_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
@@ -543,153 +685,50 @@ function BatchesPanel({ user }) {
         )}
       </div>
 
-      {loading ? <Loading /> : batches.length === 0 ? (
-        <EmptyBox text="沒有符合條件的批次" />
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {batches.map(b => {
-            const sc = BATCH_STATUS_COLOR[b.status] || BATCH_STATUS_COLOR.active;
-            const paidCnt    = (b.checks || []).filter(c => c.status === 'paid').length;
-            const pendingCnt = (b.checks || []).filter(c => c.status === 'pending').length;
-            const isExpanded = expandedId === b.id;
+      {loading ? <Loading /> : (
+        <>
+          {/* ── 進行中批次 ── */}
+          {activeBatches.length === 0 ? (
+            <EmptyBox text="目前沒有進行中的批次" />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {activeBatches.map(b => <BatchRow key={b.id} b={b} />)}
+            </div>
+          )}
 
-            return (
-              <div key={b.id} style={{
-                background: '#fff', border: `1px solid ${C.border}`,
-                borderRadius: 10, overflow: 'hidden',
-              }}>
-                {/* 批次列 */}
-                <div
-                  onClick={() => expandBatch(b.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center',
-                    padding: '14px 18px', cursor: 'pointer',
-                    borderBottom: isExpanded ? `1px solid ${C.border}` : 'none',
-                    background: isExpanded ? '#faf7f4' : '#fff',
-                  }}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                      <span style={{ fontWeight: 700, color: C.textDark, fontSize: 15 }}>
-                        {b.subject?.name || '（未分類）'}
-                      </span>
-                      <span style={{
-                        ...badgeStyle,
-                        background: sc.bg, color: sc.text, border: `1px solid ${sc.border}`,
-                      }}>
-                        {BATCH_STATUS_LABEL[b.status]}
-                      </span>
-                      {b.renewal_needed && (
-                        <span style={{ ...badgeStyle, background: '#fff5f5', color: '#c53030', border: '1px solid #feb2b2' }}>
-                          需續票
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ color: C.textLight, fontSize: 12, display: 'flex', gap: 14 }}>
-                      <span>👤 {b.drawer_name}</span>
-                      <span>🏦 {b.bank_name}</span>
-                      <span>📋 {b.batch_no}</span>
-                      <span>✓ {paidCnt} / {b.check_count} 張</span>
-                      {pendingCnt > 0 && <span style={{ color: '#e53e3e' }}>待出款 {pendingCnt} 張</span>}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', marginRight: 14 }}>
-                    {b.total_amount && (
-                      <div style={{ fontWeight: 700, color: C.dark, fontSize: 15 }}>{fmtAmt(b.total_amount)}</div>
-                    )}
-                    <div style={{ color: C.textLight, fontSize: 11 }}>{b.check_count} 張</div>
-                  </div>
-                  {canManage(user?.role) && (
-                    <>
-                      <button
-                        onClick={e => { e.stopPropagation(); setEditingBatch(b); }}
-                        title="編輯批次"
-                        style={{
-                          background: 'none', border: `1px solid ${C.border}`,
-                          borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
-                          color: C.textMid, fontSize: 14, marginRight: 4,
-                        }}
-                      >✏️</button>
-                      <button
-                        onClick={e => handleDeleteBatch(e, b.id, b.batch_no)}
-                        title="刪除此批次"
-                        style={{
-                          background: 'none', border: '1px solid #fed7d7',
-                          borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
-                          color: '#c53030', fontSize: 14, marginRight: 8,
-                        }}
-                      >🗑</button>
-                    </>
-                  )}
-                  <span style={{ color: C.light, fontSize: 18 }}>{isExpanded ? '▲' : '▼'}</span>
+          {/* ── 已完成 / 已作廢（可摺疊）── */}
+          {doneBatches.length > 0 && (
+            <div style={{ marginTop: 28 }}>
+              <button
+                onClick={() => setShowDone(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  background: 'none', border: `1px solid ${C.border}`,
+                  borderRadius: 8, padding: '10px 16px',
+                  cursor: 'pointer', width: '100%',
+                  color: C.textMid, fontSize: 13, fontWeight: 600,
+                }}
+              >
+                <span style={{ fontSize: 16 }}>{showDone ? '▲' : '▼'}</span>
+                <span>已完成 / 已作廢的批次</span>
+                <span style={{
+                  background: C.border, color: C.textMid,
+                  fontSize: 11, padding: '1px 8px', borderRadius: 999,
+                }}>{doneBatches.length} 筆</span>
+                <span style={{ flex: 1 }} />
+                <span style={{ color: C.textLight, fontSize: 12, fontWeight: 400 }}>
+                  {showDone ? '收起' : '展開查看'}
+                </span>
+              </button>
+
+              {showDone && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+                  {doneBatches.map(b => <BatchRow key={b.id} b={b} />)}
                 </div>
-
-                {/* 展開：個別支票列表 */}
-                {isExpanded && (
-                  expandedLoading ? (
-                    <div style={{ padding: 20, textAlign: 'center', color: C.textLight }}>載入中...</div>
-                  ) : expandedData?.checks?.map((c, i) => {
-                    const sc2 = STATUS_COLOR[c.status] || STATUS_COLOR.pending;
-                    return (
-                      <div key={c.id} style={{
-                        display: 'flex', alignItems: 'center',
-                        padding: '10px 22px 10px 32px',
-                        borderTop: `1px solid ${C.border}`,
-                        background: i % 2 === 0 ? '#fff' : '#faf7f4',
-                      }}>
-                        <div style={{ width: 28, color: C.textLight, fontSize: 12 }}>#{c.seq_no}</div>
-                        <div style={{ flex: 1 }}>
-                          <span style={{ color: C.textDark, fontSize: 13, fontWeight: 500 }}>
-                            到期：{c.due_date}
-                          </span>
-                          {c.display_date && c.display_date !== c.due_date && (
-                            <span style={{ color: C.textLight, fontSize: 11, marginLeft: 8 }}>
-                              （提醒日：{c.display_date}）
-                            </span>
-                          )}
-                          {c.check_no && (
-                            <span style={{ color: C.textLight, fontSize: 11, marginLeft: 8 }}>票號：{c.check_no}</span>
-                          )}
-                        </div>
-                        <div style={{ fontWeight: 600, color: C.dark, width: 110, textAlign: 'right' }}>
-                          {fmtAmt(c.amount)}
-                        </div>
-                        <div style={{ width: 70, textAlign: 'center' }}>
-                          <span style={{
-                            ...badgeStyle,
-                            background: sc2.bg, color: sc2.text, border: `1px solid ${sc2.border}`,
-                          }}>
-                            {STATUS_LABEL[c.status]}
-                          </span>
-                        </div>
-                        {canManage(user?.role) && c.status === 'pending' && (
-                          <div style={{ display: 'flex', gap: 6, marginLeft: 8 }}>
-                            <button onClick={() => handlePay(c.id)} style={{
-                              ...smallBtnStyle, background: '#38a169', color: '#fff',
-                            }}>出款</button>
-                            <button onClick={() => handleVoid(c.id)} style={{
-                              ...smallBtnStyle, background: '#a0aec0', color: '#fff',
-                            }}>作廢</button>
-                          </div>
-                        )}
-                        {canManage(user?.role) && c.status === 'paid' && (
-                          <div style={{ display: 'flex', gap: 6, marginLeft: 8 }}>
-                            <button onClick={() => handleBounce(c.id)} style={{
-                              ...smallBtnStyle, background: '#e53e3e', color: '#fff',
-                            }}>退票</button>
-                          </div>
-                        )}
-                        {(c.status === 'voided' || c.status === 'bounced') && (
-                          <div style={{ width: 80, marginLeft: 8 }} />
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            );
-          })}
-        </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {showCreate && (
