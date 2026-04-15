@@ -231,27 +231,6 @@ export default function TrainingHighlightCard({ loading, success, data }) {
             </div>
           )}
 
-          {/* 底部連結 */}
-          <div style={{
-            marginTop: 12, paddingTop: 10,
-            borderTop: '1px solid #e0d5c8',
-            paddingBottom: 12,
-          }}>
-            <a
-              href="https://lohas-lms-backend.onrender.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                fontSize: 12, color: '#8b6f4e', fontWeight: 600,
-                textDecoration: 'none',
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-              }}
-              onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
-              onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
-            >
-              前往教育訓練系統 →
-            </a>
-          </div>
         </div>
       )}
 
