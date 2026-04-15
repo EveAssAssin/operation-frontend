@@ -406,15 +406,6 @@ function BatchesPanel({ user }) {
             <button onClick={() => setShowMerge(true)} style={{ ...btnStyle, background: C.mid }}>
               🔀 合併科目
             </button>
-            <button onClick={() => setShowImport(true)} style={{ ...btnStyle, background: C.mid }}>
-              📤 匯入 Excel
-            </button>
-            <button onClick={() => setShowCreate(true)} style={{ ...btnStyle, background: C.dark }}>
-              ＋ 新增批次
-            </button>
-            <button onClick={handleClearAll} style={{ ...btnStyle, background: '#c53030' }} title="清除全部資料後重新匯入">
-              🗑 清除全部
-            </button>
           </>
         )}
       </div>
@@ -639,7 +630,7 @@ function EmployeePicker({ onSelect }) {
       setSearching(true);
       try {
         const res = await personnelApi.getEmployees({ keyword: v, limit: 20 });
-        setResults(res.data?.employees || []);
+        setResults(res.data || []);
       } catch { setResults([]); }
       finally { setSearching(false); }
     }, 300);
