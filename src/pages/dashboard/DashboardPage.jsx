@@ -1,7 +1,8 @@
 // pages/dashboard/DashboardPage.jsx
 // 營運部系統首頁
+// 各 Highlight 卡片獨立載入，互不阻塞
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { checksApi, dashboardApi } from '../../services/api';
@@ -33,48 +34,60 @@ const QUICK_LINKS = [
   { path: '/checks',    icon: '🏦', label: '支票紀錄',   desc: '管理應付票據批次與每日出款',  minRole: 'operation_staff' },
 ];
 
+// ── 通用 Highlight Hook（各模組獨立呼叫）─────────────────
+function useHighlight(fetchFn) {
+  const [state, setState] = useState({ loading: true, success: false, data: null });
+  useEffect(() => {
+    fetchFn()
+      .then(res => setState({ loading: false, success: true,  data: res.data ?? null }))
+      .catch(()  => setState({ loading: false, success: false, data: null }));
+  }, []); // eslint-disable-line
+  return state;
+}
+
 // ════════════════════════════════════════════════════════════
-// 支票出款卡片（獨立小元件）
+// 支票出款卡片
 // ════════════════════════════════════════════════════════════
-function ChecksHighlightCard({ loading, total, amount, overdue, onClick }) {
+function ChecksHighlightCard({ onClick }) {
   const [hover, setHover] = useState(false);
+  const [state, setState] = useState({ loading: true, total: 0, amount: 0, overdue: 0 });
+
+  useEffect(() => {
+    checksApi.getToday()
+      .then(res => {
+        const d = res.data || {};
+        const totalAmt = (d.summary || []).reduce((s, g) => s + (g.total_amount || 0), 0);
+        setState({ loading: false, total: d.total || 0, amount: totalAmt, overdue: d.overdue_count || 0 });
+      })
+      .catch(() => setState({ loading: false, total: 0, amount: 0, overdue: 0 }));
+  }, []);
+
+  const { loading, total, amount, overdue } = state;
   const urgent = total > 0;
   const accentColor = urgent ? '#c53030' : '#2d6a4f';
 
   return (
-    <div style={{
-      background: '#fff',
-      borderRadius: 12,
-      border: '1px solid #e0d5c8',
-      overflow: 'hidden',
-      boxShadow: urgent && hover ? '0 0 0 2px #c5303040' : 'none',
-      transition: 'all 0.15s',
-      cursor: 'pointer',
-    }}
+    <div
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      style={{
+        background: '#fff', borderRadius: 12,
+        border: '1px solid #e0d5c8', overflow: 'hidden',
+        boxShadow: urgent && hover ? '0 0 0 2px #c5303040' : 'none',
+        transition: 'all 0.15s', cursor: 'pointer',
+      }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
-        {/* 左色條 */}
-        <div style={{
-          width: 4, borderRadius: 2, alignSelf: 'stretch',
-          background: loading ? '#cbd5e0' : accentColor,
-          minHeight: 28, flexShrink: 0,
-        }} />
-
+        <div style={{ width: 4, borderRadius: 2, alignSelf: 'stretch', background: loading ? '#cbd5e0' : accentColor, minHeight: 28, flexShrink: 0 }} />
         <div style={{ fontSize: 20 }}>🏦</div>
-
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 15, color: '#1a202c' }}>支票出款</div>
           {loading ? (
             <div style={{ fontSize: 12, color: '#a0aec0', marginTop: 4 }}>載入中...</div>
           ) : (
             <div style={{ marginTop: 5 }}>
-              <span style={{
-                fontSize: 15, fontWeight: 700,
-                color: urgent ? '#c53030' : '#2d6a4f',
-              }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: urgent ? '#c53030' : '#2d6a4f' }}>
                 {urgent ? `本日應出 ${fmtAmt(amount)}` : '本日無待辦'}
               </span>
               {urgent && (
@@ -85,7 +98,6 @@ function ChecksHighlightCard({ loading, total, amount, overdue, onClick }) {
             </div>
           )}
         </div>
-
         <div style={{ color: C.light, fontSize: 16, flexShrink: 0 }}>›</div>
       </div>
     </div>
@@ -99,37 +111,10 @@ export default function DashboardPage() {
   const { user, hasRole } = useAuth();
   const navigate = useNavigate();
 
-  // ── 支票資料 ─────────────────────────────────────────
-  const [checks, setChecks] = useState({ loading: true, total: 0, amount: 0, overdue: 0 });
-
-  // ── 聚合 Highlights 資料（教育訓練等外部模組）────────
-  const [highlights, setHighlights] = useState({ loading: true, data: null });
-
-  const loadAll = useCallback(async () => {
-    // 支票 + 聚合 API 同時發出
-    const [checksRes, hlRes] = await Promise.allSettled([
-      checksApi.getToday(),
-      dashboardApi.getHighlights(),
-    ]);
-
-    // 支票
-    if (checksRes.status === 'fulfilled') {
-      const d = checksRes.value.data || {};
-      const totalAmt = (d.summary || []).reduce((s, g) => s + (g.total_amount || 0), 0);
-      setChecks({ loading: false, total: d.total || 0, amount: totalAmt, overdue: d.overdue_count || 0 });
-    } else {
-      setChecks({ loading: false, total: 0, amount: 0, overdue: 0 });
-    }
-
-    // 聚合 Highlights
-    if (hlRes.status === 'fulfilled') {
-      setHighlights({ loading: false, data: hlRes.value.data || {} });
-    } else {
-      setHighlights({ loading: false, data: {} });
-    }
-  }, []);
-
-  useEffect(() => { loadAll(); }, [loadAll]);
+  // ── 各模組獨立載入，誰回來誰先顯示 ──────────────────────
+  const sales       = useHighlight(dashboardApi.getSalesHighlight);
+  const engineering = useHighlight(dashboardApi.getEngineeringHighlight);
+  const training    = useHighlight(dashboardApi.getTrainingHighlight);
 
   const available = QUICK_LINKS.filter(l => hasRole(l.minRole));
 
@@ -137,11 +122,6 @@ export default function DashboardPage() {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
     timeZone: 'Asia/Taipei',
   });
-
-  // 各模組的資料（從聚合結果取出）
-  const salesResult        = highlights.data?.sales;
-  const engineeringResult  = highlights.data?.engineering;
-  const trainingResult     = highlights.data?.training;
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: '860px', fontFamily: 'system-ui, sans-serif' }}>
@@ -159,40 +139,31 @@ export default function DashboardPage() {
       {/* ── 今日重點 ── */}
       <div style={{ marginBottom: 32 }}>
         <SectionTitle>📌 今日重點</SectionTitle>
-
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-          {/* 業績摘要（最重要，第一張）*/}
+          {/* 業績（最重要，第一張）*/}
           <SalesHighlightCard
-            loading={highlights.loading}
-            success={salesResult?.success ?? false}
-            data={salesResult?.data ?? null}
+            loading={sales.loading}
+            success={sales.success}
+            data={sales.data}
           />
 
           {/* 支票出款 */}
-          <ChecksHighlightCard
-            loading={checks.loading}
-            total={checks.total}
-            amount={checks.amount}
-            overdue={checks.overdue}
-            onClick={() => navigate('/checks')}
-          />
+          <ChecksHighlightCard onClick={() => navigate('/checks')} />
 
           {/* 工務部 */}
           <EngineeringHighlightCard
-            loading={highlights.loading}
-            success={engineeringResult?.success ?? false}
-            data={engineeringResult?.data ?? null}
+            loading={engineering.loading}
+            success={engineering.success}
+            data={engineering.data}
           />
 
           {/* 教育訓練 */}
           <TrainingHighlightCard
-            loading={highlights.loading}
-            success={trainingResult?.success ?? false}
-            data={trainingResult?.data ?? null}
+            loading={training.loading}
+            success={training.success}
+            data={training.data}
           />
-
-          {/* 未來其他模組在此新增 */}
 
         </div>
       </div>
@@ -203,15 +174,12 @@ export default function DashboardPage() {
           <SectionTitle>功能模組</SectionTitle>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14, marginBottom: 28 }}>
             {available.map(link => (
-              <a
-                key={link.path}
-                href={link.path}
-                style={{
-                  display: 'block', padding: '18px 20px',
-                  background: '#fff', border: `1px solid ${C.border}`,
-                  borderRadius: 10, textDecoration: 'none',
-                  transition: 'box-shadow 0.15s, border-color 0.15s',
-                }}
+              <a key={link.path} href={link.path} style={{
+                display: 'block', padding: '18px 20px',
+                background: '#fff', border: `1px solid ${C.border}`,
+                borderRadius: 10, textDecoration: 'none',
+                transition: 'box-shadow 0.15s, border-color 0.15s',
+              }}
                 onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; e.currentTarget.style.borderColor = C.light; }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = C.border; }}
               >
@@ -233,12 +201,10 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
-
     </div>
   );
 }
 
-// ── 小工具：區塊標題 ─────────────────────────────────────
 function SectionTitle({ children }) {
   return (
     <div style={{
