@@ -3,12 +3,18 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { VendorAuthProvider, useVendorAuth } from './contexts/VendorAuthContext';
 import Layout from './components/Layout';
 import LoginPage from './pages/auth/LoginPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import PersonnelPage from './pages/personnel/PersonnelPage';
 import BillingPage   from './pages/billing/BillingPage';
 import BillingV2Page from './pages/billing/BillingV2Page';
+
+// 廠商後台
+import VendorLoginPage  from './pages/vendor/VendorLoginPage';
+import VendorBillsPage  from './pages/vendor/VendorBillsPage';
+import VendorLayout     from './pages/vendor/VendorLayout';
 
 // 通用簽收頁面（LINE LIFF / Web，不需登入）
 import UniversalSignPage from './pages/sign/UniversalSignPage';
@@ -24,8 +30,21 @@ function PrivateRoute({ children }) {
   return <Layout>{children}</Layout>;
 }
 
+// 廠商 Private Route
+function VendorPrivateRoute({ children }) {
+  const { vendor, loading } = useVendorAuth();
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#718096', fontFamily: 'system-ui' }}>
+      載入中...
+    </div>
+  );
+  if (!vendor) return <Navigate to="/vendor/login" replace />;
+  return <VendorLayout>{children}</VendorLayout>;
+}
+
 function AppRoutes() {
-  const { user } = useAuth();
+  const { user }   = useAuth();
+  const { vendor } = useVendorAuth();
 
   return (
     <Routes>
@@ -41,7 +60,10 @@ function AppRoutes() {
       <Route path="/billing"    element={<PrivateRoute><BillingPage /></PrivateRoute>} />
       <Route path="/billing-v2" element={<PrivateRoute><BillingV2Page /></PrivateRoute>} />
 
-      {/* 未來功能模組在此新增路由 */}
+      {/* 廠商後台（獨立 JWT，獨立 Layout） */}
+      <Route path="/vendor/login" element={vendor ? <Navigate to="/vendor/bills" replace /> : <VendorLoginPage />} />
+      <Route path="/vendor/bills" element={<VendorPrivateRoute><VendorBillsPage /></VendorPrivateRoute>} />
+      <Route path="/vendor"       element={<Navigate to="/vendor/login" replace />} />
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -53,7 +75,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <VendorAuthProvider>
+          <AppRoutes />
+        </VendorAuthProvider>
       </AuthProvider>
     </BrowserRouter>
   );
