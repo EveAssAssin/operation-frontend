@@ -21,6 +21,10 @@ const SOURCE_TYPE_COLOR = {
   operational: '#38a169',
 };
 
+// API 自動同步來源：顯示標記，不允許手動新增帳單
+const SYNC_METHOD_LABEL = { api: '🔄 API自動', manual: '✏️ 手動' };
+const isApiSource = (source) => source?.sync_method === 'api';
+
 const STATUS_LABEL = {
   draft:       '草稿',
   submitted:   '待審核',
@@ -171,7 +175,7 @@ function CreateBillModal({ sources, departments, onClose, onCreated }) {
               <label style={labelStyle}>來源單位 *</label>
               <select style={selectStyle} value={form.source_id} onChange={e => set('source_id', e.target.value)}>
                 <option value="">— 選擇來源單位 —</option>
-                {sources.map(s => (
+                {sources.filter(s => s.sync_method !== 'api').map(s => (
                   <option key={s.id} value={s.id}>[{SOURCE_TYPE_LABEL[s.source_type]}] {s.name}</option>
                 ))}
               </select>
@@ -586,6 +590,7 @@ function SourcePanel({ sources, onRefresh }) {
           <tr style={{ background: '#f7fafc' }}>
             <th style={th}>名稱</th>
             <th style={th}>類型</th>
+            <th style={th}>帳單來源</th>
             <th style={th}>識別碼</th>
             <th style={th}>聯絡人</th>
             <th style={th}>狀態</th>
@@ -596,6 +601,16 @@ function SourcePanel({ sources, onRefresh }) {
             <tr key={s.id} style={trHover}>
               <td style={td}>{s.name}</td>
               <td style={td}><TypeBadge type={s.source_type} /></td>
+              <td style={td}>
+                <span style={{
+                  fontSize: 11, padding: '2px 8px', borderRadius: 8, fontWeight: 600,
+                  background: s.sync_method === 'api' ? '#f0fff4' : '#ebf8ff',
+                  color:      s.sync_method === 'api' ? '#276749' : '#2b6cb0',
+                  border:     s.sync_method === 'api' ? '1px solid #c6f6d5' : '1px solid #bee3f8',
+                }}>
+                  {s.sync_method === 'api' ? '🔄 API自動' : '✏️ 手動'}
+                </span>
+              </td>
               <td style={{ ...td, color: '#718096' }}>{s.code || '—'}</td>
               <td style={td}>{s.contact_name || '—'}</td>
               <td style={td}>
@@ -755,6 +770,11 @@ export default function BillingV2Page() {
                         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
                           <TypeBadge type={b.billing_sources?.source_type} />
                           <span>{b.billing_sources?.name}</span>
+                          {b.billing_sources?.sync_method === 'api' && (
+                            <span style={{ fontSize: 10, color: '#38a169', background: '#f0fff4', padding: '1px 6px', borderRadius: 8, border: '1px solid #c6f6d5' }}>
+                              🔄 API
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td style={td}>{b.title}</td>
