@@ -51,13 +51,13 @@ export default function VendorLayout({ children }) {
 const styles = {
   root: {
     minHeight:  '100vh',
-    background: '#f7fafc',
+    background: '#f5f0ea',
     fontFamily: 'system-ui, -apple-system, sans-serif',
     display:    'flex',
     flexDirection: 'column',
   },
   header: {
-    background:     '#1a202c',
+    background:     '#50422d',
     height:         56,
     display:        'flex',
     alignItems:     'center',
@@ -77,7 +77,7 @@ const styles = {
   logoIcon: {
     width:          32,
     height:         32,
-    background:     '#3182ce',
+    background:     '#8b6f4e',
     borderRadius:   8,
     display:        'flex',
     alignItems:     'center',
@@ -98,7 +98,7 @@ const styles = {
   },
   portalName: {
     fontSize: 10,
-    color:    '#718096',
+    color:    '#cdbea2',
   },
   nav: {
     flex:    1,
@@ -106,7 +106,7 @@ const styles = {
     gap:     4,
   },
   navLink: {
-    color:          '#a0aec0',
+    color:          '#cdbea2',
     textDecoration: 'none',
     fontSize:       14,
     fontWeight:     500,
@@ -116,7 +116,7 @@ const styles = {
   },
   navLinkActive: {
     color:      '#fff',
-    background: '#2b6cb0',
+    background: '#8b6f4e',
   },
   headerRight: {
     display:    'flex',
@@ -131,9 +131,9 @@ const styles = {
   },
   logoutBtn: {
     background:   'transparent',
-    border:       '1px solid #4a5568',
+    border:       '1px solid rgba(255,255,255,0.2)',
     borderRadius: 6,
-    color:        '#a0aec0',
+    color:        '#cdbea2',
     fontSize:     12,
     padding:      '4px 12px',
     cursor:       'pointer',

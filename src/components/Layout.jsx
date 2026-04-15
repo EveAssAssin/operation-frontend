@@ -53,13 +53,13 @@ const ROLE_LABELS = {
 // 角色標籤配色
 const ROLE_COLORS = {
   super_admin:     '#fed7d7',
-  operation_lead:  '#feebc8',
-  operation_staff: '#bee3f8',
+  operation_lead:  '#faf5ee',
+  operation_staff: '#f5f0ea',
 };
 const ROLE_TEXT = {
   super_admin:     '#c53030',
-  operation_lead:  '#7b341e',
-  operation_staff: '#2b6cb0',
+  operation_lead:  '#8b6f4e',
+  operation_staff: '#50422d',
 };
 
 export default function Layout({ children }) {
@@ -136,13 +136,13 @@ const styles = {
   root: {
     display:   'flex',
     minHeight: '100vh',
-    background: '#f0f4f8',
+    background: '#f5f0ea',
     fontFamily: 'system-ui, -apple-system, sans-serif',
   },
   sidebar: {
     width:      '220px',
     minWidth:   '220px',
-    background: '#1a202c',
+    background: '#50422d',
     display:    'flex',
     flexDirection: 'column',
     position:   'sticky',
@@ -159,7 +159,7 @@ const styles = {
   logoIcon: {
     width:      '36px',
     height:     '36px',
-    background: '#3182ce',
+    background: '#8b6f4e',
     borderRadius: '8px',
     display:    'flex',
     alignItems: 'center',
@@ -177,12 +177,12 @@ const styles = {
   },
   logoSub: {
     fontSize:   '11px',
-    color:      '#718096',
+    color:      '#cdbea2',
     lineHeight: '1.2',
   },
   divider: {
     height:     '1px',
-    background: '#2d3748',
+    background: 'rgba(255,255,255,0.15)',
     margin:     '0 12px',
   },
   nav: {
@@ -204,11 +204,11 @@ const styles = {
     transition:  'background 0.15s',
   },
   navItemActive: {
-    background: '#2b6cb0',
+    background: '#8b6f4e',
     color:      '#fff',
   },
   navItemInactive: {
-    color: '#a0aec0',
+    color: '#cdbea2',
   },
   navIcon: {
     fontSize:  '16px',
@@ -242,9 +242,9 @@ const styles = {
     width:      'calc(100% - 24px)',
     padding:    '8px',
     background: 'transparent',
-    border:     '1px solid #2d3748',
+    border:     '1px solid rgba(255,255,255,0.2)',
     borderRadius: '6px',
-    color:      '#718096',
+    color:      '#cdbea2',
     fontSize:   '13px',
     cursor:     'pointer',
   },

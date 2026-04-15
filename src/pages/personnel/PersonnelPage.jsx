@@ -8,8 +8,8 @@ import { useAuth } from '../../contexts/AuthContext';
 // ── 角色定義 ────────────────────────────────────────────────
 const ROLES = [
   { value: 'super_admin',     label: '超級管理員', bg: '#fff5f5', color: '#c53030' },
-  { value: 'operation_lead',  label: '營運部主管', bg: '#fffaf0', color: '#c05621' },
-  { value: 'operation_staff', label: '營運部部員', bg: '#ebf8ff', color: '#2b6cb0' },
+  { value: 'operation_lead',  label: '營運部主管', bg: '#faf5ee', color: '#8b6f4e' },
+  { value: 'operation_staff', label: '營運部部員', bg: '#f5f0ea', color: '#50422d' },
 ];
 
 const ROLE_MAP = Object.fromEntries(ROLES.map(r => [r.value, r]));
@@ -64,7 +64,7 @@ function RoleModal({ target, onClose, onSave, saving }) {
                   value={r.value}
                   checked={selectedRole === r.value}
                   onChange={() => setSelectedRole(r.value)}
-                  style={{ accentColor: '#3182ce' }}
+                  style={{ accentColor: '#50422d' }}
                 />
                 <div>
                   <span style={{ ...s.badge, background: r.bg, color: r.color }}>{r.label}</span>
@@ -218,7 +218,7 @@ export default function PersonnelPage() {
           <h1 style={s.title}>人員管理</h1>
           <div style={s.stats}>
             共 <strong>{stats.total}</strong> 位在職員工 ·
-            已授權 <strong style={{ color: '#2b6cb0' }}>{stats.authorized}</strong> 人
+            已授權 <strong style={{ color: '#50422d' }}>{stats.authorized}</strong> 人
             {lastSync && (
               <span style={{ marginLeft: '8px', color: '#a0aec0' }}>
                 · 上次同步 {new Date(lastSync.completed_at || lastSync.started_at).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
@@ -388,7 +388,7 @@ const s = {
   }),
   avatar:  {
     width: '32px', height: '32px', borderRadius: '50%',
-    background: '#bee3f8', color: '#2b6cb0',
+    background: '#cdbea2', color: '#50422d',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: '13px', fontWeight: '700', flexShrink: 0,
   },
@@ -396,10 +396,10 @@ const s = {
   badgeNone: { display: 'inline-block', padding: '3px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: '500', background: '#edf2f7', color: '#a0aec0' },
   actionBtn: {
     padding: '5px 12px', borderRadius: '5px', fontSize: '12px', fontWeight: '500',
-    cursor: 'pointer', border: '1px solid #bee3f8', background: '#ebf8ff', color: '#2b6cb0',
+    cursor: 'pointer', border: '1px solid #cdbea2', background: '#f5f0ea', color: '#50422d',
   },
   actionBtnRevoke: { border: '1px solid #fed7d7', background: '#fff5f5', color: '#c53030' },
-  btnPrimary:   { padding: '8px 20px', background: '#3182ce', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', cursor: 'pointer', fontWeight: '500' },
+  btnPrimary:   { padding: '8px 20px', background: '#50422d', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', cursor: 'pointer', fontWeight: '500' },
   btnSecondary: { padding: '8px 16px', background: '#fff', color: '#4a5568', border: '1px solid #cbd5e0', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' },
 
   // Modal
@@ -416,7 +416,7 @@ const s = {
   modalEmployee: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: '#f7fafc', borderRadius: '8px', marginBottom: '16px' },
   empAvatar: {
     width: '42px', height: '42px', borderRadius: '50%',
-    background: '#bee3f8', color: '#2b6cb0',
+    background: '#cdbea2', color: '#50422d',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: '16px', fontWeight: '700', flexShrink: 0,
   },
@@ -424,8 +424,8 @@ const s = {
   radioRow: (active) => ({
     display: 'flex', alignItems: 'center', gap: '10px',
     padding: '10px 12px', borderRadius: '8px', cursor: 'pointer',
-    border: `1.5px solid ${active ? '#3182ce' : '#e2e8f0'}`,
-    background: active ? '#ebf8ff' : '#fff',
+    border: `1.5px solid ${active ? '#50422d' : '#e2e8f0'}`,
+    background: active ? '#f5f0ea' : '#fff',
     transition: 'all 0.1s',
   }),
   roleDesc: { fontSize: '12px', color: '#718096', marginLeft: '8px' },

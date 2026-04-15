@@ -197,7 +197,7 @@ function VendorAccountsPanel({ sources }) {
                       </button>
                       <button
                         onClick={() => { setResetPwdId(acc.id); setNewPwd(''); }}
-                        style={{ ...smallBtn, background: '#ebf8ff', color: '#2b6cb0', border: '1px solid #bee3f8' }}>
+                        style={{ ...smallBtn, background: '#f5f0ea', color: '#50422d', border: '1px solid #cdbea2' }}>
                         重設密碼
                       </button>
                     </div>
@@ -259,7 +259,7 @@ const SOURCE_TYPE_LABEL = {
   operational: '營運費用',
 };
 const SOURCE_TYPE_COLOR = {
-  admin_dept:  '#3182ce',
+  admin_dept:  '#50422d',
   vendor:      '#805ad5',
   operational: '#38a169',
 };
@@ -278,7 +278,7 @@ const STATUS_LABEL = {
 const STATUS_COLOR = {
   draft:       '#718096',
   submitted:   '#d69e2e',
-  confirmed:   '#3182ce',
+  confirmed:   '#50422d',
   distributed: '#38a169',
   void:        '#e53e3e',
 };
@@ -509,7 +509,7 @@ function CreateBillModal({ sources, departments, onClose, onCreated }) {
                   </div>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-                  <button onClick={addAlloc} style={{ ...smallBtn, background: '#ebf8ff', color: '#2b6cb0' }}>＋ 新增門市</button>
+                  <button onClick={addAlloc} style={{ ...smallBtn, background: '#f5f0ea', color: '#50422d' }}>＋ 新增門市</button>
                   <span style={{ fontSize: 12, color: remaining === 0 ? '#38a169' : '#e53e3e' }}>
                     未分配：{fmtMoney(remaining)}
                     {remaining === 0 && ' ✓'}
@@ -638,7 +638,7 @@ function BillDetailModal({ bill, onClose, onRefresh, userRole, departments }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <span style={{ fontWeight: 600, fontSize: 14 }}>門市分配</span>
               {isDraft && (
-                <button onClick={() => setEditAlloc(!editAlloc)} style={{ ...smallBtn, background: '#ebf8ff', color: '#2b6cb0' }}>
+                <button onClick={() => setEditAlloc(!editAlloc)} style={{ ...smallBtn, background: '#f5f0ea', color: '#50422d' }}>
                   {editAlloc ? '取消編輯' : '編輯分配'}
                 </button>
               )}
@@ -664,7 +664,7 @@ function BillDetailModal({ bill, onClose, onRefresh, userRole, departments }) {
                   </div>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-                  <button onClick={addNewAlloc} style={{ ...smallBtn, background: '#ebf8ff', color: '#2b6cb0' }}>＋ 新增</button>
+                  <button onClick={addNewAlloc} style={{ ...smallBtn, background: '#f5f0ea', color: '#50422d' }}>＋ 新增</button>
                   <span style={{ fontSize: 12, color: remainNew === 0 ? '#38a169' : '#e53e3e' }}>
                     未分配：{fmtMoney(remainNew)}
                   </span>
@@ -730,7 +730,7 @@ function BillDetailModal({ bill, onClose, onRefresh, userRole, departments }) {
               </button>
             )}
             {status === 'confirmed' && lead && (
-              <button disabled={loading} style={{ ...primaryBtn, background: '#3182ce' }}
+              <button disabled={loading} style={{ ...primaryBtn, background: '#50422d' }}
                 onClick={() => action(() => billingV2Api.distributeBill(bill.id).then(r => { if (!r.success) throw new Error(r.message); }), '分配')}>
                 分配至門市
               </button>
@@ -881,7 +881,7 @@ function SourcePanel({ sources, onRefresh }) {
 
       {/* 分組顯示：行政部門 / 廠商 / 營運 */}
       {[
-        { type: 'admin_dept',  label: '行政部門費用', code: '6-1', accentColor: '#3182ce', bgColor: '#ebf8ff' },
+        { type: 'admin_dept',  label: '行政部門費用', code: '6-1', accentColor: '#50422d', bgColor: '#f5f0ea' },
         { type: 'vendor',      label: '廠商費用',     code: '6-2', accentColor: '#805ad5', bgColor: '#faf5ff' },
         { type: 'operational', label: '營運費用',     code: '6-3', accentColor: '#38a169', bgColor: '#f0fff4' },
       ].map(({ type, label, code, accentColor, bgColor }) => {
@@ -945,9 +945,9 @@ function SourcePanel({ sources, onRefresh }) {
                           ) : (
                             <span style={{
                               fontSize: 11, padding: '2px 8px', borderRadius: 8, fontWeight: 600,
-                              background: s.sync_method === 'api' ? '#f0fff4' : '#ebf8ff',
-                              color:      s.sync_method === 'api' ? '#276749' : '#2b6cb0',
-                              border:     s.sync_method === 'api' ? '1px solid #c6f6d5' : '1px solid #bee3f8',
+                              background: s.sync_method === 'api' ? '#f0fff4' : '#f5f0ea',
+                              color:      s.sync_method === 'api' ? '#276749' : '#50422d',
+                              border:     s.sync_method === 'api' ? '1px solid #c6f6d5' : '1px solid #cdbea2',
                             }}>
                               {s.sync_method === 'api' ? '🔄 API自動' : '✏️ 手動'}
                             </span>
@@ -988,7 +988,7 @@ function SourcePanel({ sources, onRefresh }) {
                             </div>
                           ) : (
                             <button onClick={() => startEdit(s)}
-                              style={{ ...smallBtn, background: '#ebf8ff', color: '#2b6cb0' }}>編輯</button>
+                              style={{ ...smallBtn, background: '#f5f0ea', color: '#50422d' }}>編輯</button>
                           )}
                         </td>
                       </tr>
@@ -1075,8 +1075,8 @@ export default function BillingV2Page() {
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             background: 'none', border: 'none', cursor: 'pointer',
             padding: '8px 20px', fontSize: 14, fontWeight: 600,
-            color: tab === t.key ? '#3182ce' : '#718096',
-            borderBottom: tab === t.key ? '2px solid #3182ce' : '2px solid transparent',
+            color: tab === t.key ? '#50422d' : '#718096',
+            borderBottom: tab === t.key ? '2px solid #50422d' : '2px solid transparent',
             marginBottom: -2,
           }}>
             {t.label}
@@ -1258,7 +1258,7 @@ const modalFooter = {
   padding: '12px 20px', borderTop: '1px solid #e2e8f0',
 };
 const closeBtn   = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#718096' };
-const primaryBtn = { background: '#3182ce', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600 };
+const primaryBtn = { background: '#50422d', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600 };
 const cancelBtn  = { background: '#edf2f7', color: '#4a5568', border: 'none', borderRadius: 6, padding: '7px 16px', fontSize: 13, cursor: 'pointer' };
 const smallBtn   = { border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 13, cursor: 'pointer', fontWeight: 600 };
 const inputStyle = { border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 10px', fontSize: 13, width: '100%', boxSizing: 'border-box', outline: 'none' };

@@ -23,7 +23,7 @@ const STATUS_LABEL = {
 const STATUS_STYLE = {
   draft:       { background: '#edf2f7', color: '#718096' },
   submitted:   { background: '#fefcbf', color: '#744210' },
-  confirmed:   { background: '#ebf8ff', color: '#2c5282' },
+  confirmed:   { background: '#f5f0ea', color: '#50422d' },
   distributed: { background: '#f0fff4', color: '#276749' },
   void:        { background: '#fff5f5', color: '#9b2c2c' },
 };
@@ -432,7 +432,7 @@ export default function VendorBillsPage() {
 
       {/* 統計卡片 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 24 }}>
-        <StatCard label="帳單總數"   value={stats.total}               color="#3182ce" />
+        <StatCard label="帳單總數"   value={stats.total}               color="#50422d" />
         <StatCard label="草稿"       value={stats.draft}               color="#718096" />
         <StatCard label="待審核"     value={stats.pending}             color="#d69e2e" />
         <StatCard label="總金額"     value={fmtMoney(stats.amount)}    color="#38a169" small />
@@ -564,7 +564,7 @@ const modalFooter = {
   padding: '12px 20px', borderTop: '1px solid #e2e8f0',
 };
 const closeBtn     = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#718096' };
-const primaryBtn   = { background: '#3182ce', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, cursor: 'pointer', fontWeight: 600 };
+const primaryBtn   = { background: '#50422d', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, cursor: 'pointer', fontWeight: 600 };
 const secondaryBtn = { background: '#edf2f7', color: '#4a5568', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, cursor: 'pointer' };
 const cancelBtn    = { background: '#f7fafc', color: '#718096', border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 18px', fontSize: 13, cursor: 'pointer' };
 const input        = { border: '1.5px solid #e2e8f0', borderRadius: 7, padding: '8px 12px', fontSize: 13, width: '100%', boxSizing: 'border-box', outline: 'none', color: '#2d3748' };

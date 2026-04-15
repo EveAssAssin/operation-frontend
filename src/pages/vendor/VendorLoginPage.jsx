@@ -107,7 +107,7 @@ const styles = {
     display:        'flex',
     alignItems:     'center',
     justifyContent: 'center',
-    background:     'linear-gradient(135deg, #1a202c 0%, #2d3748 50%, #1a365d 100%)',
+    background:     'linear-gradient(135deg, #50422d 0%, #8b6f4e 50%, #3a2f23 100%)',
     padding:        20,
     position:       'relative',
     overflow:       'hidden',
@@ -116,7 +116,7 @@ const styles = {
   bg: {
     position:     'absolute',
     inset:        0,
-    background:   'radial-gradient(ellipse at 60% 20%, rgba(49,130,206,0.15) 0%, transparent 60%)',
+    background:   'radial-gradient(ellipse at 60% 20%, rgba(80,66,45,0.15) 0%, transparent 60%)',
     pointerEvents:'none',
   },
   card: {
@@ -138,7 +138,7 @@ const styles = {
   logoIcon: {
     width:          48,
     height:         48,
-    background:     'linear-gradient(135deg, #3182ce, #2b6cb0)',
+    background:     'linear-gradient(135deg, #50422d, #8b6f4e)',
     borderRadius:   12,
     display:        'flex',
     alignItems:     'center',
@@ -147,7 +147,7 @@ const styles = {
     fontWeight:     800,
     color:          '#fff',
     flexShrink:     0,
-    boxShadow:      '0 4px 12px rgba(49,130,206,0.3)',
+    boxShadow:      '0 4px 12px rgba(80,66,45,0.3)',
   },
   logoTitle: {
     fontSize:   17,
@@ -210,14 +210,14 @@ const styles = {
   },
   submitBtn: {
     marginTop:    8,
-    background:   'linear-gradient(135deg, #3182ce, #2b6cb0)',
+    background:   'linear-gradient(135deg, #50422d, #8b6f4e)',
     color:        '#fff',
     border:       'none',
     borderRadius: 8,
     padding:      '12px',
     fontSize:     15,
     fontWeight:   700,
-    boxShadow:    '0 4px 12px rgba(49,130,206,0.35)',
+    boxShadow:    '0 4px 12px rgba(80,66,45,0.35)',
     transition:   'transform 0.1s, box-shadow 0.1s',
   },
   hint: {

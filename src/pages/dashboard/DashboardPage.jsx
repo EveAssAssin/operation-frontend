@@ -48,7 +48,7 @@ export default function DashboardPage() {
                   borderRadius: '10px', textDecoration: 'none',
                   transition: 'box-shadow 0.15s, border-color 0.15s',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; e.currentTarget.style.borderColor = '#bee3f8'; }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; e.currentTarget.style.borderColor = '#cdbea2'; }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
               >
                 <div style={{ fontSize: '24px', marginBottom: '8px' }}>{link.icon}</div>

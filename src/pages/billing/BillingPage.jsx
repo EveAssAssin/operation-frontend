@@ -95,9 +95,9 @@ const S = {
   title:        { fontSize: '20px', fontWeight: '700', margin: 0 },
   toolbar:      { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' },
   select:       { padding: '6px 12px', border: '1px solid #cbd5e0', borderRadius: '6px', fontSize: '14px', background: '#fff', cursor: 'pointer' },
-  btnPrimary:   { padding: '7px 16px', background: '#3182ce', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', cursor: 'pointer', fontWeight: '500' },
+  btnPrimary:   { padding: '7px 16px', background: '#50422d', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', cursor: 'pointer', fontWeight: '500' },
   btnSecondary: { padding: '7px 16px', background: '#fff', color: '#4a5568', border: '1px solid #cbd5e0', borderRadius: '6px', fontSize: '14px', cursor: 'pointer' },
-  btnSmall:     { padding: '4px 10px', background: '#fff', color: '#3182ce', border: '1px solid #bee3f8', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnSmall:     { padding: '4px 10px', background: '#fff', color: '#50422d', border: '1px solid #cdbea2', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' },
   card:         { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '20px', marginBottom: '20px' },
   table:        { width: '100%', borderCollapse: 'collapse', fontSize: '14px' },
   th:           { background: '#f7fafc', padding: '10px 14px', textAlign: 'left',  borderBottom: '2px solid #e2e8f0', fontWeight: '600', color: '#4a5568', whiteSpace: 'nowrap' },
@@ -109,8 +109,8 @@ const S = {
   rowHover:     { cursor: 'pointer' },
   badge: (type) => ({
     display: 'inline-block', padding: '2px 8px', borderRadius: '999px', fontSize: '12px', fontWeight: '500',
-    background: type === 'maintenance' ? '#ebf8ff' : '#fff5f5',
-    color:      type === 'maintenance' ? '#2b6cb0' : '#c53030',
+    background: type === 'maintenance' ? '#f5f0ea' : '#fff5f5',
+    color:      type === 'maintenance' ? '#50422d' : '#c53030',
   }),
   categoryBadge: { display: 'inline-block', padding: '2px 8px', borderRadius: '999px', fontSize: '12px', fontWeight: '500', background: '#f0fff4', color: '#276749', border: '1px solid #9ae6b4' },
   empty:        { textAlign: 'center', color: '#a0aec0', padding: '48px 0' },
@@ -185,7 +185,7 @@ function OrderDetailModal({ detail, onClose }) {
                     </span>
                   )}
                   {item.amount != null && (
-                    <span style={{ fontWeight: '600', color: '#2b6cb0' }}>$ {formatAmount(item.amount)}</span>
+                    <span style={{ fontWeight: '600', color: '#50422d' }}>$ {formatAmount(item.amount)}</span>
                   )}
                 </div>
               </div>
@@ -408,13 +408,13 @@ export default function BillingPage() {
                 return (
                   <tr
                     key={s.store_erpid}
-                    style={{ ...S.rowHover, background: isSelected ? '#ebf8ff' : 'transparent' }}
+                    style={{ ...S.rowHover, background: isSelected ? '#f5f0ea' : 'transparent' }}
                     onClick={() => handleStoreClick(s.store_erpid)}
                   >
                     <td style={S.td}>
                       <span style={{ fontWeight: '500' }}>{storeMap[s.store_erpid] || s.store_erpid}</span>
                       <span style={{ color: '#a0aec0', fontSize: '12px', marginLeft: '6px' }}>{s.store_erpid}</span>
-                      {isSelected && <span style={{ marginLeft: '6px', color: '#3182ce' }}>▸</span>}
+                      {isSelected && <span style={{ marginLeft: '6px', color: '#50422d' }}>▸</span>}
                     </td>
                     <td style={S.td}>
                       {s.billing_category
@@ -425,7 +425,7 @@ export default function BillingPage() {
                     <td style={S.tdR}>$ {formatAmount(s.maintenance_amount)}</td>
                     <td style={S.tdR}>{s.repair_count} 筆</td>
                     <td style={S.tdR}>$ {formatAmount(s.repair_amount)}</td>
-                    <td style={{ ...S.tdR, fontWeight: '600' }}>$ {formatAmount(s.total_amount)}</td>
+                    <td style={{ ...S.tdR, fontWeight: '600', color: '#50422d' }}>$ {formatAmount(s.total_amount)}</td>
                   </tr>
                 );
               })}
@@ -436,7 +436,7 @@ export default function BillingPage() {
                 <td style={S.tdTotalR}>$ {formatAmount(totals.ma)}</td>
                 <td style={S.tdTotalR}>{totals.rc} 筆</td>
                 <td style={S.tdTotalR}>$ {formatAmount(totals.ra)}</td>
-                <td style={{ ...S.tdTotalR, color: '#2b6cb0' }}>$ {formatAmount(totals.ta)}</td>
+                <td style={{ ...S.tdTotalR, color: '#50422d' }}>$ {formatAmount(totals.ta)}</td>
               </tr>
             </tbody>
           </table>

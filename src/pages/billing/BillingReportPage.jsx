@@ -11,7 +11,7 @@ const SOURCE_TYPE_LABEL = {
   operational: '營運費用',
 };
 const SOURCE_TYPE_COLOR = {
-  admin_dept:  { bg: '#ebf8ff', text: '#2b6cb0', border: '#bee3f8' },
+  admin_dept:  { bg: '#f5f0ea', text: '#50422d', border: '#cdbea2' },
   vendor:      { bg: '#f0fff4', text: '#276749', border: '#c6f6d5' },
   operational: { bg: '#fffaf0', text: '#7b341e', border: '#feebc8' },
 };
@@ -97,9 +97,9 @@ export default function BillingReportPage() {
 
       {/* ── 統計卡片 ── */}
       <div style={styles.statsRow}>
-        <StatCard label="門市數" value={data.length} unit="間" color="#3182ce" />
+        <StatCard label="門市數" value={data.length} unit="間" color="#50422d" />
         <StatCard label="合計費用" value={fmtAmt(totalAmt)} color="#2d3748" large />
-        <StatCard label="行政部門" value={fmtAmt(adminAmt)} color="#2b6cb0" />
+        <StatCard label="行政部門" value={fmtAmt(adminAmt)} color="#50422d" />
         <StatCard label="廠商" value={fmtAmt(vendorAmt)} color="#276749" />
         <StatCard label="營運費用" value={fmtAmt(opAmt)} color="#7b341e" />
       </div>
@@ -148,7 +148,7 @@ export default function BillingReportPage() {
                         <span style={styles.billCount}>{store.bills.length} 筆</span>
                       )}
                     </td>
-                    <td style={{ ...styles.td, textAlign: 'right', color: store.admin_dept ? '#2b6cb0' : '#cbd5e0' }}>
+                    <td style={{ ...styles.td, textAlign: 'right', color: store.admin_dept ? '#50422d' : '#cbd5e0' }}>
                       {store.admin_dept ? fmtAmt(store.admin_dept) : '—'}
                     </td>
                     <td style={{ ...styles.td, textAlign: 'right', color: store.vendor ? '#276749' : '#cbd5e0' }}>
@@ -191,7 +191,7 @@ export default function BillingReportPage() {
               <tr style={styles.tfootRow}>
                 <td></td>
                 <td style={{ ...styles.tfoot, fontWeight: '700' }}>合計 {data.length} 間門市</td>
-                <td style={{ ...styles.tfoot, textAlign: 'right', color: '#2b6cb0' }}>{fmtAmt(adminAmt)}</td>
+                <td style={{ ...styles.tfoot, textAlign: 'right', color: '#50422d' }}>{fmtAmt(adminAmt)}</td>
                 <td style={{ ...styles.tfoot, textAlign: 'right', color: '#276749' }}>{fmtAmt(vendorAmt)}</td>
                 <td style={{ ...styles.tfoot, textAlign: 'right', color: '#7b341e' }}>{fmtAmt(opAmt)}</td>
                 <td style={{ ...styles.tfoot, textAlign: 'right', fontWeight: '800', color: '#1a202c', fontSize: '15px' }}>
