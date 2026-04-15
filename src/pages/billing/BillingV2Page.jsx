@@ -523,20 +523,49 @@ function InfoRow({ label, value }) {
 
 // ── 來源單位管理面板 ──────────────────────────────────────────
 function SourcePanel({ sources, onRefresh }) {
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ source_type: 'vendor', code: '', name: '', contact_name: '', contact_phone: '', contact_email: '' });
+  const [showForm, setShowForm]     = useState(false);
+  const [editingId, setEditingId]   = useState(null);
+  const [form, setForm]   = useState({ source_type: 'vendor', code: '', name: '', contact_name: '', contact_phone: '', contact_email: '', sync_method: 'manual', api_start_period: '' });
+  const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError]   = useState('');
 
   const handleCreate = async () => {
     setError('');
     if (!form.source_type || !form.name) { setError('請填寫類型和名稱'); return; }
+    if (form.sync_method === 'api' && !form.api_start_period) { setError('API 來源請填寫「API 開始月份」'); return; }
     setSaving(true);
     try {
       const res = await billingV2Api.createSource(form);
-      if (res.success) { setShowForm(false); setForm({ source_type: 'vendor', code: '', name: '', contact_name: '', contact_phone: '', contact_email: '' }); onRefresh(); }
-      else setError(res.message);
+      if (res.success) {
+        setShowForm(false);
+        setForm({ source_type: 'vendor', code: '', name: '', contact_name: '', contact_phone: '', contact_email: '', sync_method: 'manual', api_start_period: '' });
+        onRefresh();
+      } else setError(res.message);
     } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  };
+
+  const startEdit = (s) => {
+    setEditingId(s.id);
+    setEditForm({
+      sync_method:      s.sync_method || 'manual',
+      api_start_period: s.api_start_period || '',
+      is_active:        s.is_active,
+    });
+  };
+
+  const handleUpdate = async (id) => {
+    if (editForm.sync_method === 'api' && !editForm.api_start_period) {
+      alert('API 來源請填寫「API 開始月份」');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await billingV2Api.updateSource(id, editForm);
+      if (res.success) { setEditingId(null); onRefresh(); }
+      else alert(res.message);
+    } catch (err) { alert(err.message); }
     finally { setSaving(false); }
   };
 
@@ -570,6 +599,20 @@ function SourcePanel({ sources, onRefresh }) {
               <input style={inputStyle} value={form.name} placeholder="如：台電公司 / 工程部 / 租金" onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             </div>
             <div style={formField}>
+              <label style={labelStyle}>帳單來源方式</label>
+              <select style={selectStyle} value={form.sync_method} onChange={e => setForm(f => ({ ...f, sync_method: e.target.value }))}>
+                <option value="manual">✏️ 手動輸入</option>
+                <option value="api">🔄 API 自動同步</option>
+              </select>
+            </div>
+            {form.sync_method === 'api' && (
+              <div style={formField}>
+                <label style={labelStyle}>API 開始月份 *</label>
+                <input type="month" style={inputStyle} value={form.api_start_period}
+                  onChange={e => setForm(f => ({ ...f, api_start_period: e.target.value }))} />
+              </div>
+            )}
+            <div style={formField}>
               <label style={labelStyle}>聯絡人</label>
               <input style={inputStyle} value={form.contact_name} onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))} />
             </div>
@@ -591,37 +634,77 @@ function SourcePanel({ sources, onRefresh }) {
             <th style={th}>名稱</th>
             <th style={th}>類型</th>
             <th style={th}>帳單來源</th>
+            <th style={th}>API 開始月份</th>
             <th style={th}>識別碼</th>
-            <th style={th}>聯絡人</th>
             <th style={th}>狀態</th>
+            <th style={th}>操作</th>
           </tr>
         </thead>
         <tbody>
           {sources.map(s => (
             <tr key={s.id} style={trHover}>
-              <td style={td}>{s.name}</td>
+              <td style={td}><strong>{s.name}</strong></td>
               <td style={td}><TypeBadge type={s.source_type} /></td>
               <td style={td}>
-                <span style={{
-                  fontSize: 11, padding: '2px 8px', borderRadius: 8, fontWeight: 600,
-                  background: s.sync_method === 'api' ? '#f0fff4' : '#ebf8ff',
-                  color:      s.sync_method === 'api' ? '#276749' : '#2b6cb0',
-                  border:     s.sync_method === 'api' ? '1px solid #c6f6d5' : '1px solid #bee3f8',
-                }}>
-                  {s.sync_method === 'api' ? '🔄 API自動' : '✏️ 手動'}
-                </span>
+                {editingId === s.id ? (
+                  <select style={{ ...selectStyle, fontSize: 12 }} value={editForm.sync_method}
+                    onChange={e => setEditForm(f => ({ ...f, sync_method: e.target.value }))}>
+                    <option value="manual">✏️ 手動</option>
+                    <option value="api">🔄 API自動</option>
+                  </select>
+                ) : (
+                  <span style={{
+                    fontSize: 11, padding: '2px 8px', borderRadius: 8, fontWeight: 600,
+                    background: s.sync_method === 'api' ? '#f0fff4' : '#ebf8ff',
+                    color:      s.sync_method === 'api' ? '#276749' : '#2b6cb0',
+                    border:     s.sync_method === 'api' ? '1px solid #c6f6d5' : '1px solid #bee3f8',
+                  }}>
+                    {s.sync_method === 'api' ? '🔄 API自動' : '✏️ 手動'}
+                  </span>
+                )}
+              </td>
+              <td style={td}>
+                {editingId === s.id && editForm.sync_method === 'api' ? (
+                  <input type="month" style={{ ...selectStyle, fontSize: 12, width: 130 }}
+                    value={editForm.api_start_period}
+                    onChange={e => setEditForm(f => ({ ...f, api_start_period: e.target.value }))} />
+                ) : (
+                  <span style={{ color: s.api_start_period ? '#2d3748' : '#a0aec0' }}>
+                    {s.api_start_period || (s.sync_method === 'api' ? '未設定' : '—')}
+                  </span>
+                )}
               </td>
               <td style={{ ...td, color: '#718096' }}>{s.code || '—'}</td>
-              <td style={td}>{s.contact_name || '—'}</td>
               <td style={td}>
-                <span style={{ color: s.is_active ? '#38a169' : '#e53e3e', fontSize: 12 }}>
-                  {s.is_active ? '啟用' : '停用'}
-                </span>
+                {editingId === s.id ? (
+                  <select style={{ ...selectStyle, fontSize: 12, width: 80 }} value={editForm.is_active}
+                    onChange={e => setEditForm(f => ({ ...f, is_active: e.target.value === 'true' }))}>
+                    <option value="true">啟用</option>
+                    <option value="false">停用</option>
+                  </select>
+                ) : (
+                  <span style={{ color: s.is_active ? '#38a169' : '#e53e3e', fontSize: 12 }}>
+                    {s.is_active ? '啟用' : '停用'}
+                  </span>
+                )}
+              </td>
+              <td style={td}>
+                {editingId === s.id ? (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button onClick={() => handleUpdate(s.id)} disabled={saving}
+                      style={{ ...smallBtn, background: '#c6f6d5', color: '#276749' }}>儲存</button>
+                    <button onClick={() => setEditingId(null)}
+                      style={{ ...smallBtn, background: '#e2e8f0', color: '#718096' }}>取消</button>
+                  </div>
+                ) : (
+                  <button onClick={() => startEdit(s)}
+                    style={{ ...smallBtn, background: '#ebf8ff', color: '#2b6cb0' }}>編輯</button>
+                )}
               </td>
             </tr>
           ))}
           {sources.length === 0 && (
-            <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: '#a0aec0' }}>尚無來源單位</td></tr>
+            <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: '#a0aec0' }}>尚無來源單位</td></tr>
           )}
         </tbody>
       </table>
