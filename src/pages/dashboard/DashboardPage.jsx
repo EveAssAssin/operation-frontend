@@ -5,7 +5,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { checksApi, dashboardApi } from '../../services/api';
-import TrainingHighlightCard from './TrainingHighlightCard';
+import TrainingHighlightCard     from './TrainingHighlightCard';
+import EngineeringHighlightCard  from './EngineeringHighlightCard';
 
 // ── 品牌色 ───────────────────────────────────────────────
 const C = {
@@ -137,7 +138,8 @@ export default function DashboardPage() {
   });
 
   // 各模組的資料（從聚合結果取出）
-  const trainingResult = highlights.data?.training;
+  const trainingResult     = highlights.data?.training;
+  const engineeringResult  = highlights.data?.engineering;
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: '860px', fontFamily: 'system-ui, sans-serif' }}>
@@ -167,6 +169,13 @@ export default function DashboardPage() {
             onClick={() => navigate('/checks')}
           />
 
+          {/* 工務部 */}
+          <EngineeringHighlightCard
+            loading={highlights.loading}
+            success={engineeringResult?.success ?? false}
+            data={engineeringResult?.data ?? null}
+          />
+
           {/* 教育訓練 */}
           <TrainingHighlightCard
             loading={highlights.loading}
@@ -174,13 +183,7 @@ export default function DashboardPage() {
             data={trainingResult?.data ?? null}
           />
 
-          {/* 未來其他模組在此新增，例如：
-          <WorkOrderHighlightCard
-            loading={highlights.loading}
-            success={highlights.data?.workorder?.success ?? false}
-            data={highlights.data?.workorder?.data ?? null}
-          />
-          */}
+          {/* 未來其他模組在此新增 */}
 
         </div>
       </div>
