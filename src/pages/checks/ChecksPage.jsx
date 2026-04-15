@@ -915,7 +915,18 @@ function SubjectsModal({ subjects: initSubjects, onClose, onSaved }) {
     finally { setSaving(false); }
   }
 
+  // 指定／變更母分類（現有科目）
+  async function handleSetParent(id, parentId) {
+    try {
+      await checksApi.updateSubject(id, { parent_id: parentId || null });
+      setList(prev => prev.map(s => s.id === id ? { ...s, parent_id: parentId || null } : s));
+      onSaved();
+    } catch(e) { alert(e.message || '變更失敗'); }
+  }
+
   function renderRow(s, indent = false) {
+    // 可選的母分類清單（排除自己）
+    const catOptions = list.filter(c => !c.parent_id && c.id !== s.id);
     return (
       <div key={s.id} style={{
         display: 'flex', alignItems: 'center', gap: 8,
@@ -924,7 +935,7 @@ function SubjectsModal({ subjects: initSubjects, onClose, onSaved }) {
         background: editingId === s.id ? '#faf5ee' : (indent ? '#fafaf8' : '#fff'),
       }}>
         {indent && <span style={{ color: C.textLight, fontSize: 12 }}>└</span>}
-        {!indent && <span style={{ fontSize: 13, color: C.mid }}>📁</span>}
+        {!indent && <span style={{ fontSize: 13, color: s.parent_id ? C.textLight : C.mid }}>📁</span>}
         {editingId === s.id ? (
           <>
             <input value={editName} onChange={e => setEditName(e.target.value)}
@@ -938,6 +949,16 @@ function SubjectsModal({ subjects: initSubjects, onClose, onSaved }) {
         ) : (
           <>
             <span style={{ flex: 1, fontSize: indent ? 13 : 14, color: C.textDark, fontWeight: indent ? 400 : 600 }}>{s.name}</span>
+            {/* 母分類選擇器 */}
+            <select
+              value={s.parent_id || ''}
+              onChange={e => handleSetParent(s.id, e.target.value)}
+              style={{ fontSize: 11, padding: '2px 4px', borderRadius: 4, border: `1px solid ${C.border}`, color: C.textMid, background: '#fafafa', maxWidth: 100 }}
+              title="設定母分類"
+            >
+              <option value="">（母分類）</option>
+              {catOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
             <button onClick={() => { setEditingId(s.id); setEditName(s.name); }}
               style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, padding: '3px 8px', cursor: 'pointer', color: C.textMid, fontSize: 11 }}>
               ✏️ 改名
