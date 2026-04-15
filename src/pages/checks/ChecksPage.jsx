@@ -338,6 +338,38 @@ function BatchesPanel({ user }) {
     } catch (e) { alert(e.message || '操作失敗'); }
   }
 
+  async function handleDeleteBatch(e, batchId, batchNo) {
+    e.stopPropagation();
+    if (!window.confirm(`確定刪除批次 ${batchNo}？\n此操作將同時刪除該批次所有支票，無法復原！`)) return;
+    try {
+      await checksApi.deleteBatch(batchId);
+      if (expandedId === batchId) { setExpandedId(null); setExpandedData(null); }
+      load();
+    } catch (e) { alert(e.message || '刪除失敗'); }
+  }
+
+  async function handleBulkPayPast() {
+    if (!window.confirm('確定將今天以前所有「待出款」票據全部標記為已付款？')) return;
+    try {
+      const res = await checksApi.bulkPayPast();
+      alert(res.data?.message || '完成');
+      load();
+    } catch (e) { alert(e.message || '操作失敗'); }
+  }
+
+  async function handleClearAll() {
+    const confirm1 = window.confirm('⚠️ 警告：此操作將刪除所有支票批次與支票資料，無法復原！\n確定清除全部？');
+    if (!confirm1) return;
+    const input = window.prompt('請輸入 "確認清除" 以繼續：');
+    if (input !== '確認清除') return;
+    try {
+      await checksApi.clearAll();
+      alert('所有資料已清除，請重新匯入');
+      setExpandedId(null); setExpandedData(null);
+      load();
+    } catch (e) { alert(e.message || '清除失敗'); }
+  }
+
   const DRAWER_OPTIONS = ['黃信儒', '黃志雄'];
   const BATCH_STATUS_LABEL = { active: '進行中', completed: '已完成', voided: '已作廢' };
   const BATCH_STATUS_COLOR = {
@@ -363,12 +395,20 @@ function BatchesPanel({ user }) {
         <div style={{ flex: 1 }} />
         {canManage(user?.role) && (
           <>
+            <button onClick={handleBulkPayPast} style={{ ...btnStyle, background: '#8b6f4e' }} title="將今天以前的所有待出款票一鍵標記為已付款">
+              ✅ 補標已出款
+            </button>
             <button onClick={() => setShowImport(true)} style={{ ...btnStyle, background: C.mid }}>
               📤 匯入 Excel
             </button>
             <button onClick={() => setShowCreate(true)} style={{ ...btnStyle, background: C.dark }}>
               ＋ 新增批次
             </button>
+            {user?.role === 'super_admin' && (
+              <button onClick={handleClearAll} style={{ ...btnStyle, background: '#c53030' }} title="清除全部資料後重新匯入">
+                🗑 清除全部
+              </button>
+            )}
           </>
         )}
       </div>
@@ -430,15 +470,26 @@ function BatchesPanel({ user }) {
                     <div style={{ color: C.textLight, fontSize: 11 }}>{b.check_count} 張</div>
                   </div>
                   {canManage(user?.role) && (
-                    <button
-                      onClick={e => { e.stopPropagation(); setEditingBatch(b); }}
-                      title="編輯批次"
-                      style={{
-                        background: 'none', border: `1px solid ${C.border}`,
-                        borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
-                        color: C.textMid, fontSize: 14, marginRight: 8,
-                      }}
-                    >✏️</button>
+                    <>
+                      <button
+                        onClick={e => { e.stopPropagation(); setEditingBatch(b); }}
+                        title="編輯批次"
+                        style={{
+                          background: 'none', border: `1px solid ${C.border}`,
+                          borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
+                          color: C.textMid, fontSize: 14, marginRight: 4,
+                        }}
+                      >✏️</button>
+                      <button
+                        onClick={e => handleDeleteBatch(e, b.id, b.batch_no)}
+                        title="刪除此批次"
+                        style={{
+                          background: 'none', border: '1px solid #fed7d7',
+                          borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
+                          color: '#c53030', fontSize: 14, marginRight: 8,
+                        }}
+                      >🗑</button>
+                    </>
                   )}
                   <span style={{ color: C.light, fontSize: 18 }}>{isExpanded ? '▲' : '▼'}</span>
                 </div>

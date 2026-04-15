@@ -185,6 +185,10 @@ export const checksApi = {
   // Excel 匯入（timeout 拉長到 120s，大量寫入需要時間）
   importParse:     (formData)      => api.post('/checks/import/parse', formData, { timeout: 60000 }),
   importConfirm:   (data)          => api.post('/checks/import/confirm', data,    { timeout: 120000 }),
+  // 刪除 / 清除 / 補付款
+  deleteBatch:     (id)            => api.delete(`/checks/batches/${id}`),
+  clearAll:        ()              => api.post('/checks/clear-all'),
+  bulkPayPast:     ()              => api.post('/checks/bulk-pay-past'),
 };
 
 // System API (系統用戶管理)
