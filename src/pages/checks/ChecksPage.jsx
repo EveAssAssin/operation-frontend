@@ -252,6 +252,7 @@ function BatchesPanel({ user }) {
   const [expandedLoading, setExpandedLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [editingBatch, setEditingBatch] = useState(null); // batch object to edit
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -401,6 +402,17 @@ function BatchesPanel({ user }) {
                     )}
                     <div style={{ color: C.textLight, fontSize: 11 }}>{b.check_count} 張</div>
                   </div>
+                  {canManage(user?.role) && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setEditingBatch(b); }}
+                      title="編輯批次"
+                      style={{
+                        background: 'none', border: `1px solid ${C.border}`,
+                        borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
+                        color: C.textMid, fontSize: 14, marginRight: 8,
+                      }}
+                    >✏️</button>
+                  )}
                   <span style={{ color: C.light, fontSize: 18 }}>{isExpanded ? '▲' : '▼'}</span>
                 </div>
 
@@ -484,6 +496,22 @@ function BatchesPanel({ user }) {
         <ImportModal
           onClose={() => setShowImport(false)}
           onSaved={() => { setShowImport(false); load(); }}
+        />
+      )}
+
+      {editingBatch && (
+        <EditBatchModal
+          batch={editingBatch}
+          subjects={subjects}
+          onClose={() => setEditingBatch(null)}
+          onSaved={() => {
+            setEditingBatch(null);
+            // 若展開中的批次被編輯，重新載入展開資料
+            if (expandedId === editingBatch.id) {
+              checksApi.getBatch(expandedId).then(r => setExpandedData(r.data));
+            }
+            load();
+          }}
         />
       )}
     </div>
@@ -718,6 +746,139 @@ function NotifyPanel({ user }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// 編輯批次 Modal
+// ════════════════════════════════════════════════════════════
+function EditBatchModal({ batch, subjects, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    subject_id:    batch.subject?.id   ?? '',
+    drawer_name:   batch.drawer_name   ?? '黃信儒',
+    bank_name:     batch.bank_name     ?? '高銀',
+    renewal_needed: batch.renewal_needed ?? false,
+    notes:         batch.notes         ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  // 新增科目
+  const [newSubject, setNewSubject] = useState('');
+  const [addingSubject, setAddingSubject] = useState(false);
+  const [subjectList, setSubjectList] = useState(subjects);
+
+  async function handleAddSubject() {
+    if (!newSubject.trim()) return;
+    try {
+      const res = await checksApi.createSubject(newSubject.trim());
+      const created = res.data;
+      setSubjectList(prev => [...prev, created]);
+      setForm(p => ({ ...p, subject_id: created.id }));
+      setNewSubject('');
+      setAddingSubject(false);
+    } catch(e) { alert(e.message || '新增失敗'); }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await checksApi.updateBatch(batch.id, {
+        ...form,
+        subject_id: form.subject_id || null,
+      });
+      onSaved();
+    } catch(e) { alert(e.message || '儲存失敗'); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Modal title={`編輯批次：${batch.batch_no}`} onClose={onClose} width={520}>
+      <form onSubmit={handleSubmit}>
+        {/* 科目 */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <label style={{ ...labelStyle, marginBottom: 0, flex: 1 }}>支票科目</label>
+            <button type="button" onClick={() => setAddingSubject(v => !v)}
+              style={{ fontSize: 11, color: C.mid, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              {addingSubject ? '取消' : '＋ 新增科目'}
+            </button>
+          </div>
+          <select
+            value={form.subject_id}
+            onChange={e => setForm(p => ({ ...p, subject_id: e.target.value }))}
+            style={inputStyle}
+          >
+            <option value="">— 選擇科目（可留空）—</option>
+            {subjectList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          {addingSubject && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <input
+                value={newSubject}
+                onChange={e => setNewSubject(e.target.value)}
+                style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+                placeholder="輸入新科目名稱"
+                autoFocus
+              />
+              <button type="button" onClick={handleAddSubject}
+                style={{ ...btnStyle, background: C.mid, whiteSpace: 'nowrap' }}>新增</button>
+            </div>
+          )}
+        </div>
+
+        {/* 出款人 & 銀行 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <div>
+            <label style={labelStyle}>出款人</label>
+            <select value={form.drawer_name} onChange={e => setForm(p => ({ ...p, drawer_name: e.target.value }))} style={inputStyle}>
+              <option value="黃信儒">黃信儒</option>
+              <option value="黃志雄">黃志雄</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>出款銀行</label>
+            <select value={form.bank_name} onChange={e => setForm(p => ({ ...p, bank_name: e.target.value }))} style={inputStyle}>
+              <option value="高銀">高銀</option>
+              <option value="三信">三信</option>
+            </select>
+          </div>
+        </div>
+
+        {/* 續票提醒 */}
+        <div style={{ marginBottom: 14 }}>
+          <label style={{
+            display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+            padding: '10px 14px', borderRadius: 8,
+            border: `1.5px solid ${form.renewal_needed ? C.mid : C.border}`,
+            background: form.renewal_needed ? '#faf5ee' : '#fafafa',
+          }}>
+            <input type="checkbox" checked={form.renewal_needed}
+              onChange={e => setForm(p => ({ ...p, renewal_needed: e.target.checked }))}
+              style={{ width: 16, height: 16, accentColor: C.mid, cursor: 'pointer' }} />
+            <div>
+              <div style={{ fontWeight: 600, color: C.dark, fontSize: 13 }}>🔔 需要續票提醒</div>
+              <div style={{ color: C.textLight, fontSize: 11 }}>剩最後 1 張待出款時自動通知</div>
+            </div>
+          </label>
+        </div>
+
+        {/* 備註 */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={labelStyle}>備註</label>
+          <input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+            style={inputStyle} placeholder="選填" />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button type="button" onClick={onClose}
+            style={{ ...btnStyle, background: '#e2e8f0', color: C.textDark }}>取消</button>
+          <button type="submit" disabled={saving}
+            style={{ ...btnStyle, background: C.dark, opacity: saving ? 0.7 : 1 }}>
+            {saving ? '儲存中...' : '儲存'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
