@@ -418,9 +418,17 @@ function CreateBillModal({ sources, departments, onClose, onCreated }) {
               <label style={labelStyle}>來源單位 *</label>
               <select style={selectStyle} value={form.source_id} onChange={e => set('source_id', e.target.value)}>
                 <option value="">— 選擇來源單位 —</option>
-                {sources.filter(s => s.sync_method !== 'api').map(s => (
-                  <option key={s.id} value={s.id}>[{SOURCE_TYPE_LABEL[s.source_type]}] {s.name}</option>
-                ))}
+                {['admin_dept', 'vendor', 'operational'].map(type => {
+                  const group = sources.filter(s => s.source_type === type && s.sync_method !== 'api');
+                  if (!group.length) return null;
+                  return (
+                    <optgroup key={type} label={SOURCE_TYPE_LABEL[type]}>
+                      {group.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
               </select>
             </div>
             <div style={formField}>
@@ -871,86 +879,127 @@ function SourcePanel({ sources, onRefresh }) {
         </div>
       )}
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <thead>
-          <tr style={{ background: '#f7fafc' }}>
-            <th style={th}>名稱</th>
-            <th style={th}>類型</th>
-            <th style={th}>帳單來源</th>
-            <th style={th}>API 開始月份</th>
-            <th style={th}>識別碼</th>
-            <th style={th}>狀態</th>
-            <th style={th}>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sources.map(s => (
-            <tr key={s.id} style={trHover}>
-              <td style={td}><strong>{s.name}</strong></td>
-              <td style={td}><TypeBadge type={s.source_type} /></td>
-              <td style={td}>
-                {editingId === s.id ? (
-                  <select style={{ ...selectStyle, fontSize: 12 }} value={editForm.sync_method}
-                    onChange={e => setEditForm(f => ({ ...f, sync_method: e.target.value }))}>
-                    <option value="manual">✏️ 手動</option>
-                    <option value="api">🔄 API自動</option>
-                  </select>
-                ) : (
-                  <span style={{
-                    fontSize: 11, padding: '2px 8px', borderRadius: 8, fontWeight: 600,
-                    background: s.sync_method === 'api' ? '#f0fff4' : '#ebf8ff',
-                    color:      s.sync_method === 'api' ? '#276749' : '#2b6cb0',
-                    border:     s.sync_method === 'api' ? '1px solid #c6f6d5' : '1px solid #bee3f8',
-                  }}>
-                    {s.sync_method === 'api' ? '🔄 API自動' : '✏️ 手動'}
-                  </span>
-                )}
-              </td>
-              <td style={td}>
-                {editingId === s.id && editForm.sync_method === 'api' ? (
-                  <input type="month" style={{ ...selectStyle, fontSize: 12, width: 130 }}
-                    value={editForm.api_start_period}
-                    onChange={e => setEditForm(f => ({ ...f, api_start_period: e.target.value }))} />
-                ) : (
-                  <span style={{ color: s.api_start_period ? '#2d3748' : '#a0aec0' }}>
-                    {s.api_start_period || (s.sync_method === 'api' ? '未設定' : '—')}
-                  </span>
-                )}
-              </td>
-              <td style={{ ...td, color: '#718096' }}>{s.code || '—'}</td>
-              <td style={td}>
-                {editingId === s.id ? (
-                  <select style={{ ...selectStyle, fontSize: 12, width: 80 }} value={editForm.is_active}
-                    onChange={e => setEditForm(f => ({ ...f, is_active: e.target.value === 'true' }))}>
-                    <option value="true">啟用</option>
-                    <option value="false">停用</option>
-                  </select>
-                ) : (
-                  <span style={{ color: s.is_active ? '#38a169' : '#e53e3e', fontSize: 12 }}>
-                    {s.is_active ? '啟用' : '停用'}
-                  </span>
-                )}
-              </td>
-              <td style={td}>
-                {editingId === s.id ? (
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={() => handleUpdate(s.id)} disabled={saving}
-                      style={{ ...smallBtn, background: '#c6f6d5', color: '#276749' }}>儲存</button>
-                    <button onClick={() => setEditingId(null)}
-                      style={{ ...smallBtn, background: '#e2e8f0', color: '#718096' }}>取消</button>
-                  </div>
-                ) : (
-                  <button onClick={() => startEdit(s)}
-                    style={{ ...smallBtn, background: '#ebf8ff', color: '#2b6cb0' }}>編輯</button>
-                )}
-              </td>
-            </tr>
-          ))}
-          {sources.length === 0 && (
-            <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: '#a0aec0' }}>尚無來源單位</td></tr>
-          )}
-        </tbody>
-      </table>
+      {/* 分組顯示：行政部門 / 廠商 / 營運 */}
+      {[
+        { type: 'admin_dept',  label: '行政部門費用', code: '6-1', accentColor: '#3182ce', bgColor: '#ebf8ff' },
+        { type: 'vendor',      label: '廠商費用',     code: '6-2', accentColor: '#805ad5', bgColor: '#faf5ff' },
+        { type: 'operational', label: '營運費用',     code: '6-3', accentColor: '#38a169', bgColor: '#f0fff4' },
+      ].map(({ type, label, code, accentColor, bgColor }) => {
+        const group = sources.filter(s => s.source_type === type);
+        const activeCount = group.filter(s => s.is_active).length;
+        return (
+          <div key={type} style={{ marginBottom: 20 }}>
+            {/* 大分類 Header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 14px',
+              background: bgColor,
+              borderLeft: `4px solid ${accentColor}`,
+              borderRadius: '8px 8px 0 0',
+              borderTop: `1px solid ${accentColor}20`,
+              borderRight: `1px solid ${accentColor}20`,
+            }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: accentColor }}>{label}</span>
+              <span style={{ fontSize: 11, color: '#718096', background: '#fff', padding: '1px 8px', borderRadius: 99, border: `1px solid ${accentColor}40` }}>
+                科目代碼 {code}
+              </span>
+              <span style={{ marginLeft: 'auto', fontSize: 12, color: '#718096' }}>
+                {activeCount} 個啟用 / {group.length} 個合計
+              </span>
+            </div>
+
+            {/* 子來源 Table */}
+            <div style={{ border: `1px solid ${accentColor}20`, borderTop: 'none', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
+              {group.length === 0 ? (
+                <div style={{ padding: '16px', textAlign: 'center', color: '#a0aec0', fontSize: 13, background: '#fff' }}>
+                  尚無此類型來源單位
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: '#fafafa' }}>
+                      <th style={th}>名稱</th>
+                      <th style={th}>帳單來源</th>
+                      <th style={th}>API 開始月份</th>
+                      <th style={th}>識別碼</th>
+                      <th style={th}>狀態</th>
+                      <th style={th}>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.map(s => (
+                      <tr key={s.id} style={{ ...trHover, opacity: s.is_active ? 1 : 0.55 }}>
+                        <td style={td}>
+                          <strong style={{ color: '#1a202c' }}>{s.name}</strong>
+                          {s.contact_name && (
+                            <div style={{ fontSize: 11, color: '#718096', marginTop: 1 }}>聯絡人：{s.contact_name}</div>
+                          )}
+                        </td>
+                        <td style={td}>
+                          {editingId === s.id ? (
+                            <select style={{ ...selectStyle, fontSize: 12 }} value={editForm.sync_method}
+                              onChange={e => setEditForm(f => ({ ...f, sync_method: e.target.value }))}>
+                              <option value="manual">✏️ 手動</option>
+                              <option value="api">🔄 API自動</option>
+                            </select>
+                          ) : (
+                            <span style={{
+                              fontSize: 11, padding: '2px 8px', borderRadius: 8, fontWeight: 600,
+                              background: s.sync_method === 'api' ? '#f0fff4' : '#ebf8ff',
+                              color:      s.sync_method === 'api' ? '#276749' : '#2b6cb0',
+                              border:     s.sync_method === 'api' ? '1px solid #c6f6d5' : '1px solid #bee3f8',
+                            }}>
+                              {s.sync_method === 'api' ? '🔄 API自動' : '✏️ 手動'}
+                            </span>
+                          )}
+                        </td>
+                        <td style={td}>
+                          {editingId === s.id && editForm.sync_method === 'api' ? (
+                            <input type="month" style={{ ...selectStyle, fontSize: 12, width: 130 }}
+                              value={editForm.api_start_period}
+                              onChange={e => setEditForm(f => ({ ...f, api_start_period: e.target.value }))} />
+                          ) : (
+                            <span style={{ color: s.api_start_period ? '#2d3748' : '#a0aec0' }}>
+                              {s.api_start_period || (s.sync_method === 'api' ? '未設定' : '—')}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ ...td, color: '#718096', fontFamily: 'monospace', fontSize: 12 }}>{s.code || '—'}</td>
+                        <td style={td}>
+                          {editingId === s.id ? (
+                            <select style={{ ...selectStyle, fontSize: 12, width: 80 }} value={editForm.is_active}
+                              onChange={e => setEditForm(f => ({ ...f, is_active: e.target.value === 'true' }))}>
+                              <option value="true">啟用</option>
+                              <option value="false">停用</option>
+                            </select>
+                          ) : (
+                            <span style={{ color: s.is_active ? '#38a169' : '#e53e3e', fontSize: 12, fontWeight: 600 }}>
+                              {s.is_active ? '● 啟用' : '○ 停用'}
+                            </span>
+                          )}
+                        </td>
+                        <td style={td}>
+                          {editingId === s.id ? (
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button onClick={() => handleUpdate(s.id)} disabled={saving}
+                                style={{ ...smallBtn, background: '#c6f6d5', color: '#276749' }}>儲存</button>
+                              <button onClick={() => setEditingId(null)}
+                                style={{ ...smallBtn, background: '#e2e8f0', color: '#718096' }}>取消</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => startEdit(s)}
+                              style={{ ...smallBtn, background: '#ebf8ff', color: '#2b6cb0' }}>編輯</button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -963,7 +1012,7 @@ export default function BillingV2Page() {
   const [departments, setDepartments] = useState([]);
   const [bills, setBills]           = useState([]);
   const [pagination, setPagination] = useState({});
-  const [filter, setFilter] = useState({ period: currentMonth(), source_id: '', status: '' });
+  const [filter, setFilter] = useState({ period: currentMonth(), source_type: '', source_id: '', status: '' });
   const [loading, setLoading] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -1045,14 +1094,34 @@ export default function BillingV2Page() {
               <input type="month" style={{ ...inputStyle, width: 140 }} value={filter.period}
                 onChange={e => setFilter(f => ({ ...f, period: e.target.value }))} />
             </div>
+
+            {/* 大分類 */}
+            <div>
+              <label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>費用類別</label>
+              <select style={{ ...selectStyle, width: 150 }} value={filter.source_type}
+                onChange={e => setFilter(f => ({ ...f, source_type: e.target.value, source_id: '' }))}>
+                <option value="">全部類別</option>
+                <option value="admin_dept">行政部門費用</option>
+                <option value="vendor">廠商費用</option>
+                <option value="operational">營運費用</option>
+              </select>
+            </div>
+
+            {/* 子來源（依大分類篩選） */}
             <div>
               <label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>來源單位</label>
               <select style={{ ...selectStyle, width: 180 }} value={filter.source_id}
                 onChange={e => setFilter(f => ({ ...f, source_id: e.target.value }))}>
-                <option value="">全部來源</option>
-                {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                <option value="">
+                  {filter.source_type ? '全部（此類別）' : '全部來源'}
+                </option>
+                {(filter.source_type
+                  ? sources.filter(s => s.source_type === filter.source_type)
+                  : sources
+                ).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
+
             <div>
               <label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>狀態</label>
               <select style={{ ...selectStyle, width: 130 }} value={filter.status}
