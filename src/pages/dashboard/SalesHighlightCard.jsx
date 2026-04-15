@@ -57,7 +57,7 @@ function KpiRow({ kpi }) {
 // 主卡片
 // ════════════════════════════════════════════════════════════
 export default function SalesHighlightCard({ loading, success, data }) {
-  const [collapsed, setCollapsed] = useState(false); // 業績卡預設展開（最重要）
+  const [collapsed, setCollapsed] = useState(true);
 
   const kpis      = data?.kpis        || [];
   const sameStore = data?.same_store  || null;
