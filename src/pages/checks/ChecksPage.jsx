@@ -736,10 +736,24 @@ function NotifyPanel({ user }) {
   }
 
   async function handleTest() {
-    if (!window.confirm('確定發送測試通知？')) return;
+    if (!window.confirm('確定立即發送今日出款通知？')) return;
     try {
-      await checksApi.testNotify();
-      alert('測試通知已發送');
+      const res = await checksApi.testNotify();
+      const d = res.data;
+      if (!d.success_push) {
+        alert(`⚠️ 未發送\n原因：${d.reason}`);
+        return;
+      }
+      let msg = `✅ 推播成功！\n`;
+      msg += `📊 支票數：${d.check_count} 張\n`;
+      msg += `👥 通知對象：${d.targets.join('、')}\n`;
+      if (d.line_response) {
+        msg += `\nLINE API 回應：${JSON.stringify(d.line_response)}`;
+      }
+      if (d.message_preview) {
+        msg += `\n\n--- 訊息內容 ---\n${d.message_preview}`;
+      }
+      alert(msg);
     } catch(e) { alert(e.message || '發送失敗'); }
   }
 
