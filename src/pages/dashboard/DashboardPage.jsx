@@ -1,10 +1,11 @@
 // pages/dashboard/DashboardPage.jsx
 // 營運部系統首頁
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { checksApi, dashboardApi } from '../../services/api';
+import TrainingHighlightCard from './TrainingHighlightCard';
 
 // ── 品牌色 ───────────────────────────────────────────────
 const C = {
@@ -31,171 +32,62 @@ const QUICK_LINKS = [
 ];
 
 // ════════════════════════════════════════════════════════════
-// 今日重點：單一模組卡片
+// 支票出款卡片（獨立小元件）
 // ════════════════════════════════════════════════════════════
-function HighlightCard({ icon, label, loading, urgent, warning, text, subText, onClick, unavailable }) {
+function ChecksHighlightCard({ loading, total, amount, overdue, onClick }) {
   const [hover, setHover] = useState(false);
-
-  const borderColor = unavailable ? C.border
-    : urgent  ? '#f56565'
-    : warning ? '#ed8936'
-    : hover   ? C.light
-    : C.border;
-
-  const shadowColor = urgent  ? 'rgba(197,48,48,0.12)'
-    : warning ? 'rgba(237,137,54,0.12)'
-    : 'rgba(80,66,45,0.08)';
-
-  const iconBg = urgent ? '#fff5f5' : warning ? '#fffaf0' : C.bg;
-  const textColor = urgent ? '#c53030' : warning ? '#c05621' : C.dark;
+  const urgent = total > 0;
+  const accentColor = urgent ? '#c53030' : '#2d6a4f';
 
   return (
-    <div
-      onClick={!unavailable ? onClick : undefined}
+    <div style={{
+      background: '#fff',
+      borderRadius: 12,
+      border: '1px solid #e0d5c8',
+      overflow: 'hidden',
+      boxShadow: urgent && hover ? '0 0 0 2px #c5303040' : 'none',
+      transition: 'all 0.15s',
+      cursor: 'pointer',
+    }}
+      onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      style={{
-        background: '#fff',
-        border: `2px solid ${borderColor}`,
-        borderRadius: 12,
-        padding: '16px 20px',
-        cursor: unavailable ? 'default' : 'pointer',
-        transition: 'all 0.15s',
-        boxShadow: (!unavailable && hover) ? `0 4px 16px ${shadowColor}` : 'none',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        minWidth: 0,
-        opacity: unavailable ? 0.55 : 1,
-      }}
     >
-      {/* 左側圖示 */}
-      <div style={{
-        width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-        background: iconBg,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 22,
-      }}>
-        {icon}
-      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
+        {/* 左色條 */}
+        <div style={{
+          width: 4, borderRadius: 2, alignSelf: 'stretch',
+          background: loading ? '#cbd5e0' : accentColor,
+          minHeight: 28, flexShrink: 0,
+        }} />
 
-      {/* 中段文字 */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, color: C.mid, fontWeight: 600, marginBottom: 4 }}>{label}</div>
-        {loading ? (
-          <div style={{ fontSize: 13, color: '#a0aec0' }}>載入中...</div>
-        ) : (
-          <>
-            <div style={{
-              fontSize: 15, fontWeight: 700,
-              color: textColor,
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>
-              {text}
+        <div style={{ fontSize: 20 }}>🏦</div>
+
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: '#1a202c' }}>支票出款</div>
+          {loading ? (
+            <div style={{ fontSize: 12, color: '#a0aec0', marginTop: 4 }}>載入中...</div>
+          ) : (
+            <div style={{ marginTop: 5 }}>
+              <span style={{
+                fontSize: 15, fontWeight: 700,
+                color: urgent ? '#c53030' : '#2d6a4f',
+              }}>
+                {urgent ? `本日應出 ${fmtAmt(amount)}` : '本日無待辦'}
+              </span>
+              {urgent && (
+                <span style={{ fontSize: 12, color: '#9a8878', marginLeft: 8 }}>
+                  共 {total} 張{overdue > 0 ? `，逾期 ${overdue} 張` : ''}
+                </span>
+              )}
             </div>
-            {subText && (
-              <div style={{ fontSize: 12, color: '#9a8878', marginTop: 2 }}>{subText}</div>
-            )}
-          </>
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* 右側箭頭（不可點時不顯示）*/}
-      {!unavailable && (
-        <div style={{ color: C.light, fontSize: 18, flexShrink: 0 }}>›</div>
-      )}
+        <div style={{ color: C.light, fontSize: 16, flexShrink: 0 }}>›</div>
+      </div>
     </div>
   );
-}
-
-// ════════════════════════════════════════════════════════════
-// Hook：支票出款
-// ════════════════════════════════════════════════════════════
-function useChecksHighlight() {
-  const [state, setState] = useState({ loading: true, total: 0, amount: 0, overdue: 0 });
-
-  useEffect(() => {
-    checksApi.getToday()
-      .then(res => {
-        const d = res.data || {};
-        const totalAmt = (d.summary || []).reduce((s, g) => s + (g.total_amount || 0), 0);
-        setState({ loading: false, total: d.total || 0, amount: totalAmt, overdue: d.overdue_count || 0 });
-      })
-      .catch(() => setState({ loading: false, total: 0, amount: 0, overdue: 0 }));
-  }, []);
-
-  return state;
-}
-
-// ════════════════════════════════════════════════════════════
-// Hook：教育訓練
-// ════════════════════════════════════════════════════════════
-function useTrainingHighlight() {
-  const [state, setState] = useState({ loading: true, data: null, error: false });
-
-  useEffect(() => {
-    dashboardApi.getTrainingHighlight()
-      .then(res => {
-        setState({ loading: false, data: res.data || null, error: false });
-      })
-      .catch(() => setState({ loading: false, data: null, error: true }));
-  }, []);
-
-  return state;
-}
-
-// 從教育訓練資料推導出卡片要顯示的優先內容
-function resolveTrainingCard(data) {
-  if (!data) return { urgent: false, warning: false, text: '無法取得資料', subText: null };
-
-  const sosCount      = data.sos_active?.length       || 0;
-  const urgentCount   = data.urgent_attention?.length  || 0;
-  const onboardCount  = data.onboarding_today?.length  || 0;
-  const examCount     = (data.exam_queue?.length        || 0);
-
-  // SOS 最優先
-  if (sosCount > 0) {
-    const names = data.sos_active.slice(0, 2).map(s => s.name || s).join('、');
-    return {
-      urgent: true, warning: false,
-      text:    `🆘 SOS 求助中 ${sosCount} 人`,
-      subText: names + (sosCount > 2 ? ` 等 ${sosCount} 人` : ''),
-    };
-  }
-
-  // 需緊急關注
-  if (urgentCount > 0) {
-    const names = data.urgent_attention.slice(0, 2).map(s => s.name || s).join('、');
-    return {
-      urgent: false, warning: true,
-      text:    `⚠ 需關注學員 ${urgentCount} 人`,
-      subText: names + (urgentCount > 2 ? ` 等 ${urgentCount} 人` : ''),
-    };
-  }
-
-  // 今日到職
-  if (onboardCount > 0) {
-    const names = data.onboarding_today.slice(0, 3).map(s => s.name || s).join('、');
-    return {
-      urgent: false, warning: false,
-      text:    `🎉 今日到職 ${onboardCount} 人`,
-      subText: names,
-    };
-  }
-
-  // 正常：顯示摘要數字
-  const s = data.summary || {};
-  const parts = [];
-  if (s.in_training  > 0) parts.push(`訓練中 ${s.in_training}`);
-  if (s.waiting_exam > 0) parts.push(`等待考試 ${s.waiting_exam}`);
-  if (s.in_exam      > 0) parts.push(`考試中 ${s.in_exam}`);
-  if (examCount      > 0 && !s.in_exam) parts.push(`排隊考試 ${examCount}`);
-
-  return {
-    urgent: false, warning: false,
-    text:    parts.length > 0 ? '訓練進度正常' : '本日無異常',
-    subText: parts.join(' · ') || null,
-  };
 }
 
 // ════════════════════════════════════════════════════════════
@@ -204,8 +96,38 @@ function resolveTrainingCard(data) {
 export default function DashboardPage() {
   const { user, hasRole } = useAuth();
   const navigate = useNavigate();
-  const checksHighlight   = useChecksHighlight();
-  const trainingHighlight = useTrainingHighlight();
+
+  // ── 支票資料 ─────────────────────────────────────────
+  const [checks, setChecks] = useState({ loading: true, total: 0, amount: 0, overdue: 0 });
+
+  // ── 聚合 Highlights 資料（教育訓練等外部模組）────────
+  const [highlights, setHighlights] = useState({ loading: true, data: null });
+
+  const loadAll = useCallback(async () => {
+    // 支票 + 聚合 API 同時發出
+    const [checksRes, hlRes] = await Promise.allSettled([
+      checksApi.getToday(),
+      dashboardApi.getHighlights(),
+    ]);
+
+    // 支票
+    if (checksRes.status === 'fulfilled') {
+      const d = checksRes.value.data || {};
+      const totalAmt = (d.summary || []).reduce((s, g) => s + (g.total_amount || 0), 0);
+      setChecks({ loading: false, total: d.total || 0, amount: totalAmt, overdue: d.overdue_count || 0 });
+    } else {
+      setChecks({ loading: false, total: 0, amount: 0, overdue: 0 });
+    }
+
+    // 聚合 Highlights
+    if (hlRes.status === 'fulfilled') {
+      setHighlights({ loading: false, data: hlRes.value.data || {} });
+    } else {
+      setHighlights({ loading: false, data: {} });
+    }
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   const available = QUICK_LINKS.filter(l => hasRole(l.minRole));
 
@@ -214,8 +136,8 @@ export default function DashboardPage() {
     timeZone: 'Asia/Taipei',
   });
 
-  // 教育訓練卡片內容
-  const trainingCard = resolveTrainingCard(trainingHighlight.data);
+  // 各模組的資料（從聚合結果取出）
+  const trainingResult = highlights.data?.training;
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: '860px', fontFamily: 'system-ui, sans-serif' }}>
@@ -232,43 +154,33 @@ export default function DashboardPage() {
 
       {/* ── 今日重點 ── */}
       <div style={{ marginBottom: 32 }}>
-        <SectionTitle>今日重點</SectionTitle>
+        <SectionTitle>📌 今日重點</SectionTitle>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
           {/* 支票出款 */}
-          <HighlightCard
-            icon="🏦"
-            label="支票出款"
-            loading={checksHighlight.loading}
-            urgent={checksHighlight.total > 0}
-            text={
-              checksHighlight.total > 0
-                ? `本日應出 ${fmtAmt(checksHighlight.amount)}`
-                : '本日無待辦'
-            }
-            subText={
-              checksHighlight.total > 0
-                ? `共 ${checksHighlight.total} 張${checksHighlight.overdue > 0 ? `，其中 ${checksHighlight.overdue} 張逾期` : ''}`
-                : null
-            }
+          <ChecksHighlightCard
+            loading={checks.loading}
+            total={checks.total}
+            amount={checks.amount}
+            overdue={checks.overdue}
             onClick={() => navigate('/checks')}
           />
 
           {/* 教育訓練 */}
-          <HighlightCard
-            icon="🎓"
-            label="教育訓練"
-            loading={trainingHighlight.loading}
-            urgent={trainingCard.urgent}
-            warning={trainingCard.warning}
-            text={trainingHighlight.error ? '服務暫時無法連線' : trainingCard.text}
-            subText={trainingHighlight.error ? null : trainingCard.subText}
-            unavailable={trainingHighlight.error}
-            onClick={() => window.open('https://lohas-lms-backend.onrender.com', '_blank')}
+          <TrainingHighlightCard
+            loading={highlights.loading}
+            success={trainingResult?.success ?? false}
+            data={trainingResult?.data ?? null}
           />
 
-          {/* 未來可新增其他模組的今日重點 */}
+          {/* 未來其他模組在此新增，例如：
+          <WorkOrderHighlightCard
+            loading={highlights.loading}
+            success={highlights.data?.workorder?.success ?? false}
+            data={highlights.data?.workorder?.data ?? null}
+          />
+          */}
 
         </div>
       </div>
@@ -309,6 +221,7 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
     </div>
   );
 }
@@ -318,10 +231,9 @@ function SectionTitle({ children }) {
   return (
     <div style={{
       fontSize: 13, fontWeight: 700, color: C.mid,
-      marginBottom: 12, letterSpacing: '0.05em',
-      textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 8,
+      marginBottom: 12, letterSpacing: '0.04em',
+      display: 'flex', alignItems: 'center', gap: 8,
     }}>
-      <span style={{ width: 3, height: 14, background: C.mid, borderRadius: 2, display: 'inline-block' }} />
       {children}
     </div>
   );

@@ -198,10 +198,11 @@ export const checksApi = {
   resolveRenewal:      (id) => api.patch(`/checks/batches/${id}`, { renewal_needed: false }),
 };
 
-// Dashboard API（首頁今日重點，代理外部系統）
+// Dashboard API（首頁今日重點，聚合代理各外部系統）
 export const dashboardApi = {
-  getTrainingHighlight: (date) =>
-    api.get('/dashboard/training-highlight', date ? { params: { date } } : {}),
+  // 取得所有模組今日重點（一次拿齊）
+  getHighlights: (date) =>
+    api.get('/dashboard/highlights', date ? { params: { date } } : {}),
 };
 
 // System API (系統用戶管理)
