@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { checksApi } from '../../services/api';
+import { checksApi, dashboardApi } from '../../services/api';
 
 // ── 品牌色 ───────────────────────────────────────────────
 const C = {
@@ -33,34 +33,46 @@ const QUICK_LINKS = [
 // ════════════════════════════════════════════════════════════
 // 今日重點：單一模組卡片
 // ════════════════════════════════════════════════════════════
-function HighlightCard({ icon, label, loading, urgent, text, subText, onClick }) {
+function HighlightCard({ icon, label, loading, urgent, warning, text, subText, onClick, unavailable }) {
   const [hover, setHover] = useState(false);
+
+  const borderColor = unavailable ? C.border
+    : urgent  ? '#f56565'
+    : warning ? '#ed8936'
+    : hover   ? C.light
+    : C.border;
+
+  const shadowColor = urgent  ? 'rgba(197,48,48,0.12)'
+    : warning ? 'rgba(237,137,54,0.12)'
+    : 'rgba(80,66,45,0.08)';
+
+  const iconBg = urgent ? '#fff5f5' : warning ? '#fffaf0' : C.bg;
+  const textColor = urgent ? '#c53030' : warning ? '#c05621' : C.dark;
 
   return (
     <div
-      onClick={onClick}
+      onClick={!unavailable ? onClick : undefined}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
         background: '#fff',
-        border: `2px solid ${urgent ? '#f56565' : (hover ? C.light : C.border)}`,
+        border: `2px solid ${borderColor}`,
         borderRadius: 12,
         padding: '16px 20px',
-        cursor: 'pointer',
+        cursor: unavailable ? 'default' : 'pointer',
         transition: 'all 0.15s',
-        boxShadow: hover
-          ? (urgent ? '0 4px 16px rgba(197,48,48,0.12)' : '0 4px 12px rgba(80,66,45,0.08)')
-          : 'none',
+        boxShadow: (!unavailable && hover) ? `0 4px 16px ${shadowColor}` : 'none',
         display: 'flex',
         alignItems: 'center',
         gap: 16,
         minWidth: 0,
+        opacity: unavailable ? 0.55 : 1,
       }}
     >
       {/* 左側圖示 */}
       <div style={{
         width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-        background: urgent ? '#fff5f5' : C.bg,
+        background: iconBg,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 22,
       }}>
@@ -76,7 +88,7 @@ function HighlightCard({ icon, label, loading, urgent, text, subText, onClick })
           <>
             <div style={{
               fontSize: 15, fontWeight: 700,
-              color: urgent ? '#c53030' : C.dark,
+              color: textColor,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
               {text}
@@ -88,14 +100,16 @@ function HighlightCard({ icon, label, loading, urgent, text, subText, onClick })
         )}
       </div>
 
-      {/* 右側箭頭 */}
-      <div style={{ color: C.light, fontSize: 18, flexShrink: 0 }}>›</div>
+      {/* 右側箭頭（不可點時不顯示）*/}
+      {!unavailable && (
+        <div style={{ color: C.light, fontSize: 18, flexShrink: 0 }}>›</div>
+      )}
     </div>
   );
 }
 
 // ════════════════════════════════════════════════════════════
-// 今日重點：支票模組資料
+// Hook：支票出款
 // ════════════════════════════════════════════════════════════
 function useChecksHighlight() {
   const [state, setState] = useState({ loading: true, total: 0, amount: 0, overdue: 0 });
@@ -105,12 +119,7 @@ function useChecksHighlight() {
       .then(res => {
         const d = res.data || {};
         const totalAmt = (d.summary || []).reduce((s, g) => s + (g.total_amount || 0), 0);
-        setState({
-          loading:  false,
-          total:    d.total || 0,
-          amount:   totalAmt,
-          overdue:  d.overdue_count || 0,
-        });
+        setState({ loading: false, total: d.total || 0, amount: totalAmt, overdue: d.overdue_count || 0 });
       })
       .catch(() => setState({ loading: false, total: 0, amount: 0, overdue: 0 }));
   }, []);
@@ -119,20 +128,94 @@ function useChecksHighlight() {
 }
 
 // ════════════════════════════════════════════════════════════
+// Hook：教育訓練
+// ════════════════════════════════════════════════════════════
+function useTrainingHighlight() {
+  const [state, setState] = useState({ loading: true, data: null, error: false });
+
+  useEffect(() => {
+    dashboardApi.getTrainingHighlight()
+      .then(res => {
+        setState({ loading: false, data: res.data || null, error: false });
+      })
+      .catch(() => setState({ loading: false, data: null, error: true }));
+  }, []);
+
+  return state;
+}
+
+// 從教育訓練資料推導出卡片要顯示的優先內容
+function resolveTrainingCard(data) {
+  if (!data) return { urgent: false, warning: false, text: '無法取得資料', subText: null };
+
+  const sosCount      = data.sos_active?.length       || 0;
+  const urgentCount   = data.urgent_attention?.length  || 0;
+  const onboardCount  = data.onboarding_today?.length  || 0;
+  const examCount     = (data.exam_queue?.length        || 0);
+
+  // SOS 最優先
+  if (sosCount > 0) {
+    const names = data.sos_active.slice(0, 2).map(s => s.name || s).join('、');
+    return {
+      urgent: true, warning: false,
+      text:    `🆘 SOS 求助中 ${sosCount} 人`,
+      subText: names + (sosCount > 2 ? ` 等 ${sosCount} 人` : ''),
+    };
+  }
+
+  // 需緊急關注
+  if (urgentCount > 0) {
+    const names = data.urgent_attention.slice(0, 2).map(s => s.name || s).join('、');
+    return {
+      urgent: false, warning: true,
+      text:    `⚠ 需關注學員 ${urgentCount} 人`,
+      subText: names + (urgentCount > 2 ? ` 等 ${urgentCount} 人` : ''),
+    };
+  }
+
+  // 今日到職
+  if (onboardCount > 0) {
+    const names = data.onboarding_today.slice(0, 3).map(s => s.name || s).join('、');
+    return {
+      urgent: false, warning: false,
+      text:    `🎉 今日到職 ${onboardCount} 人`,
+      subText: names,
+    };
+  }
+
+  // 正常：顯示摘要數字
+  const s = data.summary || {};
+  const parts = [];
+  if (s.in_training  > 0) parts.push(`訓練中 ${s.in_training}`);
+  if (s.waiting_exam > 0) parts.push(`等待考試 ${s.waiting_exam}`);
+  if (s.in_exam      > 0) parts.push(`考試中 ${s.in_exam}`);
+  if (examCount      > 0 && !s.in_exam) parts.push(`排隊考試 ${examCount}`);
+
+  return {
+    urgent: false, warning: false,
+    text:    parts.length > 0 ? '訓練進度正常' : '本日無異常',
+    subText: parts.join(' · ') || null,
+  };
+}
+
+// ════════════════════════════════════════════════════════════
 // 主頁面
 // ════════════════════════════════════════════════════════════
 export default function DashboardPage() {
   const { user, hasRole } = useAuth();
   const navigate = useNavigate();
-  const checksHighlight = useChecksHighlight();
+  const checksHighlight   = useChecksHighlight();
+  const trainingHighlight = useTrainingHighlight();
 
   const available = QUICK_LINKS.filter(l => hasRole(l.minRole));
 
-  // 今日日期（台灣格式）
   const today = new Date().toLocaleDateString('zh-TW', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
     timeZone: 'Asia/Taipei',
   });
+
+  // 教育訓練卡片內容
+  const trainingCard = resolveTrainingCard(trainingHighlight.data);
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: '860px', fontFamily: 'system-ui, sans-serif' }}>
@@ -149,16 +232,7 @@ export default function DashboardPage() {
 
       {/* ── 今日重點 ── */}
       <div style={{ marginBottom: 32 }}>
-        <div style={{
-          fontSize: 13, fontWeight: 700, color: C.mid,
-          marginBottom: 12, letterSpacing: '0.05em',
-          textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          <span style={{
-            width: 3, height: 14, background: C.mid, borderRadius: 2, display: 'inline-block',
-          }} />
-          今日重點
-        </div>
+        <SectionTitle>今日重點</SectionTitle>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
 
@@ -181,8 +255,20 @@ export default function DashboardPage() {
             onClick={() => navigate('/checks')}
           />
 
+          {/* 教育訓練 */}
+          <HighlightCard
+            icon="🎓"
+            label="教育訓練"
+            loading={trainingHighlight.loading}
+            urgent={trainingCard.urgent}
+            warning={trainingCard.warning}
+            text={trainingHighlight.error ? '服務暫時無法連線' : trainingCard.text}
+            subText={trainingHighlight.error ? null : trainingCard.subText}
+            unavailable={trainingHighlight.error}
+            onClick={() => window.open('https://lohas-lms-backend.onrender.com', '_blank')}
+          />
+
           {/* 未來可新增其他模組的今日重點 */}
-          {/* <HighlightCard icon="📋" label="工單待辦" ... /> */}
 
         </div>
       </div>
@@ -190,16 +276,7 @@ export default function DashboardPage() {
       {/* ── 功能模組入口 ── */}
       {available.length > 0 && (
         <>
-          <div style={{
-            fontSize: 13, fontWeight: 700, color: C.mid,
-            marginBottom: 12, letterSpacing: '0.05em',
-            textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-            <span style={{
-              width: 3, height: 14, background: C.mid, borderRadius: 2, display: 'inline-block',
-            }} />
-            功能模組
-          </div>
+          <SectionTitle>功能模組</SectionTitle>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14, marginBottom: 28 }}>
             {available.map(link => (
               <a
@@ -232,6 +309,20 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── 小工具：區塊標題 ─────────────────────────────────────
+function SectionTitle({ children }) {
+  return (
+    <div style={{
+      fontSize: 13, fontWeight: 700, color: C.mid,
+      marginBottom: 12, letterSpacing: '0.05em',
+      textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 8,
+    }}>
+      <span style={{ width: 3, height: 14, background: C.mid, borderRadius: 2, display: 'inline-block' }} />
+      {children}
     </div>
   );
 }

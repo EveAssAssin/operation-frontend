@@ -198,6 +198,12 @@ export const checksApi = {
   resolveRenewal:      (id) => api.patch(`/checks/batches/${id}`, { renewal_needed: false }),
 };
 
+// Dashboard API（首頁今日重點，代理外部系統）
+export const dashboardApi = {
+  getTrainingHighlight: (date) =>
+    api.get('/dashboard/training-highlight', date ? { params: { date } } : {}),
+};
+
 // System API (系統用戶管理)
 export const systemApi = {
   getEmployees:   (params = {}) => api.get('/system/employees', { params }),
