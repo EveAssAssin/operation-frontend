@@ -182,9 +182,9 @@ export const checksApi = {
   updateTarget:    (id, data)      => api.patch(`/checks/notify-targets/${id}`, data),
   deleteTarget:    (id)            => api.delete(`/checks/notify-targets/${id}`),
   testNotify:      ()              => api.post('/checks/notify-targets/test'),
-  // Excel 匯入
-  importParse:     (formData)      => api.post('/checks/import/parse', formData),
-  importConfirm:   (data)          => api.post('/checks/import/confirm', data),
+  // Excel 匯入（timeout 拉長到 120s，大量寫入需要時間）
+  importParse:     (formData)      => api.post('/checks/import/parse', formData, { timeout: 60000 }),
+  importConfirm:   (data)          => api.post('/checks/import/confirm', data,    { timeout: 120000 }),
 };
 
 // System API (系統用戶管理)
