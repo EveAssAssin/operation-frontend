@@ -19,9 +19,15 @@ const NAV_ITEMS = [
   },
   {
     path:  '/billing',
-    label: '開帳系統',
-    icon:  '💰',
+    label: '工程開帳',
+    icon:  '🔧',
     minRole: 'operation_lead',
+  },
+  {
+    path:  '/billing-v2',
+    label: '帳單管理',
+    icon:  '🧾',
+    minRole: 'operation_staff',
   },
 ];
 

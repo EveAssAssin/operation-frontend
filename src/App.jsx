@@ -7,7 +7,8 @@ import Layout from './components/Layout';
 import LoginPage from './pages/auth/LoginPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import PersonnelPage from './pages/personnel/PersonnelPage';
-import BillingPage from './pages/billing/BillingPage';
+import BillingPage   from './pages/billing/BillingPage';
+import BillingV2Page from './pages/billing/BillingV2Page';
 
 // 通用簽收頁面（LINE LIFF / Web，不需登入）
 import UniversalSignPage from './pages/sign/UniversalSignPage';
@@ -37,7 +38,8 @@ function AppRoutes() {
       {/* 主應用（需登入，套 Layout） */}
       <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
       <Route path="/personnel" element={<PrivateRoute><PersonnelPage /></PrivateRoute>} />
-      <Route path="/billing"   element={<PrivateRoute><BillingPage /></PrivateRoute>} />
+      <Route path="/billing"    element={<PrivateRoute><BillingPage /></PrivateRoute>} />
+      <Route path="/billing-v2" element={<PrivateRoute><BillingV2Page /></PrivateRoute>} />
 
       {/* 未來功能模組在此新增路由 */}
 

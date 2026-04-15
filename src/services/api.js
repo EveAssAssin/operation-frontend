@@ -83,6 +83,74 @@ export const billingApi = {
     api.get(`/billing/order-detail/${sourceType}/${sourceId}`),
 };
 
+// Billing V2 API（開帳系統 v2）
+export const billingV2Api = {
+  // 來源單位
+  getSources:       (params = {}) => api.get('/billing-v2/sources', { params }),
+  getSource:        (id) => api.get(`/billing-v2/sources/${id}`),
+  createSource:     (data) => api.post('/billing-v2/sources', data),
+  updateSource:     (id, data) => api.patch(`/billing-v2/sources/${id}`, data),
+  // 會計科目
+  getCategories:    (sourceId, all = false) =>
+    api.get(`/billing-v2/sources/${sourceId}/categories`, { params: { all } }),
+  createCategory:   (sourceId, data) =>
+    api.post(`/billing-v2/sources/${sourceId}/categories`, data),
+  updateCategory:   (id, data) => api.patch(`/billing-v2/categories/${id}`, data),
+  // 帳單
+  getBills:         (params = {}) => api.get('/billing-v2/bills', { params }),
+  getBill:          (id) => api.get(`/billing-v2/bills/${id}`),
+  createBill:       (data) => api.post('/billing-v2/bills', data),
+  updateBill:       (id, data) => api.patch(`/billing-v2/bills/${id}`, data),
+  updateAllocations:(id, allocations) =>
+    api.put(`/billing-v2/bills/${id}/allocations`, { allocations }),
+  submitBill:       (id) => api.post(`/billing-v2/bills/${id}/submit`),
+  confirmBill:      (id) => api.post(`/billing-v2/bills/${id}/confirm`),
+  distributeBill:   (id) => api.post(`/billing-v2/bills/${id}/distribute`),
+  voidBill:         (id, reason) =>
+    api.post(`/billing-v2/bills/${id}/void`, { void_reason: reason }),
+  // 月報
+  getReport:        (period) => api.get(`/billing-v2/report/${period}`),
+};
+
+// Vendor API（廠商後台，獨立 JWT）
+const vendorApi_base = axios.create({
+  baseURL: (() => {
+    const isLocalhost = typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    return isLocalhost ? '/api/vendor'
+      : (import.meta.env.VITE_API_URL
+          ? import.meta.env.VITE_API_URL.replace('/api', '/api/vendor')
+          : 'https://operation-backend.onrender.com/api/vendor');
+  })(),
+  timeout: 15000,
+  headers: { 'Content-Type': 'application/json' },
+});
+vendorApi_base.interceptors.request.use((config) => {
+  const token = localStorage.getItem('vendor_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+vendorApi_base.interceptors.response.use(
+  (r) => r.data,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('vendor_token');
+      window.location.href = '/vendor/login';
+    }
+    return Promise.reject(error.response?.data || { message: '網路連線異常' });
+  }
+);
+export const vendorApi = {
+  login:        (username, password) => vendorApi_base.post('/login', { username, password }),
+  me:           () => vendorApi_base.get('/me'),
+  getCategories:() => vendorApi_base.get('/categories'),
+  getBills:     (params = {}) => vendorApi_base.get('/bills', { params }),
+  getBill:      (id) => vendorApi_base.get(`/bills/${id}`),
+  createBill:   (data) => vendorApi_base.post('/bills', data),
+  updateBill:   (id, data) => vendorApi_base.patch(`/bills/${id}`, data),
+  submitBill:   (id) => vendorApi_base.post(`/bills/${id}/submit`),
+};
+
 // System API (系統用戶管理)
 export const systemApi = {
   getEmployees:   (params = {}) => api.get('/system/employees', { params }),
