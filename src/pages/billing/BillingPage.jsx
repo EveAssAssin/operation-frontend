@@ -39,7 +39,7 @@ function recentMonths(n = 13) {
 }
 
 function exportSummaryCSV(summary, storeMap, month) {
-  const headers = ['門市代號', '門市名稱', '部門分類', '養護筆數', '養護金額', '報修筆數', '報修金額', '教育訓練筆數', '教育訓練金額', '合計筆數', '合計金額'];
+  const headers = ['門市代號', '門市名稱', '部門分類', '養護筆數', '養護金額', '報修筆數', '報修金額', '教育訓練筆數', '教育訓練金額', '廣告費筆數', '廣告費金額', '合計筆數', '合計金額'];
   const rows = summary.map((s) => [
     s.store_erpid,
     storeMap[s.store_erpid] || s.store_erpid,
@@ -50,6 +50,8 @@ function exportSummaryCSV(summary, storeMap, month) {
     s.repair_amount,
     s.education_count  || 0,
     s.education_amount || 0,
+    s.ad_count  || 0,
+    s.ad_amount || 0,
     s.total_count,
     s.total_amount,
   ]);
@@ -58,9 +60,11 @@ function exportSummaryCSV(summary, storeMap, month) {
     rc: acc.rc + s.repair_count,        ra: acc.ra + s.repair_amount,
     ec: acc.ec + (s.education_count  || 0),
     ea: acc.ea + (s.education_amount || 0),
+    adc: acc.adc + (s.ad_count  || 0),
+    ada: acc.ada + (s.ad_amount || 0),
     tc: acc.tc + s.total_count,         ta: acc.ta + s.total_amount,
-  }), { mc: 0, ma: 0, rc: 0, ra: 0, ec: 0, ea: 0, tc: 0, ta: 0 });
-  rows.push(['', '合計', '', totals.mc, totals.ma, totals.rc, totals.ra, totals.ec, totals.ea, totals.tc, totals.ta]);
+  }), { mc: 0, ma: 0, rc: 0, ra: 0, ec: 0, ea: 0, adc: 0, ada: 0, tc: 0, ta: 0 });
+  rows.push(['', '合計', '', totals.mc, totals.ma, totals.rc, totals.ra, totals.ec, totals.ea, totals.adc, totals.ada, totals.tc, totals.ta]);
 
   const csv  = [headers, ...rows].map((r) => r.join(',')).join('\n');
   const bom  = '\uFEFF';
@@ -346,8 +350,10 @@ export default function BillingPage() {
     rc: acc.rc + s.repair_count,        ra: acc.ra + s.repair_amount,
     ec: acc.ec + (s.education_count  || 0),
     ea: acc.ea + (s.education_amount || 0),
+    adc: acc.adc + (s.ad_count  || 0),
+    ada: acc.ada + (s.ad_amount || 0),
     tc: acc.tc + s.total_count,         ta: acc.ta + s.total_amount,
-  }), { mc: 0, ma: 0, rc: 0, ra: 0, ec: 0, ea: 0, tc: 0, ta: 0 });
+  }), { mc: 0, ma: 0, rc: 0, ra: 0, ec: 0, ea: 0, adc: 0, ada: 0, tc: 0, ta: 0 });
 
   const lastSync = syncLogs[0];
 
@@ -407,6 +413,8 @@ export default function BillingPage() {
                 <th style={S.thR}>報修金額</th>
                 <th style={S.thR}>教育訓練筆數</th>
                 <th style={S.thR}>教育訓練金額</th>
+                <th style={S.thR}>廣告費筆數</th>
+                <th style={S.thR}>廣告費金額</th>
                 <th style={S.thR}>合計金額</th>
               </tr>
             </thead>
@@ -435,6 +443,8 @@ export default function BillingPage() {
                     <td style={S.tdR}>$ {formatAmount(s.repair_amount)}</td>
                     <td style={S.tdR}>{s.education_count || 0} 筆</td>
                     <td style={S.tdR}>$ {formatAmount(s.education_amount || 0)}</td>
+                    <td style={S.tdR}>{s.ad_count || 0} 筆</td>
+                    <td style={S.tdR}>$ {formatAmount(s.ad_amount || 0)}</td>
                     <td style={{ ...S.tdR, fontWeight: '600', color: '#50422d' }}>$ {formatAmount(s.total_amount)}</td>
                   </tr>
                 );
@@ -448,6 +458,8 @@ export default function BillingPage() {
                 <td style={S.tdTotalR}>$ {formatAmount(totals.ra)}</td>
                 <td style={S.tdTotalR}>{totals.ec} 筆</td>
                 <td style={S.tdTotalR}>$ {formatAmount(totals.ea)}</td>
+                <td style={S.tdTotalR}>{totals.adc} 筆</td>
+                <td style={S.tdTotalR}>$ {formatAmount(totals.ada)}</td>
                 <td style={{ ...S.tdTotalR, color: '#50422d' }}>$ {formatAmount(totals.ta)}</td>
               </tr>
             </tbody>
