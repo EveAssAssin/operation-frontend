@@ -9,6 +9,7 @@ import { checksApi, dashboardApi } from '../../services/api';
 import SalesHighlightCard        from './SalesHighlightCard';
 import TrainingHighlightCard     from './TrainingHighlightCard';
 import EngineeringHighlightCard  from './EngineeringHighlightCard';
+import AuditHighlightCard        from './AuditHighlightCard';
 
 // ── 品牌色 ───────────────────────────────────────────────
 const C = {
@@ -115,6 +116,7 @@ export default function DashboardPage() {
   const sales       = useHighlight(dashboardApi.getSalesHighlight);
   const engineering = useHighlight(dashboardApi.getEngineeringHighlight);
   const training    = useHighlight(dashboardApi.getTrainingHighlight);
+  const audit       = useHighlight(dashboardApi.getAuditHighlight);
 
   const available = QUICK_LINKS.filter(l => hasRole(l.minRole));
 
@@ -163,6 +165,13 @@ export default function DashboardPage() {
             loading={training.loading}
             success={training.success}
             data={training.data}
+          />
+
+          {/* 稽察 */}
+          <AuditHighlightCard
+            loading={audit.loading}
+            success={audit.success}
+            data={audit.data}
           />
 
         </div>
