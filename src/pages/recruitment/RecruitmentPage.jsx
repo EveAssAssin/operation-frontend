@@ -409,7 +409,7 @@ function ResumesTab({ storeMap }) {
 // ════════════════════════════════════════════════════════════
 // Tab 3：面試紀錄
 // ════════════════════════════════════════════════════════════
-const EDUCATION_URL = 'https://lms.lohas.com';
+const EDUCATION_URL = 'https://lms.ruki-ai.com';
 
 function InterviewsTab() {
   const { user } = useAuth();
