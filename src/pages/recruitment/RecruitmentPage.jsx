@@ -418,6 +418,8 @@ function InterviewsTab() {
   const [expanded, setExpanded]     = useState(null);
   const [editForm, setEditForm]     = useState({});
   const [uploading, setUploading]   = useState(false);
+  const [smsPhone, setSmsPhone]     = useState({});   // { [interviewId]: phone }
+  const [smsSending, setSmsSending] = useState(null); // interviewId currently sending
   const audioRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -462,6 +464,17 @@ function InterviewsTab() {
       setMsg({ type:'success', text:'已標記新人教育訓練建檔完成' });
       load();
     } catch (e) { setMsg({ type:'error', text: e.message }); }
+  }
+
+  async function handleSendSms(iv) {
+    const phone = (smsPhone[iv.id] || '').trim();
+    if (!phone) { setMsg({ type:'error', text:'請輸入手機號碼' }); return; }
+    setSmsSending(iv.id);
+    try {
+      await recruitmentApi.sendSms(iv.id, phone);
+      setMsg({ type:'success', text:`簡訊已發送至 ${phone}` });
+    } catch (e) { setMsg({ type:'error', text: e.message }); }
+    finally { setSmsSending(null); }
   }
 
   return (
@@ -575,21 +588,60 @@ function InterviewsTab() {
                               {editForm.result === 'pass' && (
                                 <div style={{ background:'#f0fff4', border:'1px solid #9ae6b4', borderRadius:8, padding:'12px 14px' }}>
                                   <div style={{ fontWeight:600, fontSize:13, color:'#276749', marginBottom:8 }}>🎉 面試通過！下一步</div>
+
+                                  {/* 前往教育訓練系統（帶 interview_id 讓對方系統能回呼） */}
                                   <a
-                                    href={EDUCATION_URL}
+                                    href={`${EDUCATION_URL}/new-hire?interview_id=${iv.id}`}
                                     target="_blank"
                                     rel="noreferrer"
-                                    style={{ display:'inline-block', padding:'7px 14px', background:'#276749', color:'#fff', borderRadius:6, fontSize:13, textDecoration:'none', marginBottom:8 }}
+                                    style={{ display:'inline-block', padding:'7px 14px', background:'#276749', color:'#fff', borderRadius:6, fontSize:13, textDecoration:'none', marginBottom:10 }}
                                   >
-                                    前往教育訓練系統 →
+                                    前往教育訓練系統建立新人 →
                                   </a>
-                                  <div>
-                                    {!iv.education_linked && (
-                                      <button style={{ ...S.btnSm, marginTop:4 }} onClick={()=>markEducationLinked(iv.id)}>
-                                        ✅ 確認已在教訓系統建檔完成
-                                      </button>
-                                    )}
-                                  </div>
+
+                                  {/* 教育系統回呼後：顯示到職連結 + 發 SMS */}
+                                  {iv.education_linked && iv.onboarding_url ? (
+                                    <div style={{ marginTop:4 }}>
+                                      <Badge text="✅ 已建檔" color="#276749" bg="#f0fff4" border="#9ae6b4" />
+                                      <div style={{ marginTop:8, marginBottom:6, fontSize:12, color:'#4a5568' }}>
+                                        到職連結：
+                                        <a href={iv.onboarding_url} target="_blank" rel="noreferrer"
+                                          style={{ color:'#2b6cb0', marginLeft:4, wordBreak:'break-all' }}>
+                                          {iv.onboarding_url}
+                                        </a>
+                                      </div>
+                                      <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+                                        <input
+                                          style={{ ...S.inp, width:160 }}
+                                          type="tel"
+                                          placeholder="新人手機（09xxxxxxxx）"
+                                          value={smsPhone[iv.id] || ''}
+                                          onChange={e => setSmsPhone(p => ({ ...p, [iv.id]: e.target.value }))}
+                                        />
+                                        <button
+                                          style={{ ...S.btnP, background:'#2b6cb0', fontSize:13 }}
+                                          onClick={() => handleSendSms(iv)}
+                                          disabled={smsSending === iv.id}
+                                        >
+                                          {smsSending === iv.id ? '發送中...' : '📱 發送到職簡訊'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      {/* 尚未收到教育系統回呼 → 手動確認 */}
+                                      {!iv.education_linked && (
+                                        <button style={{ ...S.btnSm, marginTop:4 }} onClick={()=>markEducationLinked(iv.id)}>
+                                          ✅ 手動確認已在教訓系統建檔完成
+                                        </button>
+                                      )}
+                                      {iv.education_linked && !iv.onboarding_url && (
+                                        <div style={{ fontSize:12, color:'#718096', marginTop:6 }}>
+                                          已建檔，等待教育系統回傳到職連結…
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
