@@ -408,7 +408,7 @@ function ResumesTab({ storeMap }) {
 // ════════════════════════════════════════════════════════════
 // Tab 3：面試紀錄
 // ════════════════════════════════════════════════════════════
-const EDUCATION_URL = 'https://lms.lohas-glasses.com';  // 教育訓練系統入口（可依實際 URL 調整）
+const EDUCATION_URL = 'https://lms.ruki-ai.com';
 
 function InterviewsTab() {
   const [interviews, setInterviews] = useState([]);
