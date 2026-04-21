@@ -593,7 +593,7 @@ function InterviewsTab() {
 
                                   {/* 前往教育訓練系統（帶 interview_id 讓對方系統能回呼） */}
                                   <a
-                                    href={`${EDUCATION_URL}/hq?app_number=${encodeURIComponent(user?.app_number || '')}&interview_id=${iv.id}`}
+                                    href={`${EDUCATION_URL}/hq/enrollments/new?app_number=${encodeURIComponent(user?.app_number || '')}&interview_id=${iv.id}`}
                                     target="_blank"
                                     rel="noreferrer"
                                     style={{ display:'inline-block', padding:'7px 14px', background:'#276749', color:'#fff', borderRadius:6, fontSize:13, textDecoration:'none', marginBottom:10 }}
