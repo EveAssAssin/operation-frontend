@@ -204,6 +204,7 @@ export const dashboardApi = {
   getTrainingHighlight:     (date)  => api.get('/dashboard/highlights/training',    date  ? { params: { date  } } : {}),
   getEngineeringHighlight:  (date)  => api.get('/dashboard/highlights/engineering', date  ? { params: { date  } } : {}),
   getAuditHighlight:        (date)  => api.get('/dashboard/highlights/audit',       date  ? { params: { date  } } : {}),
+  getEvaluationHighlight:   ()      => api.get('/dashboard/highlights/evaluation'),
 };
 
 // System API (系統用戶管理)

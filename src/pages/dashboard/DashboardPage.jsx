@@ -10,6 +10,7 @@ import SalesHighlightCard        from './SalesHighlightCard';
 import TrainingHighlightCard     from './TrainingHighlightCard';
 import EngineeringHighlightCard  from './EngineeringHighlightCard';
 import AuditHighlightCard        from './AuditHighlightCard';
+import EvaluationHighlightCard   from './EvaluationHighlightCard';
 
 // ── 品牌色 ───────────────────────────────────────────────
 const C = {
@@ -117,6 +118,7 @@ export default function DashboardPage() {
   const engineering = useHighlight(dashboardApi.getEngineeringHighlight);
   const training    = useHighlight(dashboardApi.getTrainingHighlight);
   const audit       = useHighlight(dashboardApi.getAuditHighlight);
+  const evaluation  = useHighlight(dashboardApi.getEvaluationHighlight);
 
   const available = QUICK_LINKS.filter(l => hasRole(l.minRole));
 
@@ -172,6 +174,13 @@ export default function DashboardPage() {
             loading={audit.loading}
             success={audit.success}
             data={audit.data}
+          />
+
+          {/* 人員評價 */}
+          <EvaluationHighlightCard
+            loading={evaluation.loading}
+            success={evaluation.success}
+            data={evaluation.data}
           />
 
         </div>
