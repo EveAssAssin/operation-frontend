@@ -41,6 +41,12 @@ const NAV_ITEMS = [
     icon:  '🏦',
     minRole: 'operation_staff',
   },
+  {
+    path:  '/recruitment',
+    label: '人力招募',
+    icon:  '🧑‍💼',
+    minRole: 'operation_staff',
+  },
 ];
 
 // 角色中文標籤

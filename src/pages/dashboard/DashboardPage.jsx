@@ -33,7 +33,8 @@ const ROLE_LABELS = {
 const QUICK_LINKS = [
   { path: '/personnel', icon: '👥', label: '人員管理',   desc: '查看在職員工、設定系統權限', minRole: 'operation_staff' },
   { path: '/billing',   icon: '💰', label: '開帳系統',   desc: '查看各門市每月養護/報修費用', minRole: 'operation_lead' },
-  { path: '/checks',    icon: '🏦', label: '支票紀錄',   desc: '管理應付票據批次與每日出款',  minRole: 'operation_staff' },
+  { path: '/checks',       icon: '🏦',    label: '支票紀錄',   desc: '管理應付票據批次與每日出款',  minRole: 'operation_staff' },
+  { path: '/recruitment',  icon: '🧑‍💼', label: '人力招募',   desc: '人力需求、履歷整理、面試流程', minRole: 'operation_staff' },
 ];
 
 // ── 通用 Highlight Hook（各模組獨立呼叫）─────────────────

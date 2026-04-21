@@ -207,6 +207,27 @@ export const dashboardApi = {
   getEvaluationHighlight:   ()      => api.get('/dashboard/highlights/evaluation'),
 };
 
+// Recruitment API（人力招募模組）
+export const recruitmentApi = {
+  getNeeds:          (status)       => api.get('/recruitment/needs', status ? { params: { status } } : {}),
+  createNeed:        (body)         => api.post('/recruitment/needs', body),
+  updateNeed:        (id, body)     => api.patch(`/recruitment/needs/${id}`, body),
+
+  getApplicants:     (params = {})  => api.get('/recruitment/applicants', { params }),
+  createApplicant:   (body)         => api.post('/recruitment/applicants', body),
+  updateApplicant:   (id, body)     => api.patch(`/recruitment/applicants/${id}`, body),
+
+  getInterviews:     (result)       => api.get('/recruitment/interviews', result ? { params: { result } } : {}),
+  updateInterview:   (id, body)     => api.patch(`/recruitment/interviews/${id}`, body),
+  uploadAudio:       (id, file)     => {
+    const form = new FormData();
+    form.append('audio', file);
+    return api.post(`/recruitment/interviews/${id}/audio`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+};
+
 // System API (系統用戶管理)
 export const systemApi = {
   getEmployees:   (params = {}) => api.get('/system/employees', { params }),
