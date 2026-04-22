@@ -123,6 +123,12 @@ export default function Layout({ children }) {
               {ROLE_LABELS[user?.role] || user?.role || '—'}
             </div>
           </div>
+          <a
+            href={`https://portal.ruki-ai.com/portal.html${user?.line_uid ? `?uid=${encodeURIComponent(user.line_uid)}` : ''}`}
+            style={styles.portalBtn}
+          >
+            🏠 返回統一登入口
+          </a>
           <button style={styles.logoutBtn} onClick={handleLogout}>
             登出
           </button>
@@ -242,6 +248,19 @@ const styles = {
     padding:    '2px 8px',
     borderRadius: '999px',
     alignSelf:  'flex-start',
+  },
+  portalBtn: {
+    display:      'block',
+    margin:       '0 12px 6px',
+    padding:      '8px',
+    background:   'rgba(255,255,255,0.08)',
+    border:       '1px solid rgba(255,255,255,0.2)',
+    borderRadius: '6px',
+    color:        '#cdbea2',
+    fontSize:     '13px',
+    textAlign:    'center',
+    textDecoration: 'none',
+    cursor:       'pointer',
   },
   logoutBtn: {
     margin:     '0 12px',
