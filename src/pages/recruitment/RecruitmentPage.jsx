@@ -56,8 +56,10 @@ const NEED_BADGE = {
   closed:    <Badge text="已結案"  color="#718096" bg="#f7fafc" border="#e2e8f0" />,
 };
 const RESULT_BADGE = {
-  pass: <Badge text="✅ 通過" color="#276749" bg="#f0fff4" border="#9ae6b4" />,
-  fail: <Badge text="❌ 不通過" color="#c53030" bg="#fff5f5" border="#feb2b2" />,
+  pass:      <Badge text="✅ 通過"    color="#276749" bg="#f0fff4" border="#9ae6b4" />,
+  fail:      <Badge text="❌ 不通過"  color="#c53030" bg="#fff5f5" border="#feb2b2" />,
+  no_show:   <Badge text="🚫 未到場"  color="#c05621" bg="#fffaf0" border="#fbd38d" />,
+  found_job: <Badge text="💼 已找到工作" color="#6b46c1" bg="#faf5ff" border="#d6bcfa" />,
 };
 
 // ════════════════════════════════════════════════════════════
@@ -222,30 +224,41 @@ function NeedsTab({ storeMap }) {
 // Tab 2：履歷紀錄
 // ════════════════════════════════════════════════════════════
 function ResumesTab({ storeMap }) {
+  const [viewAll, setViewAll]     = useState(false);   // 全部瀏覽模式
   const [date, setDate]           = useState(today());
   const [platform, setPlatform]   = useState('');
+  const [statusFilter, setStatusFilter] = useState(''); // 全部 / pending / invited / rejected
   const [applicants, setApplicants] = useState([]);
   const [loading, setLoading]     = useState(false);
   const [msg, setMsg]             = useState(null);
   const [showAdd, setShowAdd]     = useState(false);
   const [addForm, setAddForm]     = useState({ name:'', code:'', phone:'', target_store_erpid:'', platform:'1111' });
   const [actionModal, setActionModal] = useState(null); // { applicant, type:'reject'|'invite' }
-  const [actionForm, setActionForm]   = useState({ reject_reason:'', interview_date:'' });
+  const [actionForm, setActionForm]   = useState({ reject_reason:'', interview_date:'', interview_time:'' });
   // 編輯 / 刪除
-  const [editModal, setEditModal]   = useState(null);  // applicant object
+  const [editModal, setEditModal]   = useState(null);
   const [editForm, setEditForm]     = useState({});
   const [editSaving, setEditSaving] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null); // applicant object
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting]     = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await recruitmentApi.getApplicants({ date, platform: platform || undefined });
-      setApplicants(r.data || []);
+      const params = {
+        platform: platform || undefined,
+        status:   statusFilter || undefined,
+      };
+      if (viewAll) {
+        const r = await recruitmentApi.getAllApplicants(params);
+        setApplicants(r.data || []);
+      } else {
+        const r = await recruitmentApi.getApplicants({ ...params, date });
+        setApplicants(r.data || []);
+      }
     } catch (e) { setMsg({ type:'error', text: e.message }); }
     finally { setLoading(false); }
-  }, [date, platform]);
+  }, [date, platform, statusFilter, viewAll]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -265,12 +278,15 @@ function ResumesTab({ storeMap }) {
     const { applicant, type } = actionModal;
     try {
       const body = { status: type === 'reject' ? 'rejected' : 'invited' };
-      if (type === 'reject')  body.reject_reason  = actionForm.reject_reason;
-      if (type === 'invite')  body.interview_date = actionForm.interview_date;
+      if (type === 'reject') body.reject_reason  = actionForm.reject_reason;
+      if (type === 'invite') {
+        body.interview_date = actionForm.interview_date;
+        body.interview_time = actionForm.interview_time || null;
+      }
       await recruitmentApi.updateApplicant(applicant.id, body);
       setMsg({ type:'success', text: type==='reject' ? '已標記婉拒' : '已邀請面試，面試紀錄已建立' });
       setActionModal(null);
-      setActionForm({ reject_reason:'', interview_date:'' });
+      setActionForm({ reject_reason:'', interview_date:'', interview_time:'' });
       load();
     } catch (e) { setMsg({ type:'error', text: e.message }); }
   }
@@ -317,11 +333,32 @@ function ResumesTab({ storeMap }) {
     <div>
       {/* 篩選列 */}
       <div style={{ display:'flex', gap:10, marginBottom:14, alignItems:'center', flexWrap:'wrap' }}>
-        <input style={{ ...S.inp, width:150 }} type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        {/* 全部 / 依日期 切換 */}
+        <div style={{ display:'flex', border:`1px solid ${C.border}`, borderRadius:6, overflow:'hidden' }}>
+          <button
+            style={{ padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
+              background: !viewAll ? C.dark : '#fff', color: !viewAll ? '#fff' : '#718096' }}
+            onClick={() => setViewAll(false)}
+          >依日期</button>
+          <button
+            style={{ padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
+              background: viewAll ? C.dark : '#fff', color: viewAll ? '#fff' : '#718096' }}
+            onClick={() => setViewAll(true)}
+          >全部瀏覽</button>
+        </div>
+        {!viewAll && (
+          <input style={{ ...S.inp, width:150 }} type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        )}
         <select style={S.sel} value={platform} onChange={e=>setPlatform(e.target.value)}>
           <option value="">全部平台</option>
           <option value="1111">1111</option>
           <option value="104">104</option>
+        </select>
+        <select style={S.sel} value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
+          <option value="">全部狀態</option>
+          <option value="pending">待處理</option>
+          <option value="invited">已邀請</option>
+          <option value="rejected">已婉拒</option>
         </select>
         <button style={S.btnP} onClick={()=>setShowAdd(v=>!v)}>+ 新增投遞者</button>
       </div>
@@ -381,8 +418,9 @@ function ResumesTab({ storeMap }) {
                 <th style={S.th}>姓名</th>
                 <th style={S.th}>代碼</th>
                 <th style={S.th}>應徵門市</th>
+                {viewAll && <th style={S.th}>投遞日期</th>}
                 <th style={S.th}>狀態</th>
-                <th style={S.th}>面試日期</th>
+                <th style={S.th}>面試日期 / 時間</th>
                 <th style={S.th}>備註</th>
                 <th style={S.th}>操作</th>
               </tr>
@@ -394,8 +432,13 @@ function ResumesTab({ storeMap }) {
                   <td style={S.td}><span style={{ fontWeight:600 }}>{a.name}</span></td>
                   <td style={S.td}><span style={{ fontFamily:'monospace', color:'#718096', fontSize:12 }}>{a.code || '—'}</span></td>
                   <td style={S.td}>{a.target_store_name || '—'}</td>
+                  {viewAll && <td style={S.td}><span style={{ fontSize:12, color:'#718096' }}>{fmtDate(a.date)}</span></td>}
                   <td style={S.td}>{STATUS_BADGE[a.status] || a.status}</td>
-                  <td style={S.td}>{a.interview_date ? fmtDate(a.interview_date) : '—'}</td>
+                  <td style={S.td}>
+                    {a.interview_date
+                      ? <span>{fmtDate(a.interview_date)}{a.interview_time && <span style={{ marginLeft:6, color:'#2b6cb0', fontWeight:600 }}>⏰ {a.interview_time}</span>}</span>
+                      : <span style={{ color:'#a0aec0' }}>—</span>}
+                  </td>
                   <td style={S.td}><span style={{ fontSize:12, color:'#9a8878' }}>{a.reject_reason || '—'}</span></td>
                   <td style={S.td}>
                     <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
@@ -437,13 +480,25 @@ function ResumesTab({ storeMap }) {
               )}
               {actionModal.type === 'invite' && (
                 <div style={{ marginBottom:14 }}>
-                  <label style={S.label}>面試日期（必填）</label>
-                  <input
-                    style={S.inp} type="date"
-                    value={actionForm.interview_date}
-                    onChange={e=>setActionForm(f=>({...f,interview_date:e.target.value}))}
-                    required
-                  />
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                    <div>
+                      <label style={S.label}>面試日期（必填）</label>
+                      <input
+                        style={S.inp} type="date"
+                        value={actionForm.interview_date}
+                        onChange={e=>setActionForm(f=>({...f,interview_date:e.target.value}))}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label style={S.label}>面試時間（選填）</label>
+                      <input
+                        style={S.inp} type="time"
+                        value={actionForm.interview_time}
+                        onChange={e=>setActionForm(f=>({...f,interview_time:e.target.value}))}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
               <div style={{ display:'flex', gap:8 }}>
@@ -617,10 +672,17 @@ function InterviewsTab() {
 
   return (
     <div>
-      <div style={{ display:'flex', gap:8, marginBottom:14 }}>
-        {['pending','pass','fail',''].map(v => (
+      <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+        {[
+          { v:'pending',   label:'待面試' },
+          { v:'pass',      label:'✅ 已通過' },
+          { v:'fail',      label:'❌ 未通過' },
+          { v:'no_show',   label:'🚫 未到場' },
+          { v:'found_job', label:'💼 已找到工作' },
+          { v:'',          label:'全部' },
+        ].map(({ v, label }) => (
           <button key={v} style={{ ...S.btnS, ...(filter===v?{background:C.dark,color:'#fff',border:`1px solid ${C.dark}`}:{}) }} onClick={()=>setFilter(v)}>
-            {v==='pending'?'待面試':v==='pass'?'已通過':v==='fail'?'未通過':'全部'}
+            {label}
           </button>
         ))}
       </div>
@@ -656,14 +718,17 @@ function InterviewsTab() {
                       <td style={S.td}><span style={{ fontWeight:600 }}>{ap.name || '—'}</span>{ap.code && <span style={{ fontSize:11, color:'#9a8878', marginLeft:6 }}>#{ap.code}</span>}</td>
                       <td style={S.td}>{ap.platform && <Badge text={ap.platform} color="#6b46c1" bg="#faf5ff" border="#d6bcfa" />}</td>
                       <td style={S.td}>{ap.target_store_name || '—'}</td>
-                      <td style={S.td}>{fmtDate(ap.interview_date || iv.created_at)}</td>
+                      <td style={S.td}>
+                        {fmtDate(ap.interview_date || iv.created_at)}
+                        {ap.interview_time && <span style={{ marginLeft:6, color:'#2b6cb0', fontWeight:600, fontSize:12 }}>⏰ {ap.interview_time}</span>}
+                      </td>
                       <td style={S.td}>{iv.result ? RESULT_BADGE[iv.result] : <Badge text="待面試" color="#d69e2e" bg="#fffff0" border="#f6e05e" />}</td>
                       <td style={S.td}>{iv.audio_url ? <a href={iv.audio_url} target="_blank" rel="noreferrer" style={{ color:'#2b6cb0', fontSize:12 }}>🎙 播放</a> : <span style={{ color:'#a0aec0', fontSize:12 }}>—</span>}</td>
                       <td style={S.td}>
                         {iv.result === 'pass'
                           ? iv.education_linked
                             ? <Badge text="✅ 已建檔" color="#276749" bg="#f0fff4" border="#9ae6b4" />
-                            : <Badge text="待建檔" color="#c53030" bg="#fff5f5" border="#feb2b2" />
+                            : <Badge text="待建檔"   color="#c53030" bg="#fff5f5" border="#feb2b2" />
                           : <span style={{ color:'#a0aec0', fontSize:12 }}>—</span>}
                       </td>
                       <td style={S.td}>
@@ -689,11 +754,17 @@ function InterviewsTab() {
                                 placeholder="輸入面試觀察與評語..."
                               />
                               <label style={S.label}>面試結果</label>
-                              <div style={{ display:'flex', gap:10, marginBottom:10 }}>
-                                {['pass','fail',''].map(r => (
-                                  <label key={r} style={{ display:'flex', alignItems:'center', gap:5, fontSize:13, cursor:'pointer' }}>
-                                    <input type="radio" name={`result-${iv.id}`} value={r} checked={editForm.result===r} onChange={()=>setEditForm(f=>({...f,result:r}))} />
-                                    {r==='pass'?'✅ 通過':r==='fail'?'❌ 不通過':'（未決定）'}
+                              <div style={{ display:'flex', gap:10, marginBottom:10, flexWrap:'wrap' }}>
+                                {[
+                                  { v:'pass',      label:'✅ 通過' },
+                                  { v:'fail',      label:'❌ 不通過' },
+                                  { v:'no_show',   label:'🚫 面試未到' },
+                                  { v:'found_job', label:'💼 找到工作' },
+                                  { v:'',          label:'（未決定）' },
+                                ].map(({ v, label }) => (
+                                  <label key={v} style={{ display:'flex', alignItems:'center', gap:5, fontSize:13, cursor:'pointer' }}>
+                                    <input type="radio" name={`result-${iv.id}`} value={v} checked={editForm.result===v} onChange={()=>setEditForm(f=>({...f,result:v}))} />
+                                    {label}
                                   </label>
                                 ))}
                               </div>

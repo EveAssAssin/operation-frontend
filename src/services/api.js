@@ -216,6 +216,7 @@ export const recruitmentApi = {
   updateNeed:        (id, body)     => api.patch(`/recruitment/needs/${id}`, body),
 
   getApplicants:     (params = {})  => api.get('/recruitment/applicants', { params }),
+  getAllApplicants:  (params = {})  => api.get('/recruitment/applicants', { params: { ...params, all: 'true' } }),
   createApplicant:   (body)         => api.post('/recruitment/applicants', body),
   updateApplicant:   (id, body)     => api.patch(`/recruitment/applicants/${id}`, body),
   editApplicant:     (id, body)     => api.put(`/recruitment/applicants/${id}`, body),
