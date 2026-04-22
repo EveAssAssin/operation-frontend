@@ -228,7 +228,7 @@ function ResumesTab({ storeMap }) {
   const [loading, setLoading]     = useState(false);
   const [msg, setMsg]             = useState(null);
   const [showAdd, setShowAdd]     = useState(false);
-  const [addForm, setAddForm]     = useState({ name:'', code:'', target_store_erpid:'', platform:'1111' });
+  const [addForm, setAddForm]     = useState({ name:'', code:'', phone:'', target_store_erpid:'', platform:'1111' });
   const [actionModal, setActionModal] = useState(null); // { applicant, type:'reject'|'invite' }
   const [actionForm, setActionForm]   = useState({ reject_reason:'', interview_date:'' });
 
@@ -249,7 +249,7 @@ function ResumesTab({ storeMap }) {
       await recruitmentApi.createApplicant({ ...addForm, date, target_store_name: storeMap[addForm.target_store_erpid] || '' });
       setMsg({ type:'success', text:'投遞者已新增' });
       setShowAdd(false);
-      setAddForm({ name:'', code:'', target_store_erpid:'', platform: addForm.platform });
+      setAddForm({ name:'', code:'', phone:'', target_store_erpid:'', platform: addForm.platform });
       load();
     } catch (e) { setMsg({ type:'error', text: e.message }); }
   }
@@ -303,6 +303,10 @@ function ResumesTab({ storeMap }) {
               <div>
                 <label style={S.label}>代碼</label>
                 <input style={S.inp} value={addForm.code} onChange={e=>setAddForm(f=>({...f,code:e.target.value}))} placeholder="選填" />
+              </div>
+              <div>
+                <label style={S.label}>手機號碼</label>
+                <input style={S.inp} type="tel" value={addForm.phone} onChange={e=>setAddForm(f=>({...f,phone:e.target.value}))} placeholder="09xxxxxxxx（選填）" />
               </div>
               <div>
                 <label style={S.label}>投遞門市</label>
@@ -421,6 +425,7 @@ function InterviewsTab() {
   const [editForm, setEditForm]     = useState({});
   const [uploading, setUploading]   = useState(false);
   const [smsPhone, setSmsPhone]     = useState({});   // { [interviewId]: phone }
+  const [smsUrl, setSmsUrl]         = useState({});   // { [interviewId]: onboarding_url }
   const [smsSending, setSmsSending] = useState(null); // interviewId currently sending
   const audioRef = useRef(null);
 
@@ -438,12 +443,20 @@ function InterviewsTab() {
   function toggleExpand(id, interview) {
     if (expanded === id) { setExpanded(null); return; }
     setExpanded(id);
-    setEditForm({ notes: interview.notes || '', result: interview.result || '' });
+    setEditForm({ notes: interview.notes || '', result: interview.result || '', pending_reason: interview.pending_reason || '' });
+    // 預填 SMS 欄位
+    const ap = interview.recruitment_applicants || {};
+    if (ap.phone) setSmsPhone(p => ({ ...p, [id]: p[id] ?? ap.phone }));
+    if (interview.onboarding_url) setSmsUrl(u => ({ ...u, [id]: u[id] ?? interview.onboarding_url }));
   }
 
   async function handleSave(id) {
     try {
-      await recruitmentApi.updateInterview(id, { notes: editForm.notes, result: editForm.result || null });
+      await recruitmentApi.updateInterview(id, {
+        notes:          editForm.notes,
+        result:         editForm.result || null,
+        pending_reason: editForm.result === '' ? (editForm.pending_reason || null) : null,
+      });
       setMsg({ type:'success', text:'面試紀錄已儲存' });
       load();
     } catch (e) { setMsg({ type:'error', text: e.message }); }
@@ -470,10 +483,12 @@ function InterviewsTab() {
 
   async function handleSendSms(iv) {
     const phone = (smsPhone[iv.id] || '').trim();
+    const url   = (smsUrl[iv.id]   || iv.onboarding_url || '').trim();
     if (!phone) { setMsg({ type:'error', text:'請輸入手機號碼' }); return; }
+    if (!url)   { setMsg({ type:'error', text:'請輸入到職連結' }); return; }
     setSmsSending(iv.id);
     try {
-      await recruitmentApi.sendSms(iv.id, phone);
+      await recruitmentApi.sendSms(iv.id, phone, url);
       setMsg({ type:'success', text:`簡訊已發送至 ${phone}` });
     } catch (e) { setMsg({ type:'error', text: e.message }); }
     finally { setSmsSending(null); }
@@ -561,6 +576,20 @@ function InterviewsTab() {
                                   </label>
                                 ))}
                               </div>
+
+                              {/* 未決定追蹤原因 */}
+                              {editForm.result === '' && (
+                                <div style={{ marginBottom:10 }}>
+                                  <label style={{ ...S.label, color:'#c05621' }}>追蹤原因（選填）</label>
+                                  <textarea
+                                    style={{ ...S.inp, height:60, resize:'vertical', borderColor:'#fbd38d' }}
+                                    value={editForm.pending_reason}
+                                    onChange={e=>setEditForm(f=>({...f,pending_reason:e.target.value}))}
+                                    placeholder="記錄未決定原因，例如：需再安排第二次面試、待確認薪資條件..."
+                                  />
+                                </div>
+                              )}
+
                               <button style={S.btnP} onClick={()=>handleSave(iv.id)}>儲存</button>
                             </div>
 
@@ -591,59 +620,50 @@ function InterviewsTab() {
                                 <div style={{ background:'#f0fff4', border:'1px solid #9ae6b4', borderRadius:8, padding:'12px 14px' }}>
                                   <div style={{ fontWeight:600, fontSize:13, color:'#276749', marginBottom:8 }}>🎉 面試通過！下一步</div>
 
-                                  {/* 前往教育訓練系統（帶 interview_id 讓對方系統能回呼） */}
+                                  {/* 前往教育訓練系統 */}
                                   <a
                                     href={`${EDUCATION_URL}/hq/enrollments/new?app_number=${encodeURIComponent(user?.app_number || '')}&interview_id=${iv.id}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{ display:'inline-block', padding:'7px 14px', background:'#276749', color:'#fff', borderRadius:6, fontSize:13, textDecoration:'none', marginBottom:10 }}
+                                    target="_blank" rel="noreferrer"
+                                    style={{ display:'inline-block', padding:'7px 14px', background:'#276749', color:'#fff', borderRadius:6, fontSize:13, textDecoration:'none', marginBottom:8 }}
                                   >
                                     前往教育訓練系統建立新人 →
                                   </a>
 
-                                  {/* 教育系統回呼後：顯示到職連結 + 發 SMS */}
-                                  {iv.education_linked && iv.onboarding_url ? (
-                                    <div style={{ marginTop:4 }}>
-                                      <Badge text="✅ 已建檔" color="#276749" bg="#f0fff4" border="#9ae6b4" />
-                                      <div style={{ marginTop:8, marginBottom:6, fontSize:12, color:'#4a5568' }}>
-                                        到職連結：
-                                        <a href={iv.onboarding_url} target="_blank" rel="noreferrer"
-                                          style={{ color:'#2b6cb0', marginLeft:4, wordBreak:'break-all' }}>
-                                          {iv.onboarding_url}
-                                        </a>
-                                      </div>
-                                      <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
-                                        <input
-                                          style={{ ...S.inp, width:160 }}
-                                          type="tel"
-                                          placeholder="新人手機（09xxxxxxxx）"
-                                          value={smsPhone[iv.id] || ''}
-                                          onChange={e => setSmsPhone(p => ({ ...p, [iv.id]: e.target.value }))}
-                                        />
-                                        <button
-                                          style={{ ...S.btnP, background:'#2b6cb0', fontSize:13 }}
-                                          onClick={() => handleSendSms(iv)}
-                                          disabled={smsSending === iv.id}
-                                        >
-                                          {smsSending === iv.id ? '發送中...' : '📱 發送到職簡訊'}
-                                        </button>
-                                      </div>
+                                  {/* 建檔狀態 */}
+                                  <div style={{ marginBottom:10 }}>
+                                    {iv.education_linked
+                                      ? <Badge text="✅ 已建檔" color="#276749" bg="#f0fff4" border="#9ae6b4" />
+                                      : <button style={{ ...S.btnSm }} onClick={()=>markEducationLinked(iv.id)}>✅ 手動確認建檔完成</button>
+                                    }
+                                  </div>
+
+                                  {/* SMS 區塊：面試通過即顯示 */}
+                                  <div style={{ borderTop:'1px solid #9ae6b4', paddingTop:10 }}>
+                                    <div style={{ fontSize:12, fontWeight:600, color:'#276749', marginBottom:6 }}>📱 發送到職簡訊</div>
+                                    <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                                      <input
+                                        style={S.inp}
+                                        type="tel"
+                                        placeholder="新人手機（09xxxxxxxx）"
+                                        value={smsPhone[iv.id] ?? (ap.phone || '')}
+                                        onChange={e => setSmsPhone(p => ({ ...p, [iv.id]: e.target.value }))}
+                                      />
+                                      <input
+                                        style={S.inp}
+                                        type="url"
+                                        placeholder="到職連結（教育系統建立後自動填入，或手動貼上）"
+                                        value={smsUrl[iv.id] ?? (iv.onboarding_url || '')}
+                                        onChange={e => setSmsUrl(u => ({ ...u, [iv.id]: e.target.value }))}
+                                      />
+                                      <button
+                                        style={{ ...S.btnP, background:'#2b6cb0', fontSize:13, alignSelf:'flex-start' }}
+                                        onClick={() => handleSendSms(iv)}
+                                        disabled={smsSending === iv.id}
+                                      >
+                                        {smsSending === iv.id ? '發送中...' : '📱 發送到職簡訊'}
+                                      </button>
                                     </div>
-                                  ) : (
-                                    <div>
-                                      {/* 尚未收到教育系統回呼 → 手動確認 */}
-                                      {!iv.education_linked && (
-                                        <button style={{ ...S.btnSm, marginTop:4 }} onClick={()=>markEducationLinked(iv.id)}>
-                                          ✅ 手動確認已在教訓系統建檔完成
-                                        </button>
-                                      )}
-                                      {iv.education_linked && !iv.onboarding_url && (
-                                        <div style={{ fontSize:12, color:'#718096', marginTop:6 }}>
-                                          已建檔，等待教育系統回傳到職連結…
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
+                                  </div>
                                 </div>
                               )}
                             </div>

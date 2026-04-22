@@ -226,7 +226,7 @@ export const recruitmentApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
-  sendSms:           (id, phone)    => api.post(`/recruitment/interviews/${id}/sms`, { phone }),
+  sendSms:           (id, phone, onboarding_url) => api.post(`/recruitment/interviews/${id}/sms`, { phone, onboarding_url }),
 };
 
 // System API (系統用戶管理)
