@@ -231,6 +231,12 @@ function ResumesTab({ storeMap }) {
   const [addForm, setAddForm]     = useState({ name:'', code:'', phone:'', target_store_erpid:'', platform:'1111' });
   const [actionModal, setActionModal] = useState(null); // { applicant, type:'reject'|'invite' }
   const [actionForm, setActionForm]   = useState({ reject_reason:'', interview_date:'' });
+  // 編輯 / 刪除
+  const [editModal, setEditModal]   = useState(null);  // applicant object
+  const [editForm, setEditForm]     = useState({});
+  const [editSaving, setEditSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // applicant object
+  const [deleting, setDeleting]     = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -267,6 +273,44 @@ function ResumesTab({ storeMap }) {
       setActionForm({ reject_reason:'', interview_date:'' });
       load();
     } catch (e) { setMsg({ type:'error', text: e.message }); }
+  }
+
+  function openEdit(a) {
+    setEditModal(a);
+    setEditForm({
+      name:               a.name || '',
+      code:               a.code || '',
+      phone:              a.phone || '',
+      platform:           a.platform || '1111',
+      target_store_erpid: a.target_store_erpid || '',
+    });
+  }
+
+  async function handleEditSave(e) {
+    e.preventDefault();
+    setEditSaving(true);
+    try {
+      await recruitmentApi.editApplicant(editModal.id, {
+        ...editForm,
+        target_store_name: storeMap[editForm.target_store_erpid] || '',
+      });
+      setMsg({ type:'success', text:'投遞資料已更新' });
+      setEditModal(null);
+      load();
+    } catch (e) { setMsg({ type:'error', text: e.message }); }
+    finally { setEditSaving(false); }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await recruitmentApi.deleteApplicant(deleteTarget.id);
+      setMsg({ type:'success', text:`已刪除「${deleteTarget.name}」的投遞紀錄` });
+      setDeleteTarget(null);
+      load();
+    } catch (e) { setMsg({ type:'error', text: e.message }); }
+    finally { setDeleting(false); }
   }
 
   return (
@@ -354,12 +398,16 @@ function ResumesTab({ storeMap }) {
                   <td style={S.td}>{a.interview_date ? fmtDate(a.interview_date) : '—'}</td>
                   <td style={S.td}><span style={{ fontSize:12, color:'#9a8878' }}>{a.reject_reason || '—'}</span></td>
                   <td style={S.td}>
-                    {a.status === 'pending' && (
-                      <div style={{ display:'flex', gap:5 }}>
-                        <button style={S.btnSm} onClick={()=>{ setActionModal({applicant:a,type:'invite'}); setActionForm({reject_reason:'',interview_date:today()}); }}>邀請面試</button>
-                        <button style={{ ...S.btnSm, color:'#718096' }} onClick={()=>{ setActionModal({applicant:a,type:'reject'}); setActionForm({reject_reason:'',interview_date:''}); }}>婉拒</button>
-                      </div>
-                    )}
+                    <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+                      {a.status === 'pending' && (
+                        <>
+                          <button style={S.btnSm} onClick={()=>{ setActionModal({applicant:a,type:'invite'}); setActionForm({reject_reason:'',interview_date:today()}); }}>邀請面試</button>
+                          <button style={{ ...S.btnSm, color:'#718096' }} onClick={()=>{ setActionModal({applicant:a,type:'reject'}); setActionForm({reject_reason:'',interview_date:''}); }}>婉拒</button>
+                        </>
+                      )}
+                      <button style={{ ...S.btnSm, color:'#2b6cb0' }} onClick={()=>openEdit(a)}>✏️ 修改</button>
+                      <button style={{ ...S.btnSm, color:'#c53030', borderColor:'#feb2b2' }} onClick={()=>setDeleteTarget(a)}>🗑 刪除</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -368,7 +416,7 @@ function ResumesTab({ storeMap }) {
         )}
       </div>
 
-      {/* 操作 Modal */}
+      {/* 操作 Modal（邀請 / 婉拒） */}
       {actionModal && (
         <div style={S.overlay} onClick={e=>{ if(e.target===e.currentTarget) setActionModal(null); }}>
           <div style={S.modal}>
@@ -403,6 +451,79 @@ function ResumesTab({ storeMap }) {
                 <button style={S.btnS} type="button" onClick={()=>setActionModal(null)}>取消</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 編輯 Modal */}
+      {editModal && (
+        <div style={S.overlay} onClick={e=>{ if(e.target===e.currentTarget) setEditModal(null); }}>
+          <div style={S.modal}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+              <strong style={{ fontSize:16 }}>修改投遞資料</strong>
+              <button style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, color:'#718096' }} onClick={()=>setEditModal(null)}>✕</button>
+            </div>
+            <form onSubmit={handleEditSave}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14 }}>
+                <div>
+                  <label style={S.label}>平台</label>
+                  <select style={S.sel} value={editForm.platform} onChange={e=>setEditForm(f=>({...f,platform:e.target.value}))} required>
+                    <option value="1111">1111</option>
+                    <option value="104">104</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={S.label}>姓名</label>
+                  <input style={S.inp} value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} required />
+                </div>
+                <div>
+                  <label style={S.label}>代碼</label>
+                  <input style={S.inp} value={editForm.code} onChange={e=>setEditForm(f=>({...f,code:e.target.value}))} placeholder="選填" />
+                </div>
+                <div>
+                  <label style={S.label}>手機號碼</label>
+                  <input style={S.inp} type="tel" value={editForm.phone} onChange={e=>setEditForm(f=>({...f,phone:e.target.value}))} placeholder="09xxxxxxxx（選填）" />
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={S.label}>投遞門市</label>
+                  <select style={{ ...S.sel, width:'100%' }} value={editForm.target_store_erpid} onChange={e=>setEditForm(f=>({...f,target_store_erpid:e.target.value}))}>
+                    <option value="">選擇門市…</option>
+                    {Object.entries(storeMap).map(([id,name]) => <option key={id} value={id}>{name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button style={S.btnP} type="submit" disabled={editSaving}>{editSaving?'儲存中...':'儲存'}</button>
+                <button style={S.btnS} type="button" onClick={()=>setEditModal(null)}>取消</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 刪除確認 Modal */}
+      {deleteTarget && (
+        <div style={S.overlay} onClick={e=>{ if(e.target===e.currentTarget) setDeleteTarget(null); }}>
+          <div style={{ ...S.modal, maxWidth:360 }}>
+            <div style={{ fontWeight:700, fontSize:16, marginBottom:10, color:'#c53030' }}>🗑 確認刪除</div>
+            <p style={{ fontSize:14, color:'#4a5568', marginBottom:6 }}>
+              確定要刪除 <strong>「{deleteTarget.name}」</strong> 的投遞紀錄嗎？
+            </p>
+            {deleteTarget.status === 'invited' && (
+              <p style={{ fontSize:13, color:'#c53030', background:'#fff5f5', border:'1px solid #feb2b2', borderRadius:6, padding:'8px 12px', marginBottom:12 }}>
+                ⚠️ 此投遞者已邀請面試，刪除時將一併刪除相關面試紀錄。
+              </p>
+            )}
+            <div style={{ display:'flex', gap:8 }}>
+              <button
+                style={{ ...S.btnP, background:'#c53030' }}
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? '刪除中...' : '確認刪除'}
+              </button>
+              <button style={S.btnS} onClick={()=>setDeleteTarget(null)}>取消</button>
+            </div>
           </div>
         </div>
       )}

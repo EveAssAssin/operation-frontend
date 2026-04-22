@@ -218,6 +218,8 @@ export const recruitmentApi = {
   getApplicants:     (params = {})  => api.get('/recruitment/applicants', { params }),
   createApplicant:   (body)         => api.post('/recruitment/applicants', body),
   updateApplicant:   (id, body)     => api.patch(`/recruitment/applicants/${id}`, body),
+  editApplicant:     (id, body)     => api.put(`/recruitment/applicants/${id}`, body),
+  deleteApplicant:   (id)           => api.delete(`/recruitment/applicants/${id}`),
 
   getInterviews:     (result)       => api.get('/recruitment/interviews', result ? { params: { result } } : {}),
   updateInterview:   (id, body)     => api.patch(`/recruitment/interviews/${id}`, body),
