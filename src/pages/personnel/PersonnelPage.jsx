@@ -26,8 +26,12 @@ function RoleBadge({ role }) {
 }
 
 // ── 授權 Modal ──────────────────────────────────────────────
-function RoleModal({ target, onClose, onSave, saving }) {
-  const [selectedRole, setSelectedRole] = useState(target?.role || 'operation_staff');
+function RoleModal({ target, onClose, onSave, saving, allowedRoles }) {
+  const [selectedRole, setSelectedRole] = useState(() => {
+    // 預設選目前角色；若目前角色超出可選範圍，預設 operation_staff
+    if (target?.role && allowedRoles.map(r => r.value).includes(target.role)) return target.role;
+    return allowedRoles[0]?.value || 'operation_staff';
+  });
 
   if (!target) return null;
 
@@ -56,7 +60,7 @@ function RoleModal({ target, onClose, onSave, saving }) {
         <div style={{ marginBottom: '20px' }}>
           <div style={s.modalLabel}>選擇角色</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {ROLES.map(r => (
+            {allowedRoles.map(r => (
               <label key={r.value} style={s.radioRow(selectedRole === r.value)}>
                 <input
                   type="radio"
@@ -98,8 +102,10 @@ const ROLE_DESCS = {
 
 // ── 主元件 ──────────────────────────────────────────────────
 export default function PersonnelPage() {
-  const { hasRole } = useAuth();
-  const canEdit = hasRole('super_admin');
+  const { hasRole, user } = useAuth();
+  // operation_lead 可以管理 operation_staff；super_admin 可以管理所有人
+  const canEdit = hasRole('operation_lead');
+  const isSuperAdmin = user?.role === 'super_admin';
 
   const [allData, setAllData]     = useState([]);
   const [loading, setLoading]     = useState(false);
@@ -208,6 +214,20 @@ export default function PersonnelPage() {
     } finally {
       setSyncingLineUid(false);
     }
+  }
+
+  // 當前用戶可管理的角色清單
+  const allowedRoles = useMemo(() => {
+    if (isSuperAdmin) return ROLES;
+    return ROLES.filter(r => r.value === 'operation_staff');
+  }, [isSuperAdmin]);
+
+  // 判斷某員工是否可被當前用戶操作（主管只能操作未授權者或 operation_staff）
+  function canEditEmp(emp) {
+    if (!canEdit) return false;
+    if (isSuperAdmin) return true;
+    // operation_lead：只能操作未授權的人，或已是 operation_staff 的人
+    return !emp.has_access || emp.role === 'operation_staff';
   }
 
   // ── 授權 / 修改角色 ─────────────────────────────────────
@@ -387,22 +407,26 @@ export default function PersonnelPage() {
                   </td>
                   {canEdit && (
                     <td style={{ ...s.td, textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                        <button
-                          style={s.actionBtn}
-                          onClick={() => setModalTarget(emp)}
-                        >
-                          {emp.has_access ? '修改' : '授權'}
-                        </button>
-                        {emp.has_access && (
+                      {canEditEmp(emp) ? (
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                           <button
-                            style={{ ...s.actionBtn, ...s.actionBtnRevoke }}
-                            onClick={() => handleRevoke(emp)}
+                            style={s.actionBtn}
+                            onClick={() => setModalTarget(emp)}
                           >
-                            撤銷
+                            {emp.has_access ? '修改' : '授權'}
                           </button>
-                        )}
-                      </div>
+                          {emp.has_access && (
+                            <button
+                              style={{ ...s.actionBtn, ...s.actionBtnRevoke }}
+                              onClick={() => handleRevoke(emp)}
+                            >
+                              撤銷
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: '12px', color: '#cbd5e0' }}>—</span>
+                      )}
                     </td>
                   )}
                 </tr>
@@ -421,6 +445,7 @@ export default function PersonnelPage() {
         onClose={() => setModalTarget(null)}
         onSave={handleSave}
         saving={saving}
+        allowedRoles={allowedRoles}
       />
     </div>
   );
