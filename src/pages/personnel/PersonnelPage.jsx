@@ -109,14 +109,17 @@ export default function PersonnelPage() {
   const [keyword, setKeyword]     = useState('');
   const [filterStore, setFilterStore] = useState('');
   const [filterAccess, setFilterAccess] = useState('all'); // all | yes | no
+  const [filterLine, setFilterLine]   = useState('all');   // all | yes | no
 
   // Modal
   const [modalTarget, setModalTarget] = useState(null);
   const [saving, setSaving]       = useState(false);
 
   // 同步
-  const [syncing, setSyncing]     = useState(false);
-  const [lastSync, setLastSync]   = useState(null);
+  const [syncing, setSyncing]           = useState(false);
+  const [lastSync, setLastSync]         = useState(null);
+  const [syncingLineUid, setSyncingLineUid] = useState(false);
+  const [lastLineUidSync, setLastLineUidSync] = useState(null);
 
   // ── 載入資料 ────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -140,7 +143,15 @@ export default function PersonnelPage() {
     } catch (_) {}
   }, []);
 
-  useEffect(() => { load(); loadLastSync(); }, [load, loadLastSync]);
+  // 載入最後 LINE UID 同步記錄
+  const loadLastLineUidSync = useCallback(async () => {
+    try {
+      const res = await personnelApi.getLineUidSyncStatus();
+      setLastLineUidSync(res.data?.[0] || null);
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => { load(); loadLastSync(); loadLastLineUidSync(); }, [load, loadLastSync, loadLastLineUidSync]);
 
   // ── 門市清單（從資料中提取）────────────────────────────
   const storeList = useMemo(() => {
@@ -158,6 +169,8 @@ export default function PersonnelPage() {
       if (filterStore && emp.store_name !== filterStore) return false;
       if (filterAccess === 'yes' && !emp.has_access) return false;
       if (filterAccess === 'no'  && emp.has_access)  return false;
+      if (filterLine === 'yes' && !emp.line_uid) return false;
+      if (filterLine === 'no'  && emp.line_uid)  return false;
       return true;
     });
   }, [allData, keyword, filterStore, filterAccess]);
@@ -167,7 +180,7 @@ export default function PersonnelPage() {
     authorized: allData.filter(e => e.has_access).length,
   }), [allData]);
 
-  // ── 手動同步 ────────────────────────────────────────────────
+  // ── 手動同步人員 ──────────────────────────────────────────────
   async function handleSync() {
     setSyncing(true);
     setMessage(null);
@@ -179,6 +192,21 @@ export default function PersonnelPage() {
       setMessage({ type: 'error', text: `同步失敗：${err.message}` });
     } finally {
       setSyncing(false);
+    }
+  }
+
+  // ── 手動同步 LINE UID ──────────────────────────────────────
+  async function handleSyncLineUid() {
+    setSyncingLineUid(true);
+    setMessage(null);
+    try {
+      await personnelApi.triggerLineUidSync();
+      setMessage({ type: 'success', text: 'LINE UID 同步已啟動，約 1-2 分鐘後重新整理可見最新資料' });
+      setTimeout(() => { load(); loadLastLineUidSync(); }, 8000);
+    } catch (err) {
+      setMessage({ type: 'error', text: `LINE UID 同步失敗：${err.message}` });
+    } finally {
+      setSyncingLineUid(false);
     }
   }
 
@@ -218,23 +246,40 @@ export default function PersonnelPage() {
           <h1 style={s.title}>人員管理</h1>
           <div style={s.stats}>
             共 <strong>{stats.total}</strong> 位在職員工 ·
-            已授權 <strong style={{ color: '#50422d' }}>{stats.authorized}</strong> 人
+            已授權 <strong style={{ color: '#50422d' }}>{stats.authorized}</strong> 人 ·
+            LINE 已綁定 <strong style={{ color: '#2b7a3d' }}>{allData.filter(e => e.line_uid).length}</strong> 人
             {lastSync && (
               <span style={{ marginLeft: '8px', color: '#a0aec0' }}>
-                · 上次同步 {new Date(lastSync.completed_at || lastSync.started_at).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                · 人員同步 {new Date(lastSync.completed_at || lastSync.started_at).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+            {lastLineUidSync && (
+              <span style={{ marginLeft: '8px', color: '#a0aec0' }}>
+                · LINE 同步 {new Date(lastLineUidSync.completed_at || lastLineUidSync.started_at).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
           </div>
         </div>
-        {hasRole('operation_lead') && (
-          <button
-            style={{ ...s.btnPrimary, display: 'flex', alignItems: 'center', gap: '6px' }}
-            onClick={handleSync}
-            disabled={syncing}
-          >
-            {syncing ? '同步中...' : '🔄 同步人員'}
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {hasRole('operation_lead') && (
+            <button
+              style={{ ...s.btnSecondary, display: 'flex', alignItems: 'center', gap: '6px' }}
+              onClick={handleSyncLineUid}
+              disabled={syncingLineUid}
+            >
+              {syncingLineUid ? 'LINE 同步中...' : '💬 同步 LINE UID'}
+            </button>
+          )}
+          {hasRole('operation_lead') && (
+            <button
+              style={{ ...s.btnPrimary, display: 'flex', alignItems: 'center', gap: '6px' }}
+              onClick={handleSync}
+              disabled={syncing}
+            >
+              {syncing ? '同步中...' : '🔄 同步人員'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 篩選列 */}
@@ -265,6 +310,15 @@ export default function PersonnelPage() {
           <option value="yes">已授權</option>
           <option value="no">未授權</option>
         </select>
+        <select
+          style={s.select}
+          value={filterLine}
+          onChange={e => setFilterLine(e.target.value)}
+        >
+          <option value="all">全部 LINE</option>
+          <option value="yes">已綁定 LINE</option>
+          <option value="no">未綁定 LINE</option>
+        </select>
         <button style={s.btnSecondary} onClick={load}>重新整理</button>
       </div>
 
@@ -286,6 +340,7 @@ export default function PersonnelPage() {
                 <th style={s.th}>姓名</th>
                 <th style={s.th}>所屬門市 / 部門</th>
                 <th style={s.th}>職稱</th>
+                <th style={s.th}>LINE</th>
                 <th style={s.th}>系統角色</th>
                 <th style={s.th}>最後登入</th>
                 {canEdit && <th style={{ ...s.th, textAlign: 'right' }}>操作</th>}
@@ -312,6 +367,13 @@ export default function PersonnelPage() {
                     <span style={{ color: '#718096', fontSize: '13px' }}>
                       {emp.jobtitle || '—'}
                     </span>
+                  </td>
+                  <td style={s.td}>
+                    {emp.line_uid ? (
+                      <span style={s.lineBound}>✓ 已綁定</span>
+                    ) : (
+                      <span style={s.lineUnbound}>未綁定</span>
+                    )}
                   </td>
                   <td style={s.td}>
                     <RoleBadge role={emp.role} />
@@ -394,6 +456,8 @@ const s = {
   },
   badge:     { display: 'inline-block', padding: '3px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: '600' },
   badgeNone: { display: 'inline-block', padding: '3px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: '500', background: '#edf2f7', color: '#a0aec0' },
+  lineBound:   { display: 'inline-block', padding: '2px 8px', borderRadius: '999px', fontSize: '12px', fontWeight: '600', background: '#c6f6d5', color: '#276749' },
+  lineUnbound: { display: 'inline-block', padding: '2px 8px', borderRadius: '999px', fontSize: '12px', fontWeight: '500', background: '#edf2f7', color: '#a0aec0' },
   actionBtn: {
     padding: '5px 12px', borderRadius: '5px', fontSize: '12px', fontWeight: '500',
     cursor: 'pointer', border: '1px solid #cdbea2', background: '#f5f0ea', color: '#50422d',

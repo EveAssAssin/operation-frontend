@@ -67,6 +67,8 @@ export const personnelApi = {
   triggerSync: () => api.post('/personnel/sync'),
   getSyncStatus: () => api.get('/personnel/sync/status'),
   getSyncDetail: (logId) => api.get(`/personnel/sync/status/${logId}`),
+  triggerLineUidSync: () => api.post('/personnel/sync-line-uid'),
+  getLineUidSyncStatus: () => api.get('/personnel/sync-line-uid/status'),
 };
 
 // Billing API（開帳系統，operation_lead 以上）
