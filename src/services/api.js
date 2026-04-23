@@ -234,6 +234,18 @@ export const recruitmentApi = {
   sendSms:           (id, phone, onboarding_url) => api.post(`/recruitment/interviews/${id}/sms`, { phone, onboarding_url }),
 };
 
+// Sales Events API（業績系統活動模組）
+export const salesEventsApi = {
+  getCalendar:       (month)     => api.get('/sales-events/calendar', month ? { params: { month } } : {}),
+  getExternalEvents: ()          => api.get('/sales-events/external-events'),
+  getExternalEvent:  (id)        => api.get(`/sales-events/external-events/${id}`),
+  createExternalEvent: (body)    => api.post('/sales-events/external-events', body),
+  updateExternalEvent: (id, body)=> api.put(`/sales-events/external-events/${id}`, body),
+  deleteExternalEvent: (id)      => api.delete(`/sales-events/external-events/${id}`),
+  updatePromotionPush: (templateId, body) => api.patch(`/sales-events/promotion-push/${templateId}`, body),
+  updateAdPush:        (campaignId, body) => api.patch(`/sales-events/ad-push/${campaignId}`, body),
+};
+
 // System API (系統用戶管理)
 export const systemApi = {
   getEmployees:   (params = {}) => api.get('/system/employees', { params }),

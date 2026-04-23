@@ -47,6 +47,12 @@ const NAV_ITEMS = [
     icon:  '🧑‍💼',
     minRole: 'operation_staff',
   },
+  {
+    path:  '/sales-events',
+    label: '業績活動',
+    icon:  '📣',
+    minRole: 'operation_staff',
+  },
 ];
 
 // 角色中文標籤
