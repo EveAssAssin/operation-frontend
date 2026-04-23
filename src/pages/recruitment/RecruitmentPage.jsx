@@ -299,6 +299,8 @@ function ResumesTab({ storeMap }) {
       phone:              a.phone || '',
       platform:           a.platform || '1111',
       target_store_erpid: a.target_store_erpid || '',
+      interview_date:     a.interview_date || '',
+      interview_time:     a.interview_time || '',
     });
   }
 
@@ -353,6 +355,7 @@ function ResumesTab({ storeMap }) {
           <option value="">全部平台</option>
           <option value="1111">1111</option>
           <option value="104">104</option>
+          <option value="518">518</option>
         </select>
         <select style={S.sel} value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
           <option value="">全部狀態</option>
@@ -375,6 +378,7 @@ function ResumesTab({ storeMap }) {
                 <select style={S.sel} value={addForm.platform} onChange={e=>setAddForm(f=>({...f,platform:e.target.value}))} required>
                   <option value="1111">1111</option>
                   <option value="104">104</option>
+                  <option value="518">518</option>
                 </select>
               </div>
               <div>
@@ -525,6 +529,7 @@ function ResumesTab({ storeMap }) {
                   <select style={S.sel} value={editForm.platform} onChange={e=>setEditForm(f=>({...f,platform:e.target.value}))} required>
                     <option value="1111">1111</option>
                     <option value="104">104</option>
+                    <option value="518">518</option>
                   </select>
                 </div>
                 <div>
@@ -545,6 +550,14 @@ function ResumesTab({ storeMap }) {
                     <option value="">選擇門市…</option>
                     {Object.entries(storeMap).map(([id,name]) => <option key={id} value={id}>{name}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label style={S.label}>面試日期（選填）</label>
+                  <input style={S.inp} type="date" value={editForm.interview_date} onChange={e=>setEditForm(f=>({...f,interview_date:e.target.value}))} />
+                </div>
+                <div>
+                  <label style={S.label}>面試時間（選填）</label>
+                  <input style={S.inp} type="time" value={editForm.interview_time} onChange={e=>setEditForm(f=>({...f,interview_time:e.target.value}))} />
                 </div>
               </div>
               <div style={{ display:'flex', gap:8 }}>
