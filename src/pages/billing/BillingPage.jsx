@@ -193,7 +193,14 @@ function OrderDetailModal({ detail, onClose }) {
                     </span>
                   )}
                   {item.amount != null && (
-                    <span style={{ fontWeight: '600', color: '#50422d' }}>$ {formatAmount(item.amount)}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                      <span style={{ fontWeight: '700', color: '#50422d' }}>$ {formatAmount(item.amount)}</span>
+                      {(item.material_cost > 0 || item.labor_cost > 0) && (
+                        <span style={{ fontSize: '11px', color: '#9a8878' }}>
+                          材料 ${formatAmount(item.material_cost || 0)} ＋ 工資 ${formatAmount(item.labor_cost || 0)}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -566,7 +573,9 @@ export default function BillingPage() {
                                   <th style={S.subTh}>項目名稱</th>
                                   <th style={S.subTh}>問題描述</th>
                                   <th style={S.subTh}>完工說明</th>
-                                  <th style={S.subThR}>金額</th>
+                                  <th style={S.subThR}>材料費</th>
+                                  <th style={S.subThR}>工資</th>
+                                  <th style={S.subThR}>合計</th>
                                   <th style={S.subTh}>狀態</th>
                                 </tr>
                               </thead>
@@ -576,7 +585,9 @@ export default function BillingPage() {
                                     <td style={{ ...S.subTd, fontWeight: '500' }}>{item.item_name || item.name || '-'}</td>
                                     <td style={{ ...S.subTd, color: '#718096' }}>{item.description || '-'}</td>
                                     <td style={{ ...S.subTd, color: '#276749' }}>{item.completion_notes || item.notes || '-'}</td>
-                                    <td style={S.subTdR}>{item.amount != null ? `$ ${formatAmount(item.amount)}` : '-'}</td>
+                                    <td style={S.subTdR}>{item.material_cost != null ? `$ ${formatAmount(item.material_cost)}` : '-'}</td>
+                                    <td style={S.subTdR}>{item.labor_cost != null ? `$ ${formatAmount(item.labor_cost)}` : '-'}</td>
+                                    <td style={{ ...S.subTdR, fontWeight: '600', color: '#50422d' }}>{item.amount != null ? `$ ${formatAmount(item.amount)}` : '-'}</td>
                                     <td style={S.subTd}>
                                       {item.status === 'completed'
                                         ? <span style={{ fontSize: '12px', color: '#276749' }}>✓ 完工</span>
