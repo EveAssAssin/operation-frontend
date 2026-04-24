@@ -252,11 +252,16 @@ function PushModal({ eventItem, onClose, onSave }) {
   async function handleSave() {
     setSaving(true); setError('');
     try {
-      if (isPromotion) {
-        await salesEventsApi.updatePromotionPush(eventItem.id, form);
-      } else {
-        await salesEventsApi.updateAdPush(eventItem.id, form);
-      }
+      // 外部活動推播設定透過 PUT 整合進活動本身
+      await salesEventsApi.updateExternalEvent(eventItem.id, {
+        event_type:  eventItem.event_type,
+        name:        eventItem.name,
+        start_date:  eventItem.start_date,
+        end_date:    eventItem.end_date,
+        description: eventItem.description,
+        notes:       eventItem.notes,
+        ...form,
+      });
       onSave();
     } catch (e) {
       setError(e.message || '儲存失敗');
@@ -358,11 +363,11 @@ function CalendarView({ year, month, calendarData }) {
     byDate[dateStr].push(item);
   };
 
-  const allEvents = [
-    ...(calendarData?.promotions      || []).map(e => ({ ...e, source: 'promotion' })),
-    ...(calendarData?.external_events || []).map(e => ({ ...e, source: 'external' })),
-    ...(calendarData?.ad_campaigns    || []).map(e => ({ ...e, source: 'ad' })),
-  ];
+  // API 回傳扁平 events 陣列；外部活動沒有 source 欄位，用 event_type 識別
+  const allEvents = (calendarData?.events || []).map(ev => ({
+    ...ev,
+    source: ev.source || 'external',
+  }));
 
   allEvents.forEach(ev => {
     if (!ev.start_date || !ev.end_date) return;
@@ -512,8 +517,11 @@ function ExternalEventsTab({ events, loading, onAdd, onEdit, onDelete, onRefresh
                 <div style={{ fontSize: 13, color: '#718096' }}>
                   📅 {ev.start_date} ～ {ev.end_date}
                 </div>
-                {ev.note && (
-                  <div style={{ fontSize: 12, color: '#a0aec0', marginTop: 4 }}>{ev.note}</div>
+                {ev.description && (
+                  <div style={{ fontSize: 12, color: '#718096', marginTop: 4 }}>{ev.description}</div>
+                )}
+                {ev.notes && (
+                  <div style={{ fontSize: 12, color: '#a0aec0', marginTop: 2 }}>備注：{ev.notes}</div>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -605,11 +613,8 @@ function CalendarTab({ onAdd }) {
 
   const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
-  // Flatten all events list for push settings panel
-  const allEvents = calData ? [
-    ...(calData.promotions      || []).map(e => ({ ...e, source: 'promotion' })),
-    ...(calData.ad_campaigns    || []).map(e => ({ ...e, source: 'ad'        })),
-  ] : [];
+  // 可設定推播的活動：editable=true（外部活動）
+  const editableEvents = (calData?.events || []).filter(e => e.editable);
 
   return (
     <div>
@@ -648,30 +653,22 @@ function CalendarTab({ onAdd }) {
         <CalendarView year={viewDate.year} month={viewDate.month} calendarData={calData} />
       )}
 
-      {/* 推播設定面板 */}
-      {allEvents.length > 0 && (
+      {/* 推播設定面板（外部活動） */}
+      {editableEvents.length > 0 && (
         <div style={{ marginTop: 28 }}>
           <div style={{ fontWeight: 700, fontSize: 14, color: '#4a5568', marginBottom: 12 }}>
-            📣 本月推播設定
+            📣 本月外部活動推播設定
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {allEvents.map(ev => (
-              <div key={`${ev.source}-${ev.id}`} style={{
+            {editableEvents.map(ev => (
+              <div key={ev.id} style={{
                 background: '#fff', border: '1px solid #ede8e0', borderRadius: 10,
                 padding: '10px 14px',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <div>
-                  <span style={{
-                    fontSize: 10, padding: '2px 6px', borderRadius: 99, marginRight: 8,
-                    background: ev.source === 'promotion' ? '#fff5f5' : '#fffff0',
-                    color: ev.source === 'promotion' ? '#c53030' : '#744210',
-                    border: `1px solid ${ev.source === 'promotion' ? '#fed7d7' : '#fefcbf'}`,
-                    fontWeight: 600,
-                  }}>
-                    {ev.source === 'promotion' ? '促銷' : '廣告'}
-                  </span>
-                  <span style={{ fontSize: 13, color: '#2d3748', fontWeight: 600 }}>{ev.name}</span>
+                  <TypeBadge type={ev.event_type} />
+                  <span style={{ fontSize: 13, color: '#2d3748', fontWeight: 600, marginLeft: 8 }}>{ev.name}</span>
                   <span style={{ fontSize: 12, color: '#a0aec0', marginLeft: 10 }}>
                     {ev.start_date} ～ {ev.end_date}
                   </span>
