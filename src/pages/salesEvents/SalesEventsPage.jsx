@@ -1,8 +1,8 @@
 // pages/salesEvents/SalesEventsPage.jsx
 // 業績系統活動模組 — 行事曆 + 外部活動 CRUD
 
-import { useState, useEffect, useCallback } from 'react';
-import { salesEventsApi } from '../../services/api';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { salesEventsApi, pushGroupsApi } from '../../services/api';
 
 // ── 常數 ─────────────────────────────────────────────────────
 const TYPE_OPTIONS = [
@@ -42,6 +42,112 @@ function TypeBadge({ type }) {
   );
 }
 
+// ── 推播收件人選擇器 ──────────────────────────────────────────
+function RecipientPicker({ groups, employees, selectedGroupIds, selectedEmployeeIds, onGroupToggle, onEmployeeToggle }) {
+  const [open, setOpen]     = useState(false);
+  const [tab, setTab]       = useState('group');   // 'group' | 'individual'
+  const [search, setSearch] = useState('');
+
+  const totalCount = useMemo(() => {
+    const appSet = new Set();
+    selectedGroupIds.forEach(gid => {
+      const g = groups.find(g => g.id === gid);
+      if (g) { /* member_count 估算 */ }
+    });
+    return selectedGroupIds.length + selectedEmployeeIds.length;
+  }, [groups, employees, selectedGroupIds, selectedEmployeeIds]);
+
+  const filteredEmps = useMemo(() => {
+    const kw = search.trim().toLowerCase();
+    return employees.filter(e => !kw || e.name?.toLowerCase().includes(kw) || e.store_name?.toLowerCase().includes(kw));
+  }, [employees, search]);
+
+  const recipientSummary = useMemo(() => {
+    const parts = [];
+    if (selectedGroupIds.length) parts.push(`${selectedGroupIds.length} 個群組`);
+    if (selectedEmployeeIds.length) parts.push(`${selectedEmployeeIds.length} 位個人`);
+    return parts.length ? parts.join(' ＋ ') : '尚未選擇';
+  }, [selectedGroupIds, selectedEmployeeIds]);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {/* 觸發按鈕 */}
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fafaf8', fontSize: 13, textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+      >
+        <span style={{ color: (selectedGroupIds.length + selectedEmployeeIds.length) > 0 ? '#2d3748' : '#a0aec0' }}>
+          {recipientSummary}
+        </span>
+        <span style={{ color: '#718096' }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {/* 下拉面板 */}
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', marginTop: 4 }}>
+          {/* Tab 切換 */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0' }}>
+            {[{ id: 'group', label: '按群組' }, { id: 'individual', label: '個別人員' }].map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, padding: '9px 0', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, fontWeight: tab === t.id ? 700 : 400, color: tab === t.id ? '#2d6a4f' : '#718096', borderBottom: tab === t.id ? '2px solid #2d6a4f' : '2px solid transparent' }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ maxHeight: 220, overflowY: 'auto', padding: '6px 0' }}>
+            {tab === 'group' ? (
+              groups.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '20px 0', color: '#a0aec0', fontSize: 13 }}>尚無推播群組，請先至人員管理建立</div>
+              ) : groups.map(g => (
+                <div key={g.id} onClick={() => onGroupToggle(g.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', cursor: 'pointer', background: selectedGroupIds.includes(g.id) ? '#f0fdf4' : 'transparent' }}>
+                  <span style={{ fontSize: 15, color: selectedGroupIds.includes(g.id) ? '#276749' : '#cbd5e0' }}>
+                    {selectedGroupIds.includes(g.id) ? '☑' : '☐'}
+                  </span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#2d3748' }}>📣 {g.name}</div>
+                    <div style={{ fontSize: 11, color: '#a0aec0' }}>{g.member_count} 位成員</div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <>
+                <div style={{ padding: '6px 10px' }}>
+                  <input
+                    value={search} onChange={e => setSearch(e.target.value)}
+                    placeholder="搜尋姓名或門市..."
+                    style={{ width: '100%', padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                </div>
+                {filteredEmps.map(e => (
+                  <div key={e.id} onClick={() => onEmployeeToggle(e.id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', cursor: 'pointer', background: selectedEmployeeIds.includes(e.id) ? '#f0fdf4' : 'transparent' }}>
+                    <span style={{ fontSize: 15, color: selectedEmployeeIds.includes(e.id) ? '#276749' : '#cbd5e0' }}>
+                      {selectedEmployeeIds.includes(e.id) ? '☑' : '☐'}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, fontWeight: selectedEmployeeIds.includes(e.id) ? 600 : 400, color: '#2d3748' }}>{e.name}</span>
+                      <span style={{ fontSize: 11, color: '#a0aec0', marginLeft: 8 }}>{e.store_name}</span>
+                    </div>
+                    {e.line_uid && <span style={{ fontSize: 10, background: '#c6f6d5', color: '#276749', padding: '1px 5px', borderRadius: 99 }}>LINE</span>}
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+
+          {/* 底部確認 */}
+          <div style={{ padding: '8px 14px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: '#718096' }}>已選：{recipientSummary}</span>
+            <button onClick={() => setOpen(false)} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: '#2d6a4f', color: '#fff', fontSize: 12, cursor: 'pointer' }}>完成</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 活動新增/編輯 Modal ─────────────────────────────────────
 function EventModal({ event, onClose, onSave }) {
   const isEdit = !!event?.id;
@@ -62,6 +168,53 @@ function EventModal({ event, onClose, onSave }) {
   });
   const [saving, setSaving]  = useState(false);
   const [error,  setError]   = useState('');
+
+  // 推播通知狀態
+  const [pushGroups,    setPushGroups]    = useState([]);
+  const [pushEmployees, setPushEmployees] = useState([]);
+  const [selGroupIds,   setSelGroupIds]   = useState([]);
+  const [selEmpIds,     setSelEmpIds]     = useState([]);
+  const [pushMsg,       setPushMsg]       = useState('');
+  const [pushing,       setPushing]       = useState(false);
+  const [pushResult,    setPushResult]    = useState(null);  // { sent_count } | null
+
+  // 預設推播訊息
+  useEffect(() => {
+    if (form.name) {
+      setPushMsg(`📣 活動通知\n【${form.name}】\n期間：${form.start_date} ～ ${form.end_date}${form.description ? '\n' + form.description : ''}`);
+    }
+  }, [form.name, form.start_date, form.end_date, form.description]);
+
+  // 載入群組與員工清單
+  useEffect(() => {
+    pushGroupsApi.getGroups().then(r => setPushGroups(r.data || r || [])).catch(() => {});
+    pushGroupsApi.getEmployees().then(r => setPushEmployees(r.data || r || [])).catch(() => {});
+  }, []);
+
+  function toggleGroup(id) {
+    setSelGroupIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+  function toggleEmployee(id) {
+    setSelEmpIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+
+  async function handlePush() {
+    if (!pushMsg.trim()) return setError('推播內容不可空白');
+    if (selGroupIds.length === 0 && selEmpIds.length === 0) return setError('請選擇推播對象');
+    setPushing(true); setError(''); setPushResult(null);
+    try {
+      const res = await pushGroupsApi.sendPush({
+        group_ids: selGroupIds,
+        employee_ids: selEmpIds,
+        message: pushMsg.trim(),
+      });
+      setPushResult(res.data || res);
+    } catch (e) {
+      setError(e.message || '推播發送失敗');
+    } finally {
+      setPushing(false);
+    }
+  }
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })); }
 
@@ -158,7 +311,60 @@ function EventModal({ event, onClose, onSave }) {
             />
           </div>
 
-          {/* 推播設定 */}
+          {/* ── 推播通知 ── */}
+          <div style={{ borderTop: '1px solid #f0ece6', paddingTop: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#4a5568', marginBottom: 10 }}>📲 推播通知</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* 收件人選擇 */}
+              <div>
+                <label style={label}>收件對象</label>
+                <RecipientPicker
+                  groups={pushGroups}
+                  employees={pushEmployees}
+                  selectedGroupIds={selGroupIds}
+                  selectedEmployeeIds={selEmpIds}
+                  onGroupToggle={toggleGroup}
+                  onEmployeeToggle={toggleEmployee}
+                />
+              </div>
+              {/* 自訂訊息 */}
+              <div>
+                <label style={label}>推播內容</label>
+                <textarea
+                  style={{ ...ipt, resize: 'vertical', minHeight: 80, fontFamily: 'system-ui, sans-serif', lineHeight: 1.6 }}
+                  value={pushMsg}
+                  onChange={e => setPushMsg(e.target.value)}
+                  placeholder="輸入推播訊息內容..."
+                />
+                <div style={{ fontSize: 11, color: '#a0aec0', marginTop: 3 }}>
+                  支援換行，{pushMsg.length} 字
+                </div>
+              </div>
+              {/* 發送結果 */}
+              {pushResult && (
+                <div style={{ padding: '8px 12px', background: '#f0fdf4', border: '1px solid #9ae6b4', borderRadius: 8, color: '#276749', fontSize: 13 }}>
+                  ✅ 推播已發送給 {pushResult.sent_count} 位人員
+                </div>
+              )}
+              {/* 發送按鈕 */}
+              <button
+                type="button"
+                onClick={handlePush}
+                disabled={pushing || selGroupIds.length + selEmpIds.length === 0}
+                style={{
+                  padding: '9px 16px', borderRadius: 8, border: 'none',
+                  background: (pushing || selGroupIds.length + selEmpIds.length === 0) ? '#a0aec0' : '#d69e2e',
+                  color: '#fff', fontSize: 13, fontWeight: 700,
+                  cursor: (pushing || selGroupIds.length + selEmpIds.length === 0) ? 'not-allowed' : 'pointer',
+                  alignSelf: 'flex-start',
+                }}
+              >
+                {pushing ? '發送中...' : '📲 立即推播'}
+              </button>
+            </div>
+          </div>
+
+          {/* 業績系統推播設定 */}
           <div style={{ borderTop: '1px solid #f0ece6', paddingTop: 14 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#4a5568', marginBottom: 10 }}>📣 推播設定</div>
             <div style={{ padding: '12px 14px', background: '#f9f7f4', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 12 }}>

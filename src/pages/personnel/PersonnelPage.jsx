@@ -2,7 +2,7 @@
 // 人員管理：顯示所有在職員工、所屬門市/部門、系統角色，並支援授權操作
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { systemApi, personnelApi } from '../../services/api';
+import { systemApi, personnelApi, pushGroupsApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 // ── 角色定義 ────────────────────────────────────────────────
@@ -100,9 +100,286 @@ const ROLE_DESCS = {
   operation_staff: '基本系統存取',
 };
 
+// ── 推播群組：成員選擇 Modal ─────────────────────────────────
+function GroupModal({ group, employees, onClose, onSave }) {
+  const isEdit = !!group?.id;
+  const [name, setName]        = useState(group?.name || '');
+  const [desc, setDesc]        = useState(group?.description || '');
+  const [selected, setSelected] = useState(() => new Set((group?.members || []).map(m => m.employee_id)));
+  const [empSearch, setEmpSearch] = useState('');
+  const [saving, setSaving]    = useState(false);
+  const [error, setError]      = useState('');
+
+  // 員工按門市分組（受 empSearch 過濾）
+  const byStore = useMemo(() => {
+    const kw = empSearch.trim().toLowerCase();
+    const filtered = employees.filter(e =>
+      !kw || e.name?.toLowerCase().includes(kw) || e.store_name?.toLowerCase().includes(kw)
+    );
+    const map = {};
+    filtered.forEach(e => {
+      const k = e.store_name || '未分類';
+      if (!map[k]) map[k] = [];
+      map[k].push(e);
+    });
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b, 'zh-Hant'));
+  }, [employees, empSearch]);
+
+  function toggle(id) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+  function toggleStore(emps) {
+    const allOn = emps.every(e => selected.has(e.id));
+    setSelected(prev => {
+      const next = new Set(prev);
+      emps.forEach(e => (allOn ? next.delete(e.id) : next.add(e.id)));
+      return next;
+    });
+  }
+  function toggleAll() {
+    if (selected.size === employees.length) setSelected(new Set());
+    else setSelected(new Set(employees.map(e => e.id)));
+  }
+
+  async function handleSave() {
+    if (!name.trim()) return setError('群組名稱為必填');
+    setSaving(true); setError('');
+    try {
+      const members = employees
+        .filter(e => selected.has(e.id))
+        .map(e => ({ employee_id: e.id, employee_name: e.name, app_number: e.app_number, store_name: e.store_name }));
+      const payload = { name: name.trim(), description: desc.trim() || null, members };
+      if (isEdit) await pushGroupsApi.updateGroup(group.id, payload);
+      else        await pushGroupsApi.createGroup(payload);
+      onSave();
+    } catch (e) { setError(e.message || '儲存失敗'); }
+    finally     { setSaving(false); }
+  }
+
+  const ipt = { width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: '28px 28px 24px', width: 540, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+
+        {/* 標題 */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1a1a2e' }}>
+            {isEdit ? '編輯推播群組' : '新增推播群組'}
+          </h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#718096' }}>×</button>
+        </div>
+
+        {/* 群組名稱 */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#4a5568', marginBottom: 4 }}>群組名稱 *</label>
+          <input style={ipt} value={name} onChange={e => setName(e.target.value)} placeholder="例：台北區主管群" />
+        </div>
+
+        {/* 說明 */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#4a5568', marginBottom: 4 }}>說明（選填）</label>
+          <input style={ipt} value={desc} onChange={e => setDesc(e.target.value)} placeholder="群組用途說明" />
+        </div>
+
+        {/* 成員選擇 */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#4a5568' }}>
+              成員選擇
+              <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 700, color: '#2d6a4f', background: '#f0fdf4', padding: '1px 8px', borderRadius: 99 }}>
+                已選 {selected.size} 人
+              </span>
+            </label>
+            <button onClick={toggleAll} style={{ fontSize: 12, color: '#2b6cb0', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              {selected.size === employees.length ? '全部取消' : '全選'}
+            </button>
+          </div>
+          <input
+            style={{ ...ipt, marginBottom: 8 }}
+            value={empSearch}
+            onChange={e => setEmpSearch(e.target.value)}
+            placeholder="🔍 搜尋姓名或門市..."
+          />
+          <div style={{ flex: 1, overflowY: 'auto', maxHeight: 280, border: '1px solid #e2e8f0', borderRadius: 8, background: '#fafaf8' }}>
+            {byStore.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: '#a0aec0', fontSize: 13 }}>查無符合的員工</div>
+            ) : byStore.map(([store, emps]) => {
+              const allOn = emps.every(e => selected.has(e.id));
+              const someOn = emps.some(e => selected.has(e.id));
+              return (
+                <div key={store}>
+                  {/* 門市 header — 點擊可全選/取消該門市 */}
+                  <div
+                    onClick={() => toggleStore(emps)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', background: allOn ? '#f0fdf4' : someOn ? '#fffbf0' : '#f5f0ea', cursor: 'pointer', borderBottom: '1px solid #e2e8f0', userSelect: 'none' }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 700, color: allOn ? '#276749' : someOn ? '#744210' : '#50422d' }}>
+                      {allOn ? '☑' : someOn ? '⊟' : '☐'} {store}
+                    </span>
+                    <span style={{ fontSize: 11, color: '#a0aec0', marginLeft: 'auto' }}>{emps.filter(e => selected.has(e.id)).length}/{emps.length}</span>
+                  </div>
+                  {/* 員工列表 */}
+                  {emps.map(e => (
+                    <div key={e.id} onClick={() => toggle(e.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', cursor: 'pointer', background: selected.has(e.id) ? '#f0fdf4' : 'transparent', borderBottom: '1px solid #f0ece6', transition: 'background 0.1s' }}>
+                      <span style={{ fontSize: 16, color: selected.has(e.id) ? '#276749' : '#cbd5e0', lineHeight: 1 }}>
+                        {selected.has(e.id) ? '☑' : '☐'}
+                      </span>
+                      <span style={{ fontSize: 14, color: '#2d3748', fontWeight: selected.has(e.id) ? 600 : 400 }}>{e.name}</span>
+                      {e.line_uid && <span style={{ fontSize: 11, background: '#c6f6d5', color: '#276749', padding: '1px 6px', borderRadius: 99 }}>LINE</span>}
+                      <span style={{ fontSize: 12, color: '#a0aec0', marginLeft: 'auto' }}>{e.jobtitle || ''}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 錯誤 */}
+        {error && (
+          <div style={{ marginTop: 10, padding: '8px 12px', background: '#fff5f5', border: '1px solid #fed7d7', borderRadius: 8, color: '#c53030', fontSize: 13 }}>{error}</div>
+        )}
+
+        {/* 按鈕 */}
+        <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', fontSize: 14, cursor: 'pointer', color: '#4a5568' }}>取消</button>
+          <button onClick={handleSave} disabled={saving} style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: saving ? '#a0aec0' : '#2d6a4f', color: '#fff', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+            {saving ? '儲存中...' : (isEdit ? '儲存變更' : '建立群組')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 推播群組 Tab ──────────────────────────────────────────────
+function PushGroupsTab() {
+  const [groups,    setGroups]    = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [modal,     setModal]     = useState(null);  // null | { mode:'create'|'edit', group }
+  const [delConfirm, setDelConfirm] = useState(null);
+  const [deleting,   setDeleting]   = useState(false);
+  const [err, setErr] = useState('');
+
+  const loadGroups = useCallback(async () => {
+    setLoading(true); setErr('');
+    try {
+      const res = await pushGroupsApi.getGroups();
+      setGroups(res.data || res || []);
+    } catch (e) { setErr(e.message || '載入失敗'); }
+    finally     { setLoading(false); }
+  }, []);
+
+  const loadEmployees = useCallback(async () => {
+    try {
+      const res = await pushGroupsApi.getEmployees();
+      setEmployees(res.data || res || []);
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => { loadGroups(); loadEmployees(); }, [loadGroups, loadEmployees]);
+
+  // 編輯時需先取得完整成員
+  async function openEdit(g) {
+    try {
+      const res = await pushGroupsApi.getGroup(g.id);
+      setModal({ mode: 'edit', group: res.data || res });
+    } catch (e) { alert(e.message || '載入群組失敗'); }
+  }
+
+  async function doDelete(g) {
+    setDeleting(true);
+    try {
+      await pushGroupsApi.deleteGroup(g.id);
+      setDelConfirm(null);
+      loadGroups();
+    } catch (e) { alert(e.message || '刪除失敗'); }
+    finally     { setDeleting(false); }
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: '#1a1a2e' }}>推播群組管理</div>
+          <div style={{ fontSize: 13, color: '#718096', marginTop: 2 }}>建立推播名單群組，活動推播時快速選擇收件人</div>
+        </div>
+        <button
+          onClick={() => setModal({ mode: 'create', group: null })}
+          style={{ padding: '8px 16px', background: '#2d6a4f', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        >＋ 新增群組</button>
+      </div>
+
+      {err && <div style={{ padding: '10px 14px', background: '#fff5f5', border: '1px solid #fed7d7', borderRadius: 8, color: '#c53030', fontSize: 13, marginBottom: 16 }}>{err}</div>}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '48px 0', color: '#a0aec0' }}>載入中...</div>
+      ) : groups.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '48px 0', color: '#a0aec0', fontSize: 14 }}>
+          尚無推播群組，點擊右上角「＋ 新增群組」建立
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {groups.map(g => (
+            <div key={g.id} style={{ background: '#fff', border: '1px solid #ede8e0', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: '#1a1a2e', marginBottom: 3 }}>📣 {g.name}</div>
+                {g.description && <div style={{ fontSize: 13, color: '#718096' }}>{g.description}</div>}
+                <div style={{ fontSize: 12, color: '#a0aec0', marginTop: 4 }}>
+                  {g.member_count} 位成員
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button onClick={() => openEdit(g)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', fontSize: 12, cursor: 'pointer', color: '#4a5568' }}>編輯</button>
+                <button onClick={() => setDelConfirm(g)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #fed7d7', background: '#fff5f5', fontSize: 12, cursor: 'pointer', color: '#c53030' }}>刪除</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 新增/編輯 Modal */}
+      {modal && (
+        <GroupModal
+          group={modal.group}
+          employees={employees}
+          onClose={() => setModal(null)}
+          onSave={() => { setModal(null); loadGroups(); }}
+        />
+      )}
+
+      {/* 刪除確認 */}
+      {delConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: '28px 32px', maxWidth: 340, width: '90vw', textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🗑️</div>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>確認刪除？</div>
+            <div style={{ fontSize: 14, color: '#718096', marginBottom: 24 }}>群組「{delConfirm.name}」將被永久刪除。</div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button onClick={() => setDelConfirm(null)} style={{ padding: '9px 20px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', fontSize: 14, cursor: 'pointer' }}>取消</button>
+              <button onClick={() => doDelete(delConfirm)} disabled={deleting} style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: deleting ? '#a0aec0' : '#e53e3e', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                {deleting ? '刪除中...' : '確認刪除'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 主元件 ──────────────────────────────────────────────────
 export default function PersonnelPage() {
   const { hasRole, user } = useAuth();
+  const [mainTab, setMainTab] = useState('personnel');  // 'personnel' | 'groups'
   // operation_lead 可以管理 operation_staff；super_admin 可以管理所有人
   const canEdit = hasRole('operation_lead');
   const isSuperAdmin = user?.role === 'super_admin';
@@ -302,6 +579,25 @@ export default function PersonnelPage() {
         </div>
       </div>
 
+      {/* ── Tab 切換 ── */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#f5f0ea', padding: 4, borderRadius: 10, width: 'fit-content' }}>
+        {[
+          { id: 'personnel', label: '👥 人員清單' },
+          { id: 'groups',    label: '📣 推播群組' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setMainTab(t.id)} style={{
+            padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer',
+            fontSize: 14, fontWeight: mainTab === t.id ? 700 : 500,
+            background: mainTab === t.id ? '#50422d' : 'transparent',
+            color: mainTab === t.id ? '#fff' : '#718096',
+          }}>{t.label}</button>
+        ))}
+      </div>
+
+      {mainTab === 'groups' && <PushGroupsTab />}
+
+      {mainTab === 'personnel' && <>
+
       {/* 篩選列 */}
       <div style={s.toolbar}>
         <input
@@ -447,6 +743,8 @@ export default function PersonnelPage() {
         saving={saving}
         allowedRoles={allowedRoles}
       />
+
+      </>}  {/* end personnel tab */}
     </div>
   );
 }

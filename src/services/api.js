@@ -246,6 +246,20 @@ export const salesEventsApi = {
   updateAdPush:        (campaignId, body) => api.patch(`/sales-events/ad-push/${campaignId}`, body),
 };
 
+// Push Groups API（推播群組管理）
+export const pushGroupsApi = {
+  // 員工清單（有 app_number 且在職，用於選擇成員）
+  getEmployees: ()           => api.get('/push-groups/employees'),
+  // 群組 CRUD
+  getGroups:    ()           => api.get('/push-groups'),
+  getGroup:     (id)         => api.get(`/push-groups/${id}`),
+  createGroup:  (body)       => api.post('/push-groups', body),
+  updateGroup:  (id, body)   => api.put(`/push-groups/${id}`, body),
+  deleteGroup:  (id)         => api.delete(`/push-groups/${id}`),
+  // 發送推播
+  sendPush:     (body)       => api.post('/push-groups/send', body),
+};
+
 // System API (系統用戶管理)
 export const systemApi = {
   getEmployees:   (params = {}) => api.get('/system/employees', { params }),
