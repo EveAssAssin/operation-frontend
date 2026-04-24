@@ -62,7 +62,6 @@ function EventModal({ event, onClose, onSave }) {
   });
   const [saving, setSaving]  = useState(false);
   const [error,  setError]   = useState('');
-  const [showPush, setShowPush] = useState(false);
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })); }
 
@@ -159,51 +158,56 @@ function EventModal({ event, onClose, onSave }) {
             />
           </div>
 
-          {/* 推播設定（可展開） */}
-          <div>
-            <button type="button" onClick={() => setShowPush(p => !p)} style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 13, color: '#4a5568', fontWeight: 600, padding: 0,
-              display: 'flex', alignItems: 'center', gap: 4,
-            }}>
-              {showPush ? '▾' : '▸'} 推播設定（選填）
-            </button>
-            {showPush && (
-              <div style={{ marginTop: 10, padding: '12px 14px', background: '#f9f7f4', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {/* 開始推播 */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <input type="checkbox" checked={form.push_on_start} onChange={e => set('push_on_start', e.target.checked)} />
-                  <span style={{ fontSize: 13, color: '#4a5568', minWidth: 100 }}>活動開始當天推播</span>
-                  {form.push_on_start && (
+          {/* 推播設定 */}
+          <div style={{ borderTop: '1px solid #f0ece6', paddingTop: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#4a5568', marginBottom: 10 }}>📣 推播設定</div>
+            <div style={{ padding: '12px 14px', background: '#f9f7f4', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* 開始推播 */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input type="checkbox" id="ps" checked={form.push_on_start} onChange={e => set('push_on_start', e.target.checked)} />
+                  <label htmlFor="ps" style={{ fontSize: 13, color: '#4a5568', cursor: 'pointer' }}>活動開始當天推播</label>
+                </div>
+                {form.push_on_start && (
+                  <div style={{ marginTop: 6, marginLeft: 22, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, color: '#718096' }}>推播時間</span>
                     <input type="time" style={{ padding: '5px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13 }}
                       value={form.push_on_start_time} onChange={e => set('push_on_start_time', e.target.value)} />
-                  )}
+                  </div>
+                )}
+              </div>
+              {/* 提前推播 */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input type="checkbox" id="pa" checked={form.push_on_start_adv} onChange={e => set('push_on_start_adv', e.target.checked)} />
+                  <label htmlFor="pa" style={{ fontSize: 13, color: '#4a5568', cursor: 'pointer' }}>活動開始前提早推播</label>
                 </div>
-                {/* 提前推播 */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <input type="checkbox" checked={form.push_on_start_adv} onChange={e => set('push_on_start_adv', e.target.checked)} />
-                  <span style={{ fontSize: 13, color: '#4a5568', minWidth: 100 }}>提前推播</span>
-                  {form.push_on_start_adv && (
-                    <>
-                      <input type="number" min={1} style={{ padding: '5px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, width: 70 }}
-                        value={form.push_on_start_adv_min} onChange={e => set('push_on_start_adv_min', Number(e.target.value))} />
-                      <span style={{ fontSize: 12, color: '#718096' }}>分鐘前</span>
-                      <input type="time" style={{ padding: '5px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13 }}
-                        value={form.push_on_start_adv_time} onChange={e => set('push_on_start_adv_time', e.target.value)} />
-                    </>
-                  )}
+                {form.push_on_start_adv && (
+                  <div style={{ marginTop: 6, marginLeft: 22, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, color: '#718096' }}>提前</span>
+                    <input type="number" min={1} style={{ padding: '5px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, width: 70 }}
+                      value={form.push_on_start_adv_min} onChange={e => set('push_on_start_adv_min', Number(e.target.value))} />
+                    <span style={{ fontSize: 12, color: '#718096' }}>分鐘（{Math.floor(form.push_on_start_adv_min / 60) > 0 ? Math.floor(form.push_on_start_adv_min / 60) + '小時' : ''}{form.push_on_start_adv_min % 60 > 0 ? (form.push_on_start_adv_min % 60) + '分' : ''}），推播時間</span>
+                    <input type="time" style={{ padding: '5px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13 }}
+                      value={form.push_on_start_adv_time} onChange={e => set('push_on_start_adv_time', e.target.value)} />
+                  </div>
+                )}
+              </div>
+              {/* 結束推播 */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input type="checkbox" id="pe" checked={form.push_on_end} onChange={e => set('push_on_end', e.target.checked)} />
+                  <label htmlFor="pe" style={{ fontSize: 13, color: '#4a5568', cursor: 'pointer' }}>活動結束當天推播</label>
                 </div>
-                {/* 結束推播 */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <input type="checkbox" checked={form.push_on_end} onChange={e => set('push_on_end', e.target.checked)} />
-                  <span style={{ fontSize: 13, color: '#4a5568', minWidth: 100 }}>活動結束當天推播</span>
-                  {form.push_on_end && (
+                {form.push_on_end && (
+                  <div style={{ marginTop: 6, marginLeft: 22, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, color: '#718096' }}>推播時間</span>
                     <input type="time" style={{ padding: '5px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13 }}
                       value={form.push_on_end_time} onChange={e => set('push_on_end_time', e.target.value)} />
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -225,123 +229,6 @@ function EventModal({ event, onClose, onSave }) {
             cursor: saving ? 'not-allowed' : 'pointer',
           }}>
             {saving ? '儲存中...' : (isEdit ? '儲存變更' : '新增活動')}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── 推播設定 Modal ────────────────────────────────────────────
-function PushModal({ eventItem, onClose, onSave }) {
-  const isPromotion = eventItem?.source === 'promotion';
-  const [form, setForm] = useState({
-    push_on_start:          eventItem?.push_on_start          ?? false,
-    push_on_start_time:     eventItem?.push_on_start_time     || '09:00',
-    push_on_start_adv:      eventItem?.push_on_start_adv      ?? false,
-    push_on_start_adv_min:  eventItem?.push_on_start_adv_min  || 60,
-    push_on_start_adv_time: eventItem?.push_on_start_adv_time || '08:00',
-    push_on_end:            eventItem?.push_on_end            ?? false,
-    push_on_end_time:       eventItem?.push_on_end_time       || '09:00',
-  });
-  const [saving, setSaving] = useState(false);
-  const [error,  setError]  = useState('');
-
-  function set(k, v) { setForm(p => ({ ...p, [k]: v })); }
-
-  async function handleSave() {
-    setSaving(true); setError('');
-    try {
-      // 外部活動推播設定透過 PUT 整合進活動本身
-      await salesEventsApi.updateExternalEvent(eventItem.id, {
-        event_type:  eventItem.event_type,
-        name:        eventItem.name,
-        start_date:  eventItem.start_date,
-        end_date:    eventItem.end_date,
-        description: eventItem.description,
-        notes:       eventItem.notes,
-        ...form,
-      });
-      onSave();
-    } catch (e) {
-      setError(e.message || '儲存失敗');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const ipt = {
-    padding: '7px 10px', border: '1px solid #e2e8f0',
-    borderRadius: 6, fontSize: 13, outline: 'none',
-  };
-  const Row = ({ label, children }) => (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f7f4f0' }}>
-      <span style={{ fontSize: 13, color: '#4a5568', fontWeight: 500 }}>{label}</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{children}</div>
-    </div>
-  );
-
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
-    }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{
-        background: '#fff', borderRadius: 16, padding: '28px 28px 24px',
-        width: 460, maxWidth: '94vw', boxShadow: '0 8px 40px rgba(0,0,0,0.15)',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1a1a2e' }}>推播設定</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#718096' }}>×</button>
-        </div>
-        <div style={{ fontSize: 12, color: '#a0aec0', marginBottom: 16 }}>
-          {eventItem?.name}
-        </div>
-
-        <Row label="活動開始當天推播">
-          <input type="checkbox" checked={form.push_on_start} onChange={e => set('push_on_start', e.target.checked)} />
-          {form.push_on_start && (
-            <input type="time" style={ipt} value={form.push_on_start_time} onChange={e => set('push_on_start_time', e.target.value)} />
-          )}
-        </Row>
-
-        <Row label="活動開始前預告推播">
-          <input type="checkbox" checked={form.push_on_start_adv} onChange={e => set('push_on_start_adv', e.target.checked)} />
-          {form.push_on_start_adv && (
-            <>
-              <input type="number" style={{ ...ipt, width: 60 }} value={form.push_on_start_adv_min}
-                onChange={e => set('push_on_start_adv_min', Number(e.target.value))} min={1} />
-              <span style={{ fontSize: 12, color: '#718096' }}>分鐘前</span>
-              <input type="time" style={ipt} value={form.push_on_start_adv_time} onChange={e => set('push_on_start_adv_time', e.target.value)} />
-            </>
-          )}
-        </Row>
-
-        <Row label="活動結束當天推播">
-          <input type="checkbox" checked={form.push_on_end} onChange={e => set('push_on_end', e.target.checked)} />
-          {form.push_on_end && (
-            <input type="time" style={ipt} value={form.push_on_end_time} onChange={e => set('push_on_end_time', e.target.value)} />
-          )}
-        </Row>
-
-        {error && (
-          <div style={{ marginTop: 12, padding: '8px 12px', background: '#fff5f5', border: '1px solid #fed7d7', borderRadius: 8, color: '#c53030', fontSize: 13 }}>
-            {error}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{
-            padding: '9px 18px', borderRadius: 8, border: '1px solid #e2e8f0',
-            background: '#fff', fontSize: 14, cursor: 'pointer', color: '#4a5568',
-          }}>取消</button>
-          <button onClick={handleSave} disabled={saving} style={{
-            padding: '9px 20px', borderRadius: 8, border: 'none',
-            background: saving ? '#a0aec0' : '#744210',
-            color: '#fff', fontSize: 14, fontWeight: 700,
-            cursor: saving ? 'not-allowed' : 'pointer',
-          }}>
-            {saving ? '儲存中...' : '儲存推播設定'}
           </button>
         </div>
       </div>
@@ -716,7 +603,6 @@ function CalendarTab({ onAdd, onEditEvent }) {
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
   const [dayModal,  setDayModal]  = useState(null);  // { dateStr, events }
-  const [pushModal, setPushModal] = useState(null);
 
   const loadCalendar = useCallback(async () => {
     setLoading(true); setError('');
@@ -747,9 +633,6 @@ function CalendarTab({ onAdd, onEditEvent }) {
   }
 
   const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-
-  // 可設定推播的活動：editable=true（外部活動）
-  const editableEvents = (calData?.events || []).filter(e => e.editable);
 
   return (
     <div>
@@ -790,44 +673,6 @@ function CalendarTab({ onAdd, onEditEvent }) {
           month={viewDate.month}
           calendarData={calData}
           onDayClick={(dateStr, events) => setDayModal({ dateStr, events })}
-        />
-      )}
-
-      {/* 推播設定面板（外部活動） */}
-      {editableEvents.length > 0 && (
-        <div style={{ marginTop: 28 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: '#4a5568', marginBottom: 12 }}>
-            📣 本月外部活動推播設定
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {editableEvents.map(ev => (
-              <div key={ev.id} style={{
-                background: '#fff', border: '1px solid #ede8e0', borderRadius: 10,
-                padding: '10px 14px',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              }}>
-                <div>
-                  <TypeBadge type={ev.event_type} />
-                  <span style={{ fontSize: 13, color: '#2d3748', fontWeight: 600, marginLeft: 8 }}>{ev.name}</span>
-                  <span style={{ fontSize: 12, color: '#a0aec0', marginLeft: 10 }}>
-                    {ev.start_date} ～ {ev.end_date}
-                  </span>
-                </div>
-                <button onClick={() => setPushModal({ ...ev })} style={{
-                  padding: '5px 12px', borderRadius: 6, border: '1px solid #fbd38d',
-                  background: '#fffaf0', fontSize: 12, cursor: 'pointer', color: '#744210',
-                }}>推播設定</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {pushModal && (
-        <PushModal
-          eventItem={pushModal}
-          onClose={() => setPushModal(null)}
-          onSave={() => { setPushModal(null); loadCalendar(); }}
         />
       )}
 
