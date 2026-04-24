@@ -349,11 +349,148 @@ function PushModal({ eventItem, onClose, onSave }) {
   );
 }
 
+// ── 當日活動詳情 Modal ────────────────────────────────────────
+const SOURCE_COLORS = {
+  promotion: { dot: '#e53e3e', label: '促銷活動', bg: '#fff5f5', border: '#fed7d7', color: '#c53030' },
+  external:  { dot: '#2b6cb0', label: '外部活動', bg: '#ebf8ff', border: '#bee3f8', color: '#2b6cb0' },
+  ad:        { dot: '#d69e2e', label: '廣告活動', bg: '#fffff0', border: '#fefcbf', color: '#744210' },
+};
+
+function DayModal({ dateStr, events, onClose, onEdit, onDelete }) {
+  const [delConfirm, setDelConfirm] = useState(null);
+  const [deleting,   setDeleting]   = useState(false);
+
+  const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dateLabel = `${y} 年 ${MONTH_NAMES[m-1]} ${d} 日`;
+
+  async function doDelete(ev) {
+    setDeleting(true);
+    try {
+      await salesEventsApi.deleteExternalEvent(ev.id);
+      onDelete();
+      onClose();
+    } catch (e) {
+      alert(e.message || '刪除失敗');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      zIndex: 9999, overflowY: 'auto', padding: '40px 16px',
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{
+        background: '#fff', borderRadius: 16, padding: '24px 24px 20px',
+        width: 520, maxWidth: '96vw', boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 17, color: '#1a1a2e' }}>📅 {dateLabel}</div>
+            <div style={{ fontSize: 12, color: '#a0aec0', marginTop: 2 }}>共 {events.length} 個活動</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#718096' }}>×</button>
+        </div>
+
+        {events.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '32px 0', color: '#a0aec0', fontSize: 14 }}>當日無活動</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {events.map((ev, i) => {
+              const sc = SOURCE_COLORS[ev.source] || SOURCE_COLORS.external;
+              return (
+                <div key={i} style={{
+                  border: `1px solid ${sc.border}`, borderRadius: 10,
+                  background: sc.bg, padding: '12px 14px',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4, flexWrap: 'wrap' }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
+                          background: '#fff', border: `1px solid ${sc.border}`, color: sc.color,
+                        }}>{sc.label}</span>
+                        {ev.source === 'external' && (
+                          <TypeBadge type={ev.event_type} />
+                        )}
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e' }}>{ev.name}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#718096', marginBottom: ev.description ? 4 : 0 }}>
+                        {ev.start_date} ～ {ev.end_date}
+                        {ev.activity_type && <span style={{ marginLeft: 8 }}>・{ev.activity_type}</span>}
+                        {ev.platform && <span style={{ marginLeft: 8 }}>・{ev.platform}</span>}
+                      </div>
+                      {ev.description && (
+                        <div style={{ fontSize: 12, color: '#4a5568', marginTop: 4, lineHeight: 1.6 }}>
+                          {ev.description}
+                        </div>
+                      )}
+                      {ev.notes && (
+                        <div style={{ fontSize: 11, color: '#a0aec0', marginTop: 3 }}>備注：{ev.notes}</div>
+                      )}
+                    </div>
+                    {ev.editable && (
+                      <div style={{ display: 'flex', gap: 5, marginLeft: 10, flexShrink: 0 }}>
+                        <button onClick={() => { onClose(); onEdit(ev); }} style={{
+                          padding: '5px 10px', borderRadius: 6, border: '1px solid #bee3f8',
+                          background: '#fff', fontSize: 12, cursor: 'pointer', color: '#2b6cb0',
+                        }}>編輯</button>
+                        <button onClick={() => setDelConfirm(ev)} style={{
+                          padding: '5px 10px', borderRadius: 6, border: '1px solid #fed7d7',
+                          background: '#fff', fontSize: 12, cursor: 'pointer', color: '#c53030',
+                        }}>刪除</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {delConfirm && (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000,
+          }}>
+            <div style={{
+              background: '#fff', borderRadius: 14, padding: '28px 32px',
+              maxWidth: 340, width: '90vw', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>🗑️</div>
+              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>確認刪除？</div>
+              <div style={{ fontSize: 14, color: '#718096', marginBottom: 24 }}>
+                「{delConfirm.name}」將被永久刪除。
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                <button onClick={() => setDelConfirm(null)} disabled={deleting} style={{
+                  padding: '9px 20px', borderRadius: 8, border: '1px solid #e2e8f0',
+                  background: '#fff', fontSize: 14, cursor: 'pointer',
+                }}>取消</button>
+                <button onClick={() => doDelete(delConfirm)} disabled={deleting} style={{
+                  padding: '9px 20px', borderRadius: 8, border: 'none',
+                  background: deleting ? '#a0aec0' : '#e53e3e',
+                  color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                }}>
+                  {deleting ? '刪除中...' : '確認刪除'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── 行事曆格子 ────────────────────────────────────────────────
-function CalendarView({ year, month, calendarData }) {
+function CalendarView({ year, month, calendarData, onDayClick }) {
   const totalDays = daysInMonth(year, month);
   const startDow  = firstDayOfWeek(year, month);
-  const pad       = startDow; // 0–6 empty cells before day 1
+  const pad       = startDow;
   const DOW_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
   // Build events-by-date map
@@ -363,7 +500,6 @@ function CalendarView({ year, month, calendarData }) {
     byDate[dateStr].push(item);
   };
 
-  // API 回傳扁平 events 陣列；外部活動沒有 source 欄位，用 event_type 識別
   const allEvents = (calendarData?.events || []).map(ev => ({
     ...ev,
     source: ev.source || 'external',
@@ -371,7 +507,6 @@ function CalendarView({ year, month, calendarData }) {
 
   allEvents.forEach(ev => {
     if (!ev.start_date || !ev.end_date) return;
-    // mark each day in range
     let d = new Date(ev.start_date + 'T00:00:00');
     const end = new Date(ev.end_date + 'T00:00:00');
     while (d <= end) {
@@ -383,20 +518,12 @@ function CalendarView({ year, month, calendarData }) {
   });
 
   const todayStr = today();
-
   const cells = [];
   for (let i = 0; i < pad; i++) cells.push(null);
   for (let d = 1; d <= totalDays; d++) cells.push(d);
 
-  const SOURCE_COLORS = {
-    promotion: { dot: '#e53e3e', label: '促銷' },
-    external:  { dot: '#2b6cb0', label: '外部' },
-    ad:        { dot: '#d69e2e', label: '廣告' },
-  };
-
   return (
     <div>
-      {/* Day-of-week header */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 2 }}>
         {DOW_LABELS.map((d, i) => (
           <div key={i} style={{
@@ -407,7 +534,6 @@ function CalendarView({ year, month, calendarData }) {
         ))}
       </div>
 
-      {/* Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
         {cells.map((day, idx) => {
           if (!day) return <div key={`pad-${idx}`} />;
@@ -415,14 +541,22 @@ function CalendarView({ year, month, calendarData }) {
           const events  = byDate[dateStr] || [];
           const isToday = dateStr === todayStr;
           const dow     = (pad + day - 1) % 7;
+          const hasEvents = events.length > 0;
 
           return (
-            <div key={dateStr} style={{
-              minHeight: 72, padding: '4px 5px', borderRadius: 6,
-              background: isToday ? '#f0fdf4' : '#fafaf8',
-              border: `1px solid ${isToday ? '#68d391' : '#ede8e0'}`,
-              overflow: 'hidden',
-            }}>
+            <div key={dateStr}
+              onClick={() => onDayClick(dateStr, events)}
+              style={{
+                minHeight: 72, padding: '4px 5px', borderRadius: 6,
+                background: isToday ? '#f0fdf4' : '#fafaf8',
+                border: `1px solid ${isToday ? '#68d391' : '#ede8e0'}`,
+                overflow: 'hidden',
+                cursor: hasEvents ? 'pointer' : 'default',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => { if (hasEvents) e.currentTarget.style.background = isToday ? '#dcfce7' : '#f0ece6'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = isToday ? '#f0fdf4' : '#fafaf8'; }}
+            >
               <div style={{
                 fontSize: 12, fontWeight: isToday ? 700 : 500, marginBottom: 3,
                 color: isToday ? '#276749' : dow === 0 ? '#e53e3e' : dow === 6 ? '#2b6cb0' : '#2d3748',
@@ -452,14 +586,14 @@ function CalendarView({ year, month, calendarData }) {
         })}
       </div>
 
-      {/* Legend */}
       <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
         {Object.entries(SOURCE_COLORS).map(([k, v]) => (
           <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#718096' }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: v.dot, display: 'inline-block' }} />
-            {v.label}活動
+            {v.label}
           </div>
         ))}
+        <div style={{ fontSize: 12, color: '#a0aec0' }}>（點擊日期查看詳情）</div>
       </div>
     </div>
   );
@@ -575,12 +709,13 @@ function ExternalEventsTab({ events, loading, onAdd, onEdit, onDelete, onRefresh
 }
 
 // ── 行事曆 Tab ────────────────────────────────────────────────
-function CalendarTab({ onAdd }) {
+function CalendarTab({ onAdd, onEditEvent }) {
   const now   = new Date();
   const [viewDate, setViewDate] = useState({ year: now.getFullYear(), month: now.getMonth() });
   const [calData,  setCalData]  = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
+  const [dayModal,  setDayModal]  = useState(null);  // { dateStr, events }
   const [pushModal, setPushModal] = useState(null);
 
   const loadCalendar = useCallback(async () => {
@@ -650,7 +785,12 @@ function CalendarTab({ onAdd }) {
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: '#a0aec0' }}>載入中...</div>
       ) : (
-        <CalendarView year={viewDate.year} month={viewDate.month} calendarData={calData} />
+        <CalendarView
+          year={viewDate.year}
+          month={viewDate.month}
+          calendarData={calData}
+          onDayClick={(dateStr, events) => setDayModal({ dateStr, events })}
+        />
       )}
 
       {/* 推播設定面板（外部活動） */}
@@ -688,6 +828,16 @@ function CalendarTab({ onAdd }) {
           eventItem={pushModal}
           onClose={() => setPushModal(null)}
           onSave={() => { setPushModal(null); loadCalendar(); }}
+        />
+      )}
+
+      {dayModal && (
+        <DayModal
+          dateStr={dayModal.dateStr}
+          events={dayModal.events}
+          onClose={() => setDayModal(null)}
+          onEdit={(ev) => { setDayModal(null); onEditEvent(ev); }}
+          onDelete={() => { setDayModal(null); loadCalendar(); }}
         />
       )}
     </div>
@@ -750,7 +900,10 @@ export default function SalesEventsPage() {
       {/* Content */}
       <div style={{ background: '#fff', borderRadius: 16, padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         {tab === 'calendar' && (
-          <CalendarTab onAdd={() => setEventModal({})} />
+          <CalendarTab
+            onAdd={() => setEventModal({})}
+            onEditEvent={(ev) => setEventModal(ev)}
+          />
         )}
         {tab === 'events' && (
           <ExternalEventsTab
