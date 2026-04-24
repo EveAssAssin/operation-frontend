@@ -5,10 +5,10 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { salesEventsApi, pushGroupsApi } from '../../services/api';
 
 // ── 常數 ─────────────────────────────────────────────────────
+// 我們可建立的外部活動類型（internal_staff 由其他部門管理，不可新增）
 const TYPE_OPTIONS = [
   { value: 'contact_lens',     label: '🔵 隱形眼鏡活動' },
   { value: 'special_contract', label: '🟠 特約活動'     },
-  { value: 'internal_staff',   label: '🟡 內部員工活動' },
 ];
 const TYPE_LABELS = {
   contact_lens:     { text: '隱形眼鏡活動', color: '#0e7490', bg: '#ecfeff', border: '#a5f3fc' },
