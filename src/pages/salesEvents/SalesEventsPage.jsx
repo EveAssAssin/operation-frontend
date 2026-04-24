@@ -46,26 +46,40 @@ function TypeBadge({ type }) {
 function EventModal({ event, onClose, onSave }) {
   const isEdit = !!event?.id;
   const [form, setForm] = useState({
-    type:       event?.type       || 'contact_lens',
-    name:       event?.name       || '',
-    start_date: event?.start_date || today(),
-    end_date:   event?.end_date   || today(),
-    note:       event?.note       || '',
+    event_type:          event?.event_type          || 'contact_lens',
+    name:                event?.name                || '',
+    start_date:          event?.start_date          || today(),
+    end_date:            event?.end_date            || today(),
+    description:         event?.description         || '',
+    notes:               event?.notes               || '',
+    push_on_start:       event?.push_on_start       ?? false,
+    push_on_start_time:  event?.push_on_start_time  || '09:00',
+    push_on_start_adv:   event?.push_on_start_adv   ?? false,
+    push_on_start_adv_min:  event?.push_on_start_adv_min  || 1440,
+    push_on_start_adv_time: event?.push_on_start_adv_time || '09:00',
+    push_on_end:         event?.push_on_end         ?? false,
+    push_on_end_time:    event?.push_on_end_time    || '09:00',
   });
   const [saving, setSaving]  = useState(false);
   const [error,  setError]   = useState('');
+  const [showPush, setShowPush] = useState(false);
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })); }
 
   async function handleSave() {
-    if (!form.name.trim())       return setError('活動名稱為必填');
-    if (!form.start_date)        return setError('開始日期為必填');
-    if (!form.end_date)          return setError('結束日期為必填');
+    if (!form.name.trim())  return setError('活動名稱為必填');
+    if (!form.start_date)   return setError('開始日期為必填');
+    if (!form.end_date)     return setError('結束日期為必填');
     if (form.end_date < form.start_date) return setError('結束日期不可早於開始日期');
 
     setSaving(true); setError('');
     try {
-      const payload = { ...form, name: form.name.trim(), note: form.note.trim() || null };
+      const payload = {
+        ...form,
+        name:        form.name.trim(),
+        description: form.description.trim() || null,
+        notes:       form.notes.trim()       || null,
+      };
       if (isEdit) {
         await salesEventsApi.updateExternalEvent(event.id, payload);
       } else {
@@ -92,10 +106,12 @@ function EventModal({ event, onClose, onSave }) {
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+      overflowY: 'auto', padding: '20px 0',
     }} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{
         background: '#fff', borderRadius: 16, padding: '28px 28px 24px',
-        width: 440, maxWidth: '94vw', boxShadow: '0 8px 40px rgba(0,0,0,0.15)',
+        width: 480, maxWidth: '94vw', boxShadow: '0 8px 40px rgba(0,0,0,0.15)',
+        margin: 'auto',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1a1a2e' }}>
@@ -107,7 +123,7 @@ function EventModal({ event, onClose, onSave }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <label style={label}>活動類型</label>
-            <select value={form.type} onChange={e => set('type', e.target.value)} style={ipt}>
+            <select value={form.event_type} onChange={e => set('event_type', e.target.value)} style={ipt}>
               {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
@@ -129,13 +145,65 @@ function EventModal({ event, onClose, onSave }) {
           </div>
 
           <div>
-            <label style={label}>備註</label>
+            <label style={label}>對外說明（description）</label>
+            <input style={ipt} value={form.description} onChange={e => set('description', e.target.value)} placeholder="顯示給消費者的活動說明" />
+          </div>
+
+          <div>
+            <label style={label}>內部備注（notes）</label>
             <textarea
-              style={{ ...ipt, resize: 'vertical', minHeight: 72 }}
-              value={form.note}
-              onChange={e => set('note', e.target.value)}
-              placeholder="可填入活動說明、聯絡資訊等"
+              style={{ ...ipt, resize: 'vertical', minHeight: 60 }}
+              value={form.notes}
+              onChange={e => set('notes', e.target.value)}
+              placeholder="僅供內部參考，不對外顯示"
             />
+          </div>
+
+          {/* 推播設定（可展開） */}
+          <div>
+            <button type="button" onClick={() => setShowPush(p => !p)} style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 13, color: '#4a5568', fontWeight: 600, padding: 0,
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}>
+              {showPush ? '▾' : '▸'} 推播設定（選填）
+            </button>
+            {showPush && (
+              <div style={{ marginTop: 10, padding: '12px 14px', background: '#f9f7f4', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* 開始推播 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <input type="checkbox" checked={form.push_on_start} onChange={e => set('push_on_start', e.target.checked)} />
+                  <span style={{ fontSize: 13, color: '#4a5568', minWidth: 100 }}>活動開始當天推播</span>
+                  {form.push_on_start && (
+                    <input type="time" style={{ padding: '5px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13 }}
+                      value={form.push_on_start_time} onChange={e => set('push_on_start_time', e.target.value)} />
+                  )}
+                </div>
+                {/* 提前推播 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <input type="checkbox" checked={form.push_on_start_adv} onChange={e => set('push_on_start_adv', e.target.checked)} />
+                  <span style={{ fontSize: 13, color: '#4a5568', minWidth: 100 }}>提前推播</span>
+                  {form.push_on_start_adv && (
+                    <>
+                      <input type="number" min={1} style={{ padding: '5px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, width: 70 }}
+                        value={form.push_on_start_adv_min} onChange={e => set('push_on_start_adv_min', Number(e.target.value))} />
+                      <span style={{ fontSize: 12, color: '#718096' }}>分鐘前</span>
+                      <input type="time" style={{ padding: '5px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13 }}
+                        value={form.push_on_start_adv_time} onChange={e => set('push_on_start_adv_time', e.target.value)} />
+                    </>
+                  )}
+                </div>
+                {/* 結束推播 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <input type="checkbox" checked={form.push_on_end} onChange={e => set('push_on_end', e.target.checked)} />
+                  <span style={{ fontSize: 13, color: '#4a5568', minWidth: 100 }}>活動結束當天推播</span>
+                  {form.push_on_end && (
+                    <input type="time" style={{ padding: '5px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13 }}
+                      value={form.push_on_end_time} onChange={e => set('push_on_end_time', e.target.value)} />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -438,7 +506,7 @@ function ExternalEventsTab({ events, loading, onAdd, onEdit, onDelete, onRefresh
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                  <TypeBadge type={ev.type} />
+                  <TypeBadge type={ev.event_type} />
                   <span style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e' }}>{ev.name}</span>
                 </div>
                 <div style={{ fontSize: 13, color: '#718096' }}>
