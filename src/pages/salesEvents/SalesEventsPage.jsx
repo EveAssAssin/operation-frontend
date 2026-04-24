@@ -8,11 +8,27 @@ import { salesEventsApi, pushGroupsApi } from '../../services/api';
 const TYPE_OPTIONS = [
   { value: 'contact_lens',     label: '🔵 隱形眼鏡活動' },
   { value: 'special_contract', label: '🟠 特約活動'     },
+  { value: 'internal_staff',   label: '🟡 內部員工活動' },
 ];
 const TYPE_LABELS = {
-  contact_lens:     { text: '隱形眼鏡活動', color: '#2b6cb0', bg: '#ebf8ff', border: '#bee3f8' },
-  special_contract: { text: '特約活動',     color: '#c05621', bg: '#fffaf0', border: '#fbd38d' },
+  contact_lens:     { text: '隱形眼鏡活動', color: '#0e7490', bg: '#ecfeff', border: '#a5f3fc' },
+  special_contract: { text: '特約活動',     color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+  internal_staff:   { text: '員工活動',     color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
 };
+
+// source → 中文標籤對應（用於 DayModal 標籤）
+const SOURCE_META = {
+  promotion: { label: '促銷活動',   fallbackColor: '#ef4444' },
+  external:  { label: '外部活動',   fallbackColor: '#06b6d4' },
+  ad:        { label: '廣告活動',   fallbackColor: '#3b82f6' },
+  holiday:   { label: '國定假日',   fallbackColor: '#22c55e' },
+  industry:  { label: '同業活動',   fallbackColor: '#64748b' },
+};
+
+// 從 event 取得顯示色（優先用 API 給的 color，否則 fallback）
+function eventColor(ev) {
+  return ev.color || SOURCE_META[ev.source]?.fallbackColor || '#a0aec0';
+}
 
 // ── 工具函式 ─────────────────────────────────────────────────
 function today() {
@@ -444,10 +460,18 @@ function EventModal({ event, onClose, onSave }) {
 
 // ── 當日活動詳情 Modal ────────────────────────────────────────
 const SOURCE_COLORS = {
-  promotion: { dot: '#e53e3e', label: '促銷活動', bg: '#fff5f5', border: '#fed7d7', color: '#c53030' },
-  external:  { dot: '#2b6cb0', label: '外部活動', bg: '#ebf8ff', border: '#bee3f8', color: '#2b6cb0' },
-  ad:        { dot: '#d69e2e', label: '廣告活動', bg: '#fffff0', border: '#fefcbf', color: '#744210' },
+  promotion: { label: '促銷活動' },
+  external:  { label: '外部活動' },
+  ad:        { label: '廣告活動' },
+  holiday:   { label: '國定假日' },
+  industry:  { label: '同業活動' },
 };
+
+// 用 event 自帶的 color 轉換成 bg / border（淡化處理）
+function colorStyles(hex) {
+  // 直接用 API 給的 color 作為 dot 色和 border，bg 用極淡版
+  return { dot: hex, color: hex, border: hex + '66', bg: hex + '14' };
+}
 
 function DayModal({ dateStr, events, onClose, onEdit, onDelete }) {
   const [delConfirm, setDelConfirm] = useState(null);
@@ -493,19 +517,20 @@ function DayModal({ dateStr, events, onClose, onEdit, onDelete }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {events.map((ev, i) => {
-              const sc = SOURCE_COLORS[ev.source] || SOURCE_COLORS.external;
+              const cs = colorStyles(eventColor(ev));
+              const sourceLabel = SOURCE_COLORS[ev.source]?.label || ev.source;
               return (
                 <div key={i} style={{
-                  border: `1px solid ${sc.border}`, borderRadius: 10,
-                  background: sc.bg, padding: '12px 14px',
+                  border: `1px solid ${cs.border}`, borderRadius: 10,
+                  background: cs.bg, padding: '12px 14px',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4, flexWrap: 'wrap' }}>
                         <span style={{
                           fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
-                          background: '#fff', border: `1px solid ${sc.border}`, color: sc.color,
-                        }}>{sc.label}</span>
+                          background: '#fff', border: `1px solid ${cs.border}`, color: cs.color,
+                        }}>{sourceLabel}</span>
                         {ev.source === 'external' && (
                           <TypeBadge type={ev.event_type} />
                         )}
@@ -575,6 +600,36 @@ function DayModal({ dateStr, events, onClose, onEdit, onDelete }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Legend Bar（從實際事件動態產生）─────────────────────────
+function LegendBar({ events }) {
+  // 收集本月出現的每個 source，取代表色（第一筆事件的 color）
+  const seen = useMemo(() => {
+    const map = {};
+    events.forEach(ev => {
+      if (!map[ev.source]) {
+        map[ev.source] = {
+          color: eventColor(ev),
+          label: SOURCE_COLORS[ev.source]?.label || ev.source,
+        };
+      }
+    });
+    return Object.entries(map);
+  }, [events]);
+
+  if (seen.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', gap: 14, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+      {seen.map(([src, { color, label }]) => (
+        <div key={src} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#718096' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />
+          {label}
+        </div>
+      ))}
+      <div style={{ fontSize: 12, color: '#a0aec0' }}>（點擊日期查看詳情）</div>
     </div>
   );
 }
@@ -654,23 +709,20 @@ function CalendarView({ year, month, calendarData, onDayClick }) {
                 fontSize: 12, fontWeight: isToday ? 700 : 500, marginBottom: 3,
                 color: isToday ? '#276749' : dow === 0 ? '#e53e3e' : dow === 6 ? '#2b6cb0' : '#2d3748',
               }}>{day}</div>
-              {events.slice(0, 3).map((ev, ei) => {
-                const sc = SOURCE_COLORS[ev.source] || { dot: '#a0aec0' };
-                return (
-                  <div key={ei} style={{
-                    fontSize: 10, lineHeight: '14px', marginBottom: 1,
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    color: '#4a5568',
-                  }}>
-                    <span style={{
-                      display: 'inline-block', width: 6, height: 6,
-                      borderRadius: '50%', background: sc.dot,
-                      marginRight: 3, verticalAlign: 'middle',
-                    }} />
-                    {ev.name}
-                  </div>
-                );
-              })}
+              {events.slice(0, 3).map((ev, ei) => (
+                <div key={ei} style={{
+                  fontSize: 10, lineHeight: '14px', marginBottom: 1,
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  color: '#4a5568',
+                }}>
+                  <span style={{
+                    display: 'inline-block', width: 6, height: 6,
+                    borderRadius: '50%', background: eventColor(ev),
+                    marginRight: 3, verticalAlign: 'middle',
+                  }} />
+                  {ev.name}
+                </div>
+              ))}
               {events.length > 3 && (
                 <div style={{ fontSize: 10, color: '#a0aec0' }}>+{events.length - 3} 更多</div>
               )}
@@ -679,15 +731,8 @@ function CalendarView({ year, month, calendarData, onDayClick }) {
         })}
       </div>
 
-      <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
-        {Object.entries(SOURCE_COLORS).map(([k, v]) => (
-          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#718096' }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: v.dot, display: 'inline-block' }} />
-            {v.label}
-          </div>
-        ))}
-        <div style={{ fontSize: 12, color: '#a0aec0' }}>（點擊日期查看詳情）</div>
-      </div>
+      {/* Legend — 從本月實際出現的 source 動態產生 */}
+      <LegendBar events={allEvents} />
     </div>
   );
 }
