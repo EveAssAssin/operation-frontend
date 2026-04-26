@@ -11,6 +11,7 @@ import TrainingHighlightCard     from './TrainingHighlightCard';
 import EngineeringHighlightCard  from './EngineeringHighlightCard';
 import AuditHighlightCard        from './AuditHighlightCard';
 import EvaluationHighlightCard   from './EvaluationHighlightCard';
+import RecruitmentHighlightCard  from './RecruitmentHighlightCard';
 
 // ── 品牌色 ───────────────────────────────────────────────
 const C = {
@@ -120,6 +121,7 @@ export default function DashboardPage() {
   const training    = useHighlight(dashboardApi.getTrainingHighlight);
   const audit       = useHighlight(dashboardApi.getAuditHighlight);
   const evaluation  = useHighlight(dashboardApi.getEvaluationHighlight);
+  const recruitment = useHighlight(dashboardApi.getRecruitmentHighlight);
 
   const available = QUICK_LINKS.filter(l => hasRole(l.minRole));
 
@@ -182,6 +184,13 @@ export default function DashboardPage() {
             loading={evaluation.loading}
             success={evaluation.success}
             data={evaluation.data}
+          />
+
+          {/* 人力招募 */}
+          <RecruitmentHighlightCard
+            loading={recruitment.loading}
+            success={recruitment.success}
+            data={recruitment.data}
           />
 
         </div>

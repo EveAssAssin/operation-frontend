@@ -207,6 +207,7 @@ export const dashboardApi = {
   getEngineeringHighlight:  (date)  => api.get('/dashboard/highlights/engineering', date  ? { params: { date  } } : {}),
   getAuditHighlight:        (date)  => api.get('/dashboard/highlights/audit',       date  ? { params: { date  } } : {}),
   getEvaluationHighlight:   ()      => api.get('/dashboard/highlights/evaluation'),
+  getRecruitmentHighlight:  ()      => api.get('/dashboard/highlights/recruitment'),
 };
 
 // Recruitment API（人力招募模組）
