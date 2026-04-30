@@ -46,9 +46,12 @@ function Badge({ text, color='#718096', bg='#f7fafc', border='#e2e8f0' }) {
 }
 
 const STATUS_BADGE = {
-  pending:  <Badge text="待處理" color="#d69e2e" bg="#fffff0" border="#f6e05e" />,
-  rejected: <Badge text="婉拒"   color="#718096" bg="#f7fafc" border="#e2e8f0" />,
-  invited:  <Badge text="邀請面試" color="#2b6cb0" bg="#ebf8ff" border="#90cdf4" />,
+  pending:          <Badge text="待處理"      color="#d69e2e" bg="#fffff0" border="#f6e05e" />,
+  rejected:         <Badge text="婉拒"        color="#718096" bg="#f7fafc" border="#e2e8f0" />,
+  invited:          <Badge text="待面試"      color="#2b6cb0" bg="#ebf8ff" border="#90cdf4" />,
+  notified_intent:  <Badge text="發出詢問意願通知" color="#c05621" bg="#fffaf0" border="#fbd38d" />,
+  notified_chat:    <Badge text="發出聊聊通知"    color="#6b46c1" bg="#faf5ff" border="#d6bcfa" />,
+  notified_invite:  <Badge text="發出邀約面試通知" color="#0369a1" bg="#e0f2fe" border="#7dd3fc" />,
 };
 const NEED_BADGE = {
   open:      <Badge text="招募中"  color="#2b6cb0" bg="#ebf8ff" border="#90cdf4" />,
@@ -284,9 +287,16 @@ function ResumesTab({ storeMap }) {
         body.interview_time = actionForm.interview_time || null;
       }
       await recruitmentApi.updateApplicant(applicant.id, body);
-      setMsg({ type:'success', text: type==='reject' ? '已標記婉拒' : '已邀請面試，面試紀錄已建立' });
+      setMsg({ type:'success', text: type==='reject' ? '已標記婉拒' : '已安排面試，面試紀錄已建立' });
       setActionModal(null);
       setActionForm({ reject_reason:'', interview_date:'', interview_time:'' });
+      load();
+    } catch (e) { setMsg({ type:'error', text: e.message }); }
+  }
+
+  async function handleQuickStatus(applicantId, newStatus) {
+    try {
+      await recruitmentApi.updateApplicant(applicantId, { status: newStatus });
       load();
     } catch (e) { setMsg({ type:'error', text: e.message }); }
   }
@@ -360,7 +370,10 @@ function ResumesTab({ storeMap }) {
         <select style={S.sel} value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
           <option value="">全部狀態</option>
           <option value="pending">待處理</option>
-          <option value="invited">已邀請</option>
+          <option value="notified_intent">發出詢問意願通知</option>
+          <option value="notified_chat">發出聊聊通知</option>
+          <option value="notified_invite">發出邀約面試通知</option>
+          <option value="invited">待面試</option>
           <option value="rejected">已婉拒</option>
         </select>
         <button style={S.btnP} onClick={()=>setShowAdd(v=>!v)}>+ 新增投遞者</button>
@@ -446,10 +459,24 @@ function ResumesTab({ storeMap }) {
                   <td style={S.td}><span style={{ fontSize:12, color:'#9a8878' }}>{a.reject_reason || '—'}</span></td>
                   <td style={S.td}>
                     <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
-                      {a.status === 'pending' && (
+                      {!['invited','rejected'].includes(a.status) && (
                         <>
-                          <button style={S.btnSm} onClick={()=>{ setActionModal({applicant:a,type:'invite'}); setActionForm({reject_reason:'',interview_date:today()}); }}>邀請面試</button>
-                          <button style={{ ...S.btnSm, color:'#718096' }} onClick={()=>{ setActionModal({applicant:a,type:'reject'}); setActionForm({reject_reason:'',interview_date:''}); }}>婉拒</button>
+                          {a.status !== 'notified_intent' && (
+                            <button style={{ ...S.btnSm, color:'#c05621', borderColor:'#fbd38d' }}
+                              onClick={()=>handleQuickStatus(a.id,'notified_intent')}>詢問意願</button>
+                          )}
+                          {a.status !== 'notified_chat' && (
+                            <button style={{ ...S.btnSm, color:'#6b46c1', borderColor:'#d6bcfa' }}
+                              onClick={()=>handleQuickStatus(a.id,'notified_chat')}>發出聊聊</button>
+                          )}
+                          {a.status !== 'notified_invite' && (
+                            <button style={{ ...S.btnSm, color:'#0369a1', borderColor:'#7dd3fc' }}
+                              onClick={()=>handleQuickStatus(a.id,'notified_invite')}>邀約通知</button>
+                          )}
+                          <button style={S.btnSm}
+                            onClick={()=>{ setActionModal({applicant:a,type:'invite'}); setActionForm({reject_reason:'',interview_date:today()}); }}>待面試</button>
+                          <button style={{ ...S.btnSm, color:'#718096' }}
+                            onClick={()=>{ setActionModal({applicant:a,type:'reject'}); setActionForm({reject_reason:'',interview_date:''}); }}>婉拒</button>
                         </>
                       )}
                       <button style={{ ...S.btnSm, color:'#2b6cb0' }} onClick={()=>openEdit(a)}>✏️ 修改</button>
@@ -468,7 +495,7 @@ function ResumesTab({ storeMap }) {
         <div style={S.overlay} onClick={e=>{ if(e.target===e.currentTarget) setActionModal(null); }}>
           <div style={S.modal}>
             <div style={{ fontWeight:700, fontSize:16, marginBottom:16 }}>
-              {actionModal.type==='reject' ? '婉拒投遞者' : '邀請面試'}
+              {actionModal.type==='reject' ? '婉拒投遞者' : '安排面試（待面試）'}
             </div>
             <form onSubmit={handleAction}>
               {actionModal.type === 'reject' && (
@@ -506,7 +533,7 @@ function ResumesTab({ storeMap }) {
                 </div>
               )}
               <div style={{ display:'flex', gap:8 }}>
-                <button style={S.btnP} type="submit">{actionModal.type==='reject'?'確認婉拒':'確認邀請'}</button>
+                <button style={S.btnP} type="submit">{actionModal.type==='reject'?'確認婉拒':'確認安排'}</button>
                 <button style={S.btnS} type="button" onClick={()=>setActionModal(null)}>取消</button>
               </div>
             </form>
