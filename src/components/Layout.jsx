@@ -21,7 +21,7 @@ const NAV_ITEMS = [
     path:  '/billing',
     label: '工程開帳',
     icon:  '🔧',
-    minRole: 'operation_lead',
+    minRole: 'operation_staff',
   },
   {
     path:  '/billing-v2',
