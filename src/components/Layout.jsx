@@ -42,6 +42,12 @@ const NAV_ITEMS = [
     minRole: 'operation_staff',
   },
   {
+    path:  '/recurring-expenses',
+    label: '常態費用',
+    icon:  '💴',
+    minRole: 'operation_staff',
+  },
+  {
     path:  '/recruitment',
     label: '人力招募',
     icon:  '🧑‍💼',

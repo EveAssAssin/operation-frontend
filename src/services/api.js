@@ -261,6 +261,24 @@ export const pushGroupsApi = {
   sendPush:     (body)       => api.post('/push-groups/send', body),
 };
 
+// Recurring Expenses API（常態費用模組）
+export const recurringExpensesApi = {
+  // 主檔
+  list:    (active)    => api.get('/recurring-expenses', active != null ? { params: { active } } : {}),
+  get:     (id)        => api.get(`/recurring-expenses/${id}`),
+  create:  (body)      => api.post('/recurring-expenses', body),
+  update:  (id, body)  => api.patch(`/recurring-expenses/${id}`, body),
+  remove:  (id)        => api.delete(`/recurring-expenses/${id}`),
+  // 應付紀錄
+  listPayments:   (month) => api.get('/recurring-expenses/payments', month ? { params: { month } } : {}),
+  getTodayDue:    ()      => api.get('/recurring-expenses/payments/today'),
+  markPaid:       (id, paid_note) => api.post(`/recurring-expenses/payments/${id}/pay`,   { paid_note }),
+  unmarkPaid:     (id)            => api.post(`/recurring-expenses/payments/${id}/unpay`),
+  // 開帳對象選項
+  getStores:      () => api.get('/recurring-expenses/options/stores'),
+  getDepartments: () => api.get('/recurring-expenses/options/departments'),
+};
+
 // System API (系統用戶管理)
 export const systemApi = {
   getEmployees:   (params = {}) => api.get('/system/employees', { params }),
