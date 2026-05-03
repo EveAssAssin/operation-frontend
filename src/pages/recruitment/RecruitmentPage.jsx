@@ -46,12 +46,14 @@ function Badge({ text, color='#718096', bg='#f7fafc', border='#e2e8f0' }) {
 }
 
 const STATUS_BADGE = {
-  pending:          <Badge text="待處理"      color="#d69e2e" bg="#fffff0" border="#f6e05e" />,
-  rejected:         <Badge text="婉拒"        color="#718096" bg="#f7fafc" border="#e2e8f0" />,
-  invited:          <Badge text="待面試"      color="#2b6cb0" bg="#ebf8ff" border="#90cdf4" />,
-  notified_intent:  <Badge text="發出詢問意願通知" color="#c05621" bg="#fffaf0" border="#fbd38d" />,
-  notified_chat:    <Badge text="發出聊聊通知"    color="#6b46c1" bg="#faf5ff" border="#d6bcfa" />,
-  notified_invite:  <Badge text="發出邀約面試通知" color="#0369a1" bg="#e0f2fe" border="#7dd3fc" />,
+  pending:              <Badge text="待處理"          color="#d69e2e" bg="#fffff0" border="#f6e05e" />,
+  rejected:             <Badge text="婉拒"            color="#718096" bg="#f7fafc" border="#e2e8f0" />,
+  invited:              <Badge text="待面試"          color="#2b6cb0" bg="#ebf8ff" border="#90cdf4" />,
+  notified_intent:      <Badge text="發出詢問意願通知"   color="#c05621" bg="#fffaf0" border="#fbd38d" />,
+  notified_chat:        <Badge text="發出聊聊通知"      color="#6b46c1" bg="#faf5ff" border="#d6bcfa" />,
+  notified_invite:      <Badge text="發出邀約面試通知"   color="#0369a1" bg="#e0f2fe" border="#7dd3fc" />,
+  notified_intent_2:    <Badge text="發出二次詢問意願通知" color="#b7791f" bg="#fef3c7" border="#fcd34d" />,
+  notified_no_response: <Badge text="三次通知未回結案"   color="#c53030" bg="#fff5f5" border="#feb2b2" />,
 };
 const NEED_BADGE = {
   open:      <Badge text="招募中"  color="#2b6cb0" bg="#ebf8ff" border="#90cdf4" />,
@@ -373,6 +375,8 @@ function ResumesTab({ storeMap }) {
           <option value="notified_intent">發出詢問意願通知</option>
           <option value="notified_chat">發出聊聊通知</option>
           <option value="notified_invite">發出邀約面試通知</option>
+          <option value="notified_intent_2">發出二次詢問意願通知</option>
+          <option value="notified_no_response">三次通知未回結案</option>
           <option value="invited">待面試</option>
           <option value="rejected">已婉拒</option>
         </select>
@@ -459,7 +463,7 @@ function ResumesTab({ storeMap }) {
                   <td style={S.td}><span style={{ fontSize:12, color:'#9a8878' }}>{a.reject_reason || '—'}</span></td>
                   <td style={S.td}>
                     <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
-                      {!['invited','rejected'].includes(a.status) && (
+                      {!['invited','rejected','notified_no_response'].includes(a.status) && (
                         <>
                           {a.status !== 'notified_intent' && (
                             <button style={{ ...S.btnSm, color:'#c05621', borderColor:'#fbd38d' }}
@@ -473,6 +477,12 @@ function ResumesTab({ storeMap }) {
                             <button style={{ ...S.btnSm, color:'#0369a1', borderColor:'#7dd3fc' }}
                               onClick={()=>handleQuickStatus(a.id,'notified_invite')}>邀約通知</button>
                           )}
+                          {a.status !== 'notified_intent_2' && (
+                            <button style={{ ...S.btnSm, color:'#b7791f', borderColor:'#fcd34d' }}
+                              onClick={()=>handleQuickStatus(a.id,'notified_intent_2')}>二次詢問</button>
+                          )}
+                          <button style={{ ...S.btnSm, color:'#c53030', borderColor:'#feb2b2' }}
+                            onClick={()=>handleQuickStatus(a.id,'notified_no_response')}>三次未回</button>
                           <button style={S.btnSm}
                             onClick={()=>{ setActionModal({applicant:a,type:'invite'}); setActionForm({reject_reason:'',interview_date:today()}); }}>待面試</button>
                           <button style={{ ...S.btnSm, color:'#718096' }}
