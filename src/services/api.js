@@ -279,6 +279,23 @@ export const recurringExpensesApi = {
   getDepartments: () => api.get('/recurring-expenses/options/departments'),
 };
 
+// Quests API（任務派發 → 市場部）
+// 對應 market-backend internal API:
+//   POST /api/internal/quest/create   建立任務
+//   GET  /api/internal/quest/groups   列出 employee_groups（給 dropdown）
+//   GET  /api/internal/quest/list     列出市場部任務（debug 用，目前 UI 沒接）
+// x-internal-key 驗證在後端 routes/quests.js 統一處理。
+export const questsApi = {
+  list:        (params = {})           => api.get('/quests', { params }),
+  get:         (id)                    => api.get(`/quests/${id}`),
+  create:      (body)                  => api.post('/quests', body),
+  resend:      (id)                    => api.post(`/quests/${id}/resend`),
+  // 取得市場部 employee_groups 給 dropdown
+  // 可選 include_members=1 讓後端把成員清單一起帶回（給 hover 顯示用）
+  getGroups:   (includeMembers = false) =>
+    api.get('/quests/groups', includeMembers ? { params: { include_members: 1 } } : {}),
+};
+
 // System API (系統用戶管理)
 export const systemApi = {
   getEmployees:   (params = {}) => api.get('/system/employees', { params }),

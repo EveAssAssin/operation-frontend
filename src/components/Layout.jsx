@@ -59,6 +59,12 @@ const NAV_ITEMS = [
     icon:  '📣',
     minRole: 'operation_staff',
   },
+  {
+    path:  '/quests',
+    label: '任務派發',
+    icon:  '📋',
+    minRole: 'operation_staff',
+  },
 ];
 
 // 角色中文標籤
