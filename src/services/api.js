@@ -286,14 +286,22 @@ export const recurringExpensesApi = {
 //   GET  /api/internal/quest/list     列出市場部任務（debug 用，目前 UI 沒接）
 // x-internal-key 驗證在後端 routes/quests.js 統一處理。
 export const questsApi = {
+  // ── 派發 ─────────────────────────────────────────────
   list:        (params = {})           => api.get('/quests', { params }),
   get:         (id)                    => api.get(`/quests/${id}`),
   create:      (body)                  => api.post('/quests', body),
   resend:      (id)                    => api.post(`/quests/${id}/resend`),
   // 取得市場部 employee_groups 給 dropdown
-  // 可選 include_members=1 讓後端把成員清單一起帶回（給 hover 顯示用）
+  // 可選 include_members=1 讓後端把成員清單一起帶回
   getGroups:   (includeMembers = false) =>
     api.get('/quests/groups', includeMembers ? { params: { include_members: 1 } } : {}),
+
+  // ── 審核（reviewer 由後端從登入者自動帶）─────────────
+  listPending:    ()                 => api.get('/quests/submissions/pending'),
+  listReviewed:   (limit = 50)       => api.get('/quests/submissions/reviewed', { params: { limit } }),
+  approve:        (submissionId)     => api.post(`/quests/submissions/${submissionId}/approve`),
+  reject:         (submissionId, reason) => api.post(`/quests/submissions/${submissionId}/reject`, { reason }),
+  rejectResubmit: (submissionId, reason) => api.post(`/quests/submissions/${submissionId}/reject-resubmit`, { reason }),
 };
 
 // System API (系統用戶管理)
