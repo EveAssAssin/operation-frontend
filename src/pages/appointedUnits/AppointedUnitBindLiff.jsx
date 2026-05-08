@@ -36,12 +36,53 @@ function loadLiffSdk() {
   });
 }
 
+// 4 大按鈕的設定（前 3 個外連，第 4 個進綁定流程）
+const MENU_ITEMS = [
+  {
+    key:    'apply',
+    icon:   '📝',
+    title:  '申請成為特約',
+    desc:   '想成為樂活眼鏡的特約合作夥伴？由此申請',
+    accent: '#3b82f6',
+    type:   'link',
+    url:    'https://lohas.realtime.tw/contract/',
+  },
+  {
+    key:    'benefit',
+    icon:   '⭐',
+    title:  '成為特約好處',
+    desc:   '了解特約廠商可享有的專屬福利與優惠',
+    accent: '#f59e0b',
+    type:   'link',
+    url:    'https://www.lohasglasses.com/page/1/516',
+  },
+  {
+    key:    'approval',
+    icon:   '✅',
+    title:  '特約認證',
+    desc:   '查詢 / 確認特約合作申請的審核進度',
+    accent: '#8b5cf6',
+    type:   'link',
+    url:    'https://lohas.realtime.tw/Approval',
+  },
+  {
+    key:    'bind',
+    icon:   '🔗',
+    title:  '特約綁定',
+    desc:   '已是特約廠商？綁定 LINE 接收活動與行銷訊息',
+    accent: '#06C755',
+    type:   'internal',   // 內部 → 進綁定流程
+  },
+];
+
 export default function AppointedUnitBindLiff() {
   const [phase, setPhase]     = useState('init');   // init | ready | error
   const [error, setError]     = useState('');
   const [profile, setProfile] = useState(null);
   const [binding, setBinding] = useState(null);
+  const [view, setView]       = useState('menu');   // 'menu' | 'bind'
   const [mode, setMode]       = useState(null);     // null | 'employee' | 'admin'
+  const [liffSdk, setLiffSdk] = useState(null);
 
   // 取設定 + 初始化 LIFF
   useEffect(() => {
@@ -72,6 +113,7 @@ export default function AppointedUnitBindLiff() {
 
         const p = await liff.getProfile();
         setProfile(p);
+        setLiffSdk(liff);
         // 詢問現有綁定
         try {
           const r = await appointedUnitsPublicApi.bindStatus(p.userId);
@@ -85,6 +127,26 @@ export default function AppointedUnitBindLiff() {
       }
     })();
   }, []);
+
+  // 點外連：如果在 LINE App 內，用 liff.openWindow 開內建瀏覽器；否則用一般 window.open
+  function openExternal(url) {
+    if (liffSdk?.openWindow) {
+      try {
+        liffSdk.openWindow({ url, external: false });
+        return;
+      } catch (_) { /* fallback */ }
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  function handleMenuClick(item) {
+    if (item.type === 'internal') {
+      setView('bind');
+      setMode(null);
+    } else {
+      openExternal(item.url);
+    }
+  }
 
   if (phase === 'init') return <FullScreen>初始化中...</FullScreen>;
   if (phase === 'error') return <FullScreen>{error || '發生錯誤'}</FullScreen>;
@@ -101,34 +163,145 @@ export default function AppointedUnitBindLiff() {
           <div style={{ fontSize: 12, color: C.textMid }}>{profile?.displayName}</div>
         </div>
 
-        {/* 已綁定 */}
-        {binding && binding.status === 'active' && !mode && (
-          <BoundCard binding={binding} profile={profile} onUnbound={() => setBinding(null)} />
+        {/* ── 主選單 ───────────────────────────────────────── */}
+        {view === 'menu' && (
+          <>
+            {/* 已綁定狀態提示卡（緊湊版，永遠在主選單顯示） */}
+            {binding && binding.status === 'active' && (
+              <BoundSummaryCard
+                binding={binding}
+                onManage={() => setView('bind')}
+              />
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {MENU_ITEMS.map(item => (
+                <MenuButton key={item.key} item={item} onClick={() => handleMenuClick(item)} />
+              ))}
+            </div>
+
+            <div style={{ marginTop: 24, fontSize: 11, color: C.textLight, textAlign: 'center', lineHeight: 1.6 }}>
+              樂活眼鏡 × 特約廠商專屬服務
+            </div>
+          </>
         )}
 
-        {/* 未綁定 — 選擇模式 */}
-        {(!binding || binding.status !== 'active') && !mode && (
-          <ModeSelect onSelect={setMode} />
-        )}
+        {/* ── 綁定流程 ─────────────────────────────────────── */}
+        {view === 'bind' && (
+          <>
+            {/* 返回主選單 */}
+            <button
+              onClick={() => { setView('menu'); setMode(null); }}
+              style={{
+                background: 'transparent', border: 'none', color: C.textMid,
+                fontSize: 13, padding: '4px 0', marginBottom: 12, cursor: 'pointer',
+              }}
+            >
+              ‹ 返回主選單
+            </button>
 
-        {/* 員工綁定 */}
-        {mode === 'employee' && (
-          <EmployeeBindForm
-            profile={profile}
-            onCancel={() => setMode(null)}
-            onSuccess={(b) => { setBinding(b); setMode(null); }}
-          />
-        )}
+            {/* 已綁定 → 顯示完整綁定卡 */}
+            {binding && binding.status === 'active' && !mode && (
+              <BoundCard binding={binding} profile={profile} onUnbound={() => setBinding(null)} />
+            )}
 
-        {/* 管理員綁定 */}
-        {mode === 'admin' && (
-          <AdminBindForm
-            profile={profile}
-            onCancel={() => setMode(null)}
-            onSuccess={(b) => { setBinding(b); setMode(null); }}
-          />
+            {/* 未綁定 → 選擇模式 */}
+            {(!binding || binding.status !== 'active') && !mode && (
+              <ModeSelect onSelect={setMode} />
+            )}
+
+            {/* 員工綁定表單 */}
+            {mode === 'employee' && (
+              <EmployeeBindForm
+                profile={profile}
+                onCancel={() => setMode(null)}
+                onSuccess={(b) => { setBinding(b); setMode(null); }}
+              />
+            )}
+
+            {/* 管理員綁定表單 */}
+            {mode === 'admin' && (
+              <AdminBindForm
+                profile={profile}
+                onCancel={() => setMode(null)}
+                onSuccess={(b) => { setBinding(b); setMode(null); }}
+              />
+            )}
+          </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── 主選單按鈕 ───────────────────────────────────────────────
+function MenuButton({ item, onClick }) {
+  return (
+    <div onClick={onClick} style={{
+      background: '#fff',
+      border: `1px solid ${C.border}`,
+      borderLeft: `4px solid ${item.accent}`,
+      borderRadius: 12,
+      padding: '16px 18px',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 14,
+      transition: 'transform 0.1s, box-shadow 0.1s',
+      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+    }}
+      onTouchStart={e => { e.currentTarget.style.transform = 'scale(0.985)'; }}
+      onTouchEnd={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+    >
+      <div style={{
+        width: 44, height: 44, borderRadius: 10,
+        background: item.accent + '15',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 24, flexShrink: 0,
+      }}>
+        {item.icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 2 }}>
+          {item.title}
+        </div>
+        <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.4 }}>
+          {item.desc}
+        </div>
+      </div>
+      <div style={{ color: C.textLight, fontSize: 18, flexShrink: 0 }}>
+        {item.type === 'internal' ? '›' : '↗'}
+      </div>
+    </div>
+  );
+}
+
+// 已綁定狀態的精簡卡片（顯示在主選單上方）
+function BoundSummaryCard({ binding, onManage }) {
+  return (
+    <div style={{
+      background: '#f0fdf4',
+      border: '1px solid #b7e4c7',
+      borderRadius: 12,
+      padding: '12px 16px',
+      marginBottom: 16,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+    }}>
+      <div style={{ fontSize: 22 }}>✅</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, color: '#2d6a4f', marginBottom: 2 }}>已完成綁定</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#1b4332', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {binding.unit_name_snap}
+        </div>
+      </div>
+      <button onClick={onManage} style={{
+        background: '#fff', border: '1px solid #b7e4c7', color: '#2d6a4f',
+        padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+      }}>
+        管理
+      </button>
     </div>
   );
 }
