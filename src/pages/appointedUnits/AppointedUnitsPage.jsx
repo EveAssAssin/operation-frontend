@@ -669,62 +669,120 @@ function BroadcastDetailModal({ id, onClose }) {
 //                       Tab 4：同步
 // ════════════════════════════════════════════════════════════
 function SyncPanel() {
-  const [busy, setBusy] = useState('');
-  const [lastResult, setLastResult] = useState(null);
+  const [status, setStatus] = useState({});
+  const [hint, setHint]     = useState('');
 
-  async function run(name, fn) {
-    if (busy) return;
-    setBusy(name);
-    setLastResult(null);
+  // 載入 / 輪詢同步狀態
+  const loadStatus = useCallback(async () => {
+    try {
+      const r = await appointedUnitsApi.syncStatus();
+      setStatus(r?.data || {});
+    } catch (e) { /* 忽略 */ }
+  }, []);
+
+  useEffect(() => {
+    loadStatus();
+    const t = setInterval(loadStatus, 5000);   // 每 5 秒輪詢
+    return () => clearInterval(t);
+  }, [loadStatus]);
+
+  async function trigger(name, fn) {
+    setHint('');
     try {
       const r = await fn();
-      setLastResult({ name, data: r });
+      setHint(r?.message || '已啟動');
+      // 立即重抓一次狀態
+      setTimeout(loadStatus, 500);
     } catch (e) {
-      setLastResult({ name, error: e?.message || String(e) });
-    } finally {
-      setBusy('');
+      setHint(`啟動失敗：${e?.message || e}`);
     }
   }
 
-  const Card = ({ title, desc, label, onRun }) => (
-    <div style={{ background: C.bgCard, borderRadius: 8, padding: 16, border: `1px solid ${C.border}`, marginBottom: 12 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6, color: C.textDark }}>{title}</div>
-      <div style={{ fontSize: 12, color: C.textMid, marginBottom: 12 }}>{desc}</div>
-      <button style={btn('primary')} disabled={!!busy} onClick={onRun}>{busy === label ? '執行中...' : `🔄 ${label}`}</button>
-    </div>
-  );
+  const Card = ({ name, title, desc, label, onRun }) => {
+    const s = status[name] || {};
+    const running = s.status === 'running';
+    return (
+      <div style={{ background: C.bgCard, borderRadius: 8, padding: 16, border: `1px solid ${C.border}`, marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.textDark }}>{title}</div>
+          <SyncStatusBadge state={s} />
+        </div>
+        <div style={{ fontSize: 12, color: C.textMid, marginBottom: 12 }}>{desc}</div>
+        <button style={btn('primary')} disabled={running} onClick={onRun}>
+          {running ? '執行中...' : `🔄 ${label}`}
+        </button>
+        {s.result && !running && (
+          <div style={{ marginTop: 10, fontSize: 11, color: C.textMid }}>
+            上次結果：<code style={{ background: C.bg, padding: '2px 6px', borderRadius: 4 }}>{summarize(s.result)}</code>
+          </div>
+        )}
+        {s.error && !running && (
+          <div style={{ marginTop: 10, fontSize: 11, color: '#c53030' }}>失敗：{s.error}</div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
+      {hint && (
+        <div style={{ marginBottom: 12, padding: '10px 14px', background: '#f0fdf4', border: '1px solid #b7e4c7', borderRadius: 6, fontSize: 13, color: '#2d6a4f' }}>
+          {hint}
+        </div>
+      )}
+
       <Card
+        name="units"
         title="同步特約單位列表"
         desc="呼叫搜點子 API 23 getUnitList，更新本地 appointed_units 表（每天 04:00 自動執行）"
         label="同步單位"
-        onRun={() => run('同步單位', () => appointedUnitsApi.syncAllUnits())}
+        onRun={() => trigger('units', () => appointedUnitsApi.syncAllUnits())}
       />
       <Card
+        name="categories"
         title="補抓特約單位類別"
-        desc="呼叫搜點子 API 25 getAppointedUnitByCode，把每筆單位的 category_id / category_name 補齊"
+        desc="呼叫搜點子 API 25 getAppointedUnitByCode，把每筆單位的 category_id / category_name 補齊（先做完「同步單位」再做這個）"
         label="補類別"
-        onRun={() => run('補類別', () => appointedUnitsApi.enrichCategories({ limit: 200 }))}
+        onRun={() => trigger('categories', () => appointedUnitsApi.enrichCategories({ limit: 500 }))}
       />
       <Card
+        name="members"
         title="同步全部廠商員工"
-        desc="呼叫搜點子 API 26 getAppointedUnitMembers，更新本地 appointed_unit_members 表（每 2 小時自動執行）"
+        desc="呼叫搜點子 API 26 getAppointedUnitMembers，更新本地 appointed_unit_members 表（每 2 小時自動執行；廠商多時可能跑 3-5 分鐘）"
         label="同步員工"
-        onRun={() => run('同步員工', () => appointedUnitsApi.syncAllMembers())}
+        onRun={() => trigger('members', () => appointedUnitsApi.syncAllMembers())}
       />
-
-      {lastResult && (
-        <div style={{ background: C.bgCard, padding: 12, borderRadius: 6, border: `1px solid ${C.border}`, marginTop: 16 }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>{lastResult.name} 結果</div>
-          {lastResult.error
-            ? <div style={{ color: '#c53030' }}>{lastResult.error}</div>
-            : <pre style={{ fontSize: 11, background: C.bg, padding: 12, borderRadius: 4, overflow: 'auto', margin: 0 }}>{JSON.stringify(lastResult.data, null, 2)}</pre>}
-        </div>
-      )}
     </>
   );
+}
+
+function SyncStatusBadge({ state }) {
+  if (!state || !state.status || state.status === 'idle') {
+    return <span style={pillStyle('#f3f3f3', '#888', '#ccc')}>未執行</span>;
+  }
+  if (state.status === 'running') return <span style={pillStyle('#fff8ec', '#8b6f4e', '#e5c99a')}>執行中…</span>;
+  if (state.status === 'done')    return <span style={pillStyle('#f0fff4', '#2d6a4f', '#b7e4c7')}>完成 {fmtRelative(state.finishedAt)}</span>;
+  if (state.status === 'failed')  return <span style={pillStyle('#fff0f0', '#c53030', '#feb2b2')}>失敗</span>;
+  return null;
+}
+
+function fmtRelative(iso) {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return '剛剛';
+  if (m < 60) return `${m} 分鐘前`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} 小時前`;
+  return new Date(iso).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+}
+
+function summarize(r) {
+  if (!r || typeof r !== 'object') return '';
+  if (typeof r.total === 'number')      return `total ${r.total} / inserted ${r.inserted || 0} / updated ${r.updated || 0}`;
+  if (typeof r.units === 'number')      return `units ${r.units} / total ${r.total || 0} / inserted ${r.inserted || 0} / updated ${r.updated || 0}`;
+  if (typeof r.enriched === 'number')   return `enriched ${r.enriched}`;
+  return JSON.stringify(r).slice(0, 80);
 }
 
 // ════════════════════════════════════════════════════════════

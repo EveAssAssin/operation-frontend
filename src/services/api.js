@@ -342,6 +342,7 @@ export const appointedUnitsApi = {
   syncAllUnits:     ()            => api.post('/appointed-units/sync/units'),
   syncAllMembers:   ()            => api.post('/appointed-units/sync/members'),
   enrichCategories: (body = {})   => api.post('/appointed-units/sync/enrich-categories', body),
+  syncStatus:       ()            => api.get('/appointed-units/sync/status'),
 
   getConfig:        ()            => api.get('/appointed-units/config'),
 };
