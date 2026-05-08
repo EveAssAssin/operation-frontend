@@ -39,8 +39,18 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       const reqUrl = error.config?.url || '';
-      const isPublicApi = reqUrl.includes('/public/');
-      if (!isPublicApi) {
+      // 凡是 LIFF / webhook / 廠商後台這類「不需 SSO 登入」的端點，
+      // 即便回 401 也不該把人踢去 /login（否則 LIFF 頁會被營運部 SSO 蓋掉）
+      const isPublicApi =
+        reqUrl.includes('/public/') ||
+        reqUrl.includes('/appointed-units/bind/') ||
+        reqUrl.includes('/appointed-units/config') ||
+        reqUrl.includes('/appointed-units/line/') ||
+        reqUrl.includes('/vendor/') ||
+        reqUrl.includes('/sign/');
+      // 同樣，目前在 LIFF 頁時不要強制跳 /login
+      const onLiffPage = typeof window !== 'undefined' && window.location.pathname.startsWith('/liff/');
+      if (!isPublicApi && !onLiffPage) {
         localStorage.removeItem('operation_token');
         localStorage.removeItem('operation_user');
         window.location.href = '/login';
