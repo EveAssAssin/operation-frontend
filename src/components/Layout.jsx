@@ -65,6 +65,12 @@ const NAV_ITEMS = [
     icon:  '📋',
     minRole: 'operation_staff',
   },
+  {
+    path:  '/appointed-units',
+    label: '特約廠商',
+    icon:  '🤝',
+    minRole: 'operation_staff',
+  },
 ];
 
 // 角色中文標籤

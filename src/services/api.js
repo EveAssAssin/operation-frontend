@@ -312,4 +312,36 @@ export const systemApi = {
   revokeAccess:   (id) => api.put(`/system/${id}/revoke`),
 };
 
+// 特約廠商模組（管理後台 — 需 SSO 登入）
+export const appointedUnitsApi = {
+  listUnits:        (params = {}) => api.get('/appointed-units/units', { params }),
+  getUnit:          (code)        => api.get(`/appointed-units/units/${code}`),
+  listMembers:      (code, params = {}) => api.get(`/appointed-units/units/${code}/members`, { params }),
+  syncUnitMembers:  (code)        => api.post(`/appointed-units/units/${code}/sync-members`),
+  createBindCode:   (code, body)  => api.post(`/appointed-units/units/${code}/bind-codes`, body),
+  listBindCodes:    (code)        => api.get(`/appointed-units/units/${code}/bind-codes`),
+  revokeBindCode:   (id)          => api.delete(`/appointed-units/bind-codes/${id}`),
+
+  listBindings:     (params = {}) => api.get('/appointed-units/bindings', { params }),
+  forceUnbind:      (id)          => api.delete(`/appointed-units/bindings/${id}`),
+
+  createBroadcast:  (body)        => api.post('/appointed-units/broadcasts', body),
+  listBroadcasts:   (params = {}) => api.get('/appointed-units/broadcasts', { params }),
+  getBroadcast:     (id)          => api.get(`/appointed-units/broadcasts/${id}`),
+
+  syncAllUnits:     ()            => api.post('/appointed-units/sync/units'),
+  syncAllMembers:   ()            => api.post('/appointed-units/sync/members'),
+  enrichCategories: (body = {})   => api.post('/appointed-units/sync/enrich-categories', body),
+
+  getConfig:        ()            => api.get('/appointed-units/config'),
+};
+
+// LIFF 公開 API（不需 SSO Token；axios 攔截器即使帶 Token 不影響）
+export const appointedUnitsPublicApi = {
+  bindStatus:   (line_user_id)        => api.post('/appointed-units/bind/status', { line_user_id }),
+  bindEmployee: (body)                => api.post('/appointed-units/bind/employee', body),
+  bindAdmin:    (body)                => api.post('/appointed-units/bind/admin', body),
+  unbind:       (line_user_id, reason) => api.post('/appointed-units/bind/unbind', { line_user_id, reason }),
+};
+
 export default api;

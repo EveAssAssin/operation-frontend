@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 .DS_Store
+
+# Vite 編譯時暫存
+vite.config.js.timestamp-*.mjs
+vite.config.ts.timestamp-*.mjs

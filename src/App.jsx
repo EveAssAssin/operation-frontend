@@ -17,6 +17,8 @@ import RecruitmentPage   from './pages/recruitment/RecruitmentPage';
 import SalesEventsPage   from './pages/salesEvents/SalesEventsPage';
 import RecurringExpensesPage from './pages/recurringExpenses/RecurringExpensesPage';
 import QuestsPage           from './pages/quests/QuestsPage';
+import AppointedUnitsPage   from './pages/appointedUnits/AppointedUnitsPage';
+import AppointedUnitBindLiff from './pages/appointedUnits/AppointedUnitBindLiff';
 
 // 廠商後台
 import VendorLoginPage  from './pages/vendor/VendorLoginPage';
@@ -64,6 +66,9 @@ function AppRoutes() {
       {/* 通用簽收（不需登入，不需 Layout） */}
       <Route path="/sign" element={<UniversalSignPage />} />
 
+      {/* LIFF：特約廠商綁定（不需登入，不需 Layout） */}
+      <Route path="/liff/appointed-unit-bind" element={<AppointedUnitBindLiff />} />
+
       {/* 主應用（需登入，套 Layout） */}
       <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
       <Route path="/personnel" element={<PrivateRoute><PersonnelPage /></PrivateRoute>} />
@@ -75,6 +80,7 @@ function AppRoutes() {
       <Route path="/sales-events"   element={<PrivateRoute><SalesEventsPage /></PrivateRoute>} />
       <Route path="/recurring-expenses" element={<PrivateRoute><RecurringExpensesPage /></PrivateRoute>} />
       <Route path="/quests"             element={<PrivateRoute><QuestsPage /></PrivateRoute>} />
+      <Route path="/appointed-units"    element={<PrivateRoute><AppointedUnitsPage /></PrivateRoute>} />
 
       {/* 廠商後台（獨立 JWT，獨立 Layout） */}
       <Route path="/vendor/login" element={vendor ? <Navigate to="/vendor/bills" replace /> : <VendorLoginPage />} />
