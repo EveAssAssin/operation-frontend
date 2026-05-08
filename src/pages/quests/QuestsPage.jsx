@@ -1,6 +1,6 @@
 // pages/quests/QuestsPage.jsx
 // 任務派發系統：列表 + 建立 + 詳情
-// 任務會送到「市場部」employee_groups，由市場部任務系統發放點數
+// 任務會送到「市場部」employee_groups（可複選），由市場部任務系統發放點數
 
 import { useState, useEffect, useCallback } from 'react';
 import { questsApi } from '../../services/api';
@@ -87,6 +87,7 @@ export default function QuestsPage() {
                 <Th>狀態</Th>
                 <Th>標題</Th>
                 <Th>截止時間</Th>
+                <Th>指派群組數</Th>
                 <Th>建立者</Th>
                 <Th>建立時間</Th>
                 <Th>動作</Th>
@@ -94,14 +95,15 @@ export default function QuestsPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} style={{ padding: 32, textAlign: 'center', color: C.textLight }}>載入中…</td></tr>
+                <tr><td colSpan={7} style={{ padding: 32, textAlign: 'center', color: C.textLight }}>載入中…</td></tr>
               ) : list.length === 0 ? (
-                <tr><td colSpan={6} style={{ padding: 32, textAlign: 'center', color: C.textLight }}>還沒有任務，點右上角「＋ 建立新任務」開始</td></tr>
+                <tr><td colSpan={7} style={{ padding: 32, textAlign: 'center', color: C.textLight }}>還沒有任務，點右上角「＋ 建立新任務」開始</td></tr>
               ) : list.map(q => (
                 <tr key={q.id} style={{ borderTop: `1px solid ${C.border}` }}>
                   <Td><StatusBadge status={q.status} /></Td>
                   <Td><div style={{ fontWeight: 600, color: C.textDark }}>{q.title}</div>{q.description && <div style={{ color: C.textLight, fontSize: 12, marginTop: 2 }}>{q.description.slice(0, 60)}{q.description.length > 60 ? '…' : ''}</div>}</Td>
                   <Td>{fmtDateTime(q.task_deadline)}</Td>
+                  <Td>{Array.isArray(q.assignees) ? q.assignees.length : 0} 組</Td>
                   <Td>{q.created_by_name || '—'}</Td>
                   <Td>{fmtDateTime(q.created_at)}</Td>
                   <Td>
@@ -150,7 +152,9 @@ function CreateModal({ onClose, onCreated, user }) {
   const [title, setTitle]               = useState('');
   const [description, setDescription]   = useState('');
   const [deadline, setDeadline]         = useState(defaultDeadline());
-  const [groupId, setGroupId]           = useState('');
+  // 改成複選：groupIds 陣列
+  const [groupIds, setGroupIds]         = useState([]);
+  const [manualGroupId, setManualGroupId] = useState(''); // groups API 失敗時的手動輸入
   const [awardPoints, setAwardPoints]   = useState(true);
   const [submitText, setSubmitText]     = useState(true);
   const [submitImage, setSubmitImage]   = useState(false);
@@ -160,26 +164,40 @@ function CreateModal({ onClose, onCreated, user }) {
     (async () => {
       setGroupsLoading(true); setGroupsError(null);
       try {
-        const res = await questsApi.getGroups();
-        // 兼容多種可能的結構：{ success, data: [...] } 或 { data: [...] } 或 [...]
+        // 帶 include_members=1，方便 hover 顯示成員
+        const res = await questsApi.getGroups(true);
         const arr =
           Array.isArray(res?.data) ? res.data
           : Array.isArray(res?.data?.data) ? res.data.data
           : Array.isArray(res) ? res
           : [];
         setGroups(arr);
-        if (arr.length && !groupId) setGroupId(arr[0].id || arr[0].group_id);
       } catch (e) {
         setGroupsError(e.response?.data?.message || e.message);
       } finally { setGroupsLoading(false); }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const toggleGroup = (id) => {
+    setGroupIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const selectAllGroups = () => setGroupIds(groups.map(g => g.id || g.group_id));
+  const clearAllGroups  = () => setGroupIds([]);
 
   const submit = async () => {
     if (!title.trim()) { alert('請輸入任務標題'); return; }
     if (!deadline)     { alert('請選擇截止時間'); return; }
-    if (!groupId)      { alert('請選擇指派群組'); return; }
+
+    // 組裝 assignees：dropdown 模式用 groupIds，手動模式用 manualGroupId
+    let assignees;
+    if (groupsError) {
+      const ids = manualGroupId.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+      if (ids.length === 0) { alert('請至少填一個 group_id'); return; }
+      assignees = ids.map(id => ({ type: 'group', group_id: id }));
+    } else {
+      if (groupIds.length === 0) { alert('請至少選擇一個指派群組'); return; }
+      assignees = groupIds.map(id => ({ type: 'group', group_id: id }));
+    }
 
     const required_submission = [];
     if (submitText)  required_submission.push('text');
@@ -198,7 +216,7 @@ function CreateModal({ onClose, onCreated, user }) {
         task_deadline: deadline.length === 16 ? `${deadline}:00` : deadline,
         award_points: awardPoints,
         required_submission,
-        assignees: [{ type: 'group', group_id: groupId }],
+        assignees,
       });
       onCreated();
     } catch (e) {
@@ -222,26 +240,63 @@ function CreateModal({ onClose, onCreated, user }) {
         <input type="datetime-local" value={deadline} onChange={e => setDeadline(e.target.value)} style={inputStyle} />
       </Field>
 
-      <Field label="指派群組（市場部 employee_groups）*">
+      <Field label={`指派群組（市場部 employee_groups，可複選）* ${groupIds.length > 0 ? `已選 ${groupIds.length} 組` : ''}`}>
         {groupsLoading ? (
           <div style={{ color: C.textLight, fontSize: 13 }}>載入群組中…</div>
         ) : groupsError ? (
-          <div style={{ color: '#c53030', fontSize: 13 }}>
-            無法載入群組：{groupsError}
-            <div style={{ marginTop: 6 }}>
-              <input value={groupId} onChange={e => setGroupId(e.target.value)} style={inputStyle} placeholder="（手動填 group_id UUID）" />
+          <div>
+            <div style={{ color: '#c53030', fontSize: 13, marginBottom: 6 }}>
+              無法載入群組：{groupsError}
             </div>
+            <input value={manualGroupId} onChange={e => setManualGroupId(e.target.value)} style={inputStyle}
+              placeholder="手動填 group_id UUID（多組用逗號或空白分隔）" />
           </div>
         ) : groups.length === 0 ? (
           <div style={{ color: C.textLight, fontSize: 13 }}>市場部還沒有群組可選</div>
         ) : (
-          <select value={groupId} onChange={e => setGroupId(e.target.value)} style={inputStyle}>
-            {groups.map(g => {
-              const id = g.id || g.group_id;
-              const name = g.name || g.group_name || id;
-              return <option key={id} value={id}>{name}</option>;
-            })}
-          </select>
+          <div>
+            {/* 全選 / 全清 工具列 */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+              <button type="button" onClick={selectAllGroups} style={btnTinyGhost}>全選</button>
+              <button type="button" onClick={clearAllGroups}  style={btnTinyGhost}>全清</button>
+            </div>
+            {/* checkbox 列表 */}
+            <div style={{
+              maxHeight: 240, overflowY: 'auto', border: `1px solid ${C.border}`,
+              borderRadius: 6, padding: 8, background: '#fafaf7',
+            }}>
+              {groups.map(g => {
+                const id = g.id || g.group_id;
+                const name = g.name || g.group_name || id;
+                const memberCount = g.member_count != null ? g.member_count
+                  : (Array.isArray(g.members) ? g.members.length : null);
+                const checked = groupIds.includes(id);
+                return (
+                  <label key={id} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 4px',
+                    cursor: 'pointer', borderRadius: 4,
+                    background: checked ? '#fff8ec' : 'transparent',
+                  }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleGroup(id)}
+                      style={{ marginTop: 3 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: C.textDark, fontWeight: 600 }}>
+                        {name}
+                        {memberCount != null && (
+                          <span style={{ color: C.textLight, fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
+                            ({memberCount} 人)
+                          </span>
+                        )}
+                      </div>
+                      {g.description && (
+                        <div style={{ fontSize: 11, color: C.textLight, marginTop: 2 }}>{g.description}</div>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         )}
       </Field>
 
@@ -290,7 +345,6 @@ function DetailModal({ id, onClose, onUpdated }) {
         onClose();
       } finally { setLoading(false); }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const resend = async () => {
@@ -319,7 +373,7 @@ function DetailModal({ id, onClose, onUpdated }) {
           <Row label="建立時間">{fmtDateTime(quest.created_at)}</Row>
           <Row label="獎勵點數">{quest.award_points ? '是' : '否'}</Row>
           <Row label="繳交內容">{(quest.required_submission || []).join(', ')}</Row>
-          <Row label="指派">
+          <Row label={`指派群組（${Array.isArray(quest.assignees) ? quest.assignees.length : 0} 組）`}>
             <pre style={preStyle}>{JSON.stringify(quest.assignees, null, 2)}</pre>
           </Row>
           <Row label="市場部 task_id">{quest.market_task_id || '—'}</Row>
@@ -388,7 +442,7 @@ function Modal({ title, onClose, children, wide }) {
     }}>
       <div onClick={e => e.stopPropagation()} style={{
         background: '#fff', borderRadius: 12, padding: 24,
-        width: wide ? 720 : 520, maxWidth: '100%',
+        width: wide ? 720 : 560, maxWidth: '100%',
         boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -413,6 +467,10 @@ const btnPrimary = {
 const btnGhost = {
   padding: '6px 12px', background: 'transparent', color: C.textMid,
   border: `1px solid ${C.border}`, borderRadius: 6, cursor: 'pointer', fontSize: 12,
+};
+const btnTinyGhost = {
+  padding: '4px 10px', background: 'transparent', color: C.textMid,
+  border: `1px solid ${C.border}`, borderRadius: 4, cursor: 'pointer', fontSize: 11,
 };
 const preStyle = {
   background: '#f9f5ee', border: `1px solid ${C.border}`, borderRadius: 6,
