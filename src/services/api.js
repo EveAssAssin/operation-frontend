@@ -352,6 +352,7 @@ export const appointedUnitsPublicApi = {
   bindEmployee: (body)                => api.post('/appointed-units/bind/employee', body),
   bindAdmin:    (body)                => api.post('/appointed-units/bind/admin', body),
   unbind:       (line_user_id, reason) => api.post('/appointed-units/bind/unbind', { line_user_id, reason }),
+  lookupCode:   (keyword)             => api.post('/appointed-units/bind/lookup-code', { keyword }),
 };
 
 export default api;

@@ -195,10 +195,12 @@ function ModeSelect({ onSelect }) {
 }
 
 function EmployeeBindForm({ profile, onCancel, onSuccess }) {
-  const [unitCode, setUnitCode] = useState('');
-  const [last4, setLast4]       = useState('');
-  const [busy, setBusy]         = useState(false);
-  const [err, setErr]           = useState('');
+  const [unitCode, setUnitCode]   = useState('');
+  const [unitName, setUnitName]   = useState('');     // 顯示用，配合 lookup
+  const [last4, setLast4]         = useState('');
+  const [busy, setBusy]           = useState(false);
+  const [err, setErr]             = useState('');
+  const [showLookup, setShowLookup] = useState(false);
 
   async function handleSubmit() {
     setErr('');
@@ -226,8 +228,19 @@ function EmployeeBindForm({ profile, onCancel, onSuccess }) {
     <div style={cardStyle}>
       <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>員工綁定</div>
       <Field label="特約廠商代碼">
-        <input value={unitCode} onChange={e => setUnitCode(e.target.value.replace(/\s/g, ''))}
-          inputMode="numeric" placeholder="例如：560" style={input} />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input value={unitCode} onChange={e => { setUnitCode(e.target.value.replace(/\s/g, '')); setUnitName(''); }}
+            inputMode="numeric" placeholder="例如：560" style={{ ...input, flex: 1 }} />
+          <button type="button" onClick={() => setShowLookup(true)}
+            style={{ ...ghostBtn, padding: '0 14px', whiteSpace: 'nowrap', fontSize: 13 }}>
+            🔍 查代碼
+          </button>
+        </div>
+        {unitName && (
+          <div style={{ marginTop: 6, fontSize: 12, color: C.textMid, padding: '6px 10px', background: '#f0fdf4', borderRadius: 6, border: '1px solid #b7e4c7' }}>
+            ✓ {unitName}
+          </div>
+        )}
       </Field>
       <Field label="手機末 4 碼">
         <input value={last4} onChange={e => setLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
@@ -240,15 +253,24 @@ function EmployeeBindForm({ profile, onCancel, onSuccess }) {
           {busy ? '綁定中...' : '完成綁定'}
         </button>
       </div>
+
+      {showLookup && (
+        <CodeLookupModal
+          onClose={() => setShowLookup(false)}
+          onPick={(u) => { setUnitCode(u.unit_code); setUnitName(u.unit_name); setShowLookup(false); }}
+        />
+      )}
     </div>
   );
 }
 
 function AdminBindForm({ profile, onCancel, onSuccess }) {
-  const [unitCode, setUnitCode] = useState('');
-  const [bindCode, setBindCode] = useState('');
-  const [busy, setBusy]         = useState(false);
-  const [err, setErr]           = useState('');
+  const [unitCode, setUnitCode]   = useState('');
+  const [unitName, setUnitName]   = useState('');
+  const [bindCode, setBindCode]   = useState('');
+  const [busy, setBusy]           = useState(false);
+  const [err, setErr]             = useState('');
+  const [showLookup, setShowLookup] = useState(false);
 
   async function handleSubmit() {
     setErr('');
@@ -277,7 +299,19 @@ function AdminBindForm({ profile, onCancel, onSuccess }) {
         💡 一次性綁定碼由樂活窗口提供，每組只能用一次，且通常 60 分鐘內過期。
       </div>
       <Field label="特約廠商代碼">
-        <input value={unitCode} onChange={e => setUnitCode(e.target.value.replace(/\s/g, ''))} placeholder="例如：560" style={input} />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input value={unitCode} onChange={e => { setUnitCode(e.target.value.replace(/\s/g, '')); setUnitName(''); }}
+            placeholder="例如：560" style={{ ...input, flex: 1 }} />
+          <button type="button" onClick={() => setShowLookup(true)}
+            style={{ ...ghostBtn, padding: '0 14px', whiteSpace: 'nowrap', fontSize: 13 }}>
+            🔍 查代碼
+          </button>
+        </div>
+        {unitName && (
+          <div style={{ marginTop: 6, fontSize: 12, color: C.textMid, padding: '6px 10px', background: '#f0fdf4', borderRadius: 6, border: '1px solid #b7e4c7' }}>
+            ✓ {unitName}
+          </div>
+        )}
       </Field>
       <Field label="一次性綁定碼">
         <input value={bindCode} onChange={e => setBindCode(e.target.value.toUpperCase())} placeholder="例如：A2B4D7Q9" style={{ ...input, fontFamily: 'monospace', letterSpacing: 1 }} maxLength={16} />
@@ -288,6 +322,110 @@ function AdminBindForm({ profile, onCancel, onSuccess }) {
         <button style={{ ...primaryBtn, flex: 2 }} disabled={busy} onClick={handleSubmit}>
           {busy ? '綁定中...' : '完成綁定'}
         </button>
+      </div>
+
+      {showLookup && (
+        <CodeLookupModal
+          onClose={() => setShowLookup(false)}
+          onPick={(u) => { setUnitCode(u.unit_code); setUnitName(u.unit_name); setShowLookup(false); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── 代碼查詢 Modal ──────────────────────────────────────────
+function CodeLookupModal({ onClose, onPick }) {
+  const [keyword, setKeyword] = useState('');
+  const [results, setResults] = useState([]);
+  const [busy, setBusy]       = useState(false);
+  const [err, setErr]         = useState('');
+  const [searched, setSearched] = useState(false);
+
+  async function handleSearch() {
+    setErr(''); setSearched(false);
+    const k = keyword.trim();
+    if (k.length < 2) { setErr('請輸入至少 2 個字元'); return; }
+    setBusy(true);
+    try {
+      const r = await appointedUnitsPublicApi.lookupCode(k);
+      if (!r.ok) {
+        setErr(r.message || '查詢失敗');
+        setResults([]);
+      } else {
+        setResults(Array.isArray(r.results) ? r.results : []);
+      }
+      setSearched(true);
+    } catch (e) {
+      setErr(e?.message || '查詢失敗');
+      setResults([]);
+    } finally { setBusy(false); }
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') handleSearch();
+  }
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100,
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: '12px 12px 0 0', width: '100%', maxWidth: 480,
+        maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>查詢特約廠商代碼</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: 22, cursor: 'pointer', color: C.textMid }}>×</button>
+        </div>
+        <div style={{ padding: 16, borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              value={keyword}
+              onChange={e => setKeyword(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="輸入廠商名稱（至少 2 字）"
+              style={{ ...input, flex: 1 }}
+              autoFocus
+            />
+            <button onClick={handleSearch} disabled={busy} style={{ ...primaryBtn, padding: '0 18px' }}>
+              {busy ? '...' : '查詢'}
+            </button>
+          </div>
+          {err && <div style={{ color: C.danger, fontSize: 12, marginTop: 8 }}>{err}</div>}
+        </div>
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {searched && results.length === 0 && !err && (
+            <div style={{ textAlign: 'center', color: C.textMid, padding: 40, fontSize: 13 }}>
+              查無符合的特約廠商，請確認名稱是否正確或聯絡樂活窗口
+            </div>
+          )}
+          {results.length > 0 && (
+            <div>
+              {results.map(r => (
+                <div key={r.unit_code}
+                  onClick={() => onPick(r)}
+                  style={{
+                    padding: '14px 18px',
+                    borderBottom: `1px solid ${C.border}`,
+                    cursor: 'pointer',
+                  }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{r.unit_name}</div>
+                  <div style={{ fontSize: 12, color: C.textMid, marginTop: 2 }}>
+                    代碼：<b>{r.unit_code}</b>
+                    {r.category_name && <span style={{ marginLeft: 12 }}>類別：{r.category_name}</span>}
+                  </div>
+                </div>
+              ))}
+              {results.length === 10 && (
+                <div style={{ textAlign: 'center', color: C.textLight, padding: '12px', fontSize: 11 }}>
+                  最多顯示 10 筆，請輸入更精確的關鍵字
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
