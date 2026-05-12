@@ -796,6 +796,9 @@ function ChiLensSyncBtn() {
           r?.unmapped_branches?.length
             ? `⚠️ 無法對應門市：${r.unmapped_branches.map(b => b.branch_name).join('、')}`
             : '',
+          r?.skipped_branches?.length
+            ? `ℹ️ 已忽略內部單位：${r.skipped_branches.map(b => `${b.branch_name}(NT$${(b.net||0).toLocaleString()})`).join('、')}`
+            : '',
           r?.write_errors?.length
             ? `❌ 寫入失敗 ${r.write_errors.length} 件：\n` +
               r.write_errors.slice(0, 5).map(e => `  ${e.branch}（${e.step}）: ${e.message}`).join('\n') +
