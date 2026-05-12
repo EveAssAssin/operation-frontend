@@ -2,7 +2,7 @@
 // 開帳系統 v2：帳單管理（來源單位 / 會計科目 / 帳單建立與審核）
 
 import { useState, useEffect, useCallback } from 'react';
-import { billingV2Api, personnelApi } from '../../services/api';
+import { billingV2Api, personnelApi, billingApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 // ── 廠商帳號管理面板 ──────────────────────────────────────────
