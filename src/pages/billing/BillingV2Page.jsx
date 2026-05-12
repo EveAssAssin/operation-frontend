@@ -791,8 +791,16 @@ function ChiLensSyncBtn() {
         alert([
           `路奇天格 ${period} 同步完成`,
           r ? `完成單：${r.completion_count} 筆／退回單：${r.return_count} 筆` : '',
-          r ? `同步門市：${r.synced_stores} 家／淨額 NT$${(r.total_net || 0).toLocaleString()}` : '',
-          r?.unmapped_branches?.length ? `⚠️ 無法對應門市：${r.unmapped_branches.map(b => b.branch_name).join('、')}` : '',
+          r ? `同步門市：${r.synced_stores} 家（新增 ${r.inserted_count || 0} / 更新 ${r.updated_count || 0}）` : '',
+          r ? `淨額：NT$${(r.total_net || 0).toLocaleString()}` : '',
+          r?.unmapped_branches?.length
+            ? `⚠️ 無法對應門市：${r.unmapped_branches.map(b => b.branch_name).join('、')}`
+            : '',
+          r?.write_errors?.length
+            ? `❌ 寫入失敗 ${r.write_errors.length} 件：\n` +
+              r.write_errors.slice(0, 5).map(e => `  ${e.branch}（${e.step}）: ${e.message}`).join('\n') +
+              (r.write_errors.length > 5 ? `\n  ... 另外 ${r.write_errors.length - 5} 件` : '')
+            : '',
         ].filter(Boolean).join('\n'));
       }
     } catch (e) {
