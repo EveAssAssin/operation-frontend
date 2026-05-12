@@ -715,6 +715,13 @@ function BillDetailModal({ bill, onClose, onRefresh, userRole, departments }) {
             )}
           </div>
 
+          {/* 明細列表（API 自動同步的帳單會有 items） */}
+          {Array.isArray(bill.items) && bill.items.length > 0 && (
+            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 12, marginTop: 16 }}>
+              <BillItemsTable items={bill.items} />
+            </div>
+          )}
+
           {/* 操作按鈕 */}
           <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 12, marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {isDraft && (
@@ -769,6 +776,88 @@ function InfoRow({ label, value }) {
       <span style={{ color: '#718096', fontSize: 12, minWidth: 70 }}>{label}</span>
       <span style={{ fontSize: 13, color: '#2d3748' }}>{value}</span>
     </div>
+  );
+}
+
+// ── 帳單明細列表（API 自動同步的帳單會帶 items）─────────────
+function BillItemsTable({ items }) {
+  const [showAll, setShowAll] = useState(false);
+  const completionCount = items.filter(i => i.type !== 'return').length;
+  const returnCount     = items.filter(i => i.type === 'return').length;
+  const sumCompletion   = items.filter(i => i.type !== 'return').reduce((s, i) => s + (Number(i.total) || 0), 0);
+  const sumReturn       = items.filter(i => i.type === 'return').reduce((s, i) => s + (Number(i.total) || 0), 0); // 已為負數
+  const showItems       = showAll ? items : items.slice(0, 20);
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontWeight: 600, fontSize: 14 }}>
+          帳單明細
+          <span style={{ fontSize: 11, color: '#718096', fontWeight: 400, marginLeft: 8 }}>
+            完成 {completionCount} 筆（NT${sumCompletion.toLocaleString()}）
+            {returnCount > 0 && (
+              <> / 退回 {returnCount} 筆（NT${Math.abs(sumReturn).toLocaleString()}）</>
+            )}
+          </span>
+        </span>
+        {items.length > 20 && (
+          <button onClick={() => setShowAll(v => !v)}
+            style={{ ...smallBtn, background: '#f5f0ea', color: '#50422d' }}>
+            {showAll ? `收合（共 ${items.length}）` : `展開全部（${items.length}）`}
+          </button>
+        )}
+      </div>
+      <div style={{ maxHeight: 400, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 6 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead style={{ background: '#f7fafc', position: 'sticky', top: 0 }}>
+            <tr>
+              <th style={th}>類型</th>
+              <th style={th}>日期</th>
+              <th style={th}>客戶單號</th>
+              <th style={th}>送修單號</th>
+              <th style={th}>規格</th>
+              <th style={{ ...th, textAlign: 'right' }}>數量</th>
+              <th style={{ ...th, textAlign: 'right' }}>單價</th>
+              <th style={{ ...th, textAlign: 'right' }}>金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            {showItems.map((it, idx) => {
+              const isReturn = it.type === 'return';
+              return (
+                <tr key={`${it.type}-${it.seq_no}-${idx}`} style={{ background: isReturn ? '#fff5f5' : '#fff' }}>
+                  <td style={td}>
+                    <span style={{
+                      padding: '1px 6px', borderRadius: 8, fontSize: 10, fontWeight: 600,
+                      background: isReturn ? '#fed7d7' : '#c6f6d5',
+                      color:      isReturn ? '#9b2c2c' : '#276749',
+                    }}>
+                      {isReturn ? '退回' : '完成'}
+                    </span>
+                  </td>
+                  <td style={td}>{it.item_date || '—'}</td>
+                  <td style={td}>{it.customer_order || '—'}</td>
+                  <td style={{ ...td, fontFamily: 'monospace', fontSize: 11 }}>{it.doc_number || '—'}</td>
+                  <td style={{ ...td, fontSize: 11, maxWidth: 240, wordBreak: 'break-word' }}>{it.product_spec || '—'}</td>
+                  <td style={{ ...td, textAlign: 'right' }}>{it.quantity ?? '—'}</td>
+                  <td style={{ ...td, textAlign: 'right' }}>{fmtMoney(it.unit_price)}</td>
+                  <td style={{ ...td, textAlign: 'right', color: isReturn ? '#c53030' : '#2d3748', fontWeight: 600 }}>
+                    {fmtMoney(it.total)}
+                  </td>
+                </tr>
+              );
+            })}
+            {!showAll && items.length > 20 && (
+              <tr>
+                <td colSpan={8} style={{ ...td, textAlign: 'center', color: '#718096', fontSize: 11 }}>
+                  ... 還有 {items.length - 20} 筆，點上方「展開全部」查看
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
