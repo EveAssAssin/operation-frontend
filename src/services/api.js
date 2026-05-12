@@ -94,6 +94,9 @@ export const billingApi = {
   // Method B：從市場 API 取得含照片/完工備註的完整訂單明細
   getOrderDetail: (sourceType, sourceId) =>
     api.get(`/billing/order-detail/${sourceType}/${sourceId}`),
+  // 路奇天格鏡片帳單（chi-finance-system）— 同步等待回應版本（最多 60 秒）
+  syncChiFinanceLens: (period) =>
+    api.post('/billing/sync/chi-finance-lens/sync-now', { period }, { timeout: 60000 }),
 };
 
 // Billing V2 API（開帳系統 v2）

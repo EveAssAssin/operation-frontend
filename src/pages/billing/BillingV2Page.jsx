@@ -772,6 +772,43 @@ function InfoRow({ label, value }) {
   );
 }
 
+// ── 路奇天格手動同步按鈕（只給 code='CHI-LENS' 的來源顯示）──
+function ChiLensSyncBtn() {
+  const [busy, setBusy] = useState(false);
+  async function handleSync() {
+    const def = new Date();
+    const cur = `${def.getFullYear()}-${String(def.getMonth() + 1).padStart(2, '0')}`;
+    const period = window.prompt('要同步哪個月份？格式 YYYY-MM', cur);
+    if (!period || !/^\d{4}-\d{2}$/.test(period)) return;
+    if (!window.confirm(`確定要同步路奇天格鏡片帳單 ${period}？`)) return;
+    setBusy(true);
+    try {
+      const res = await billingApi.syncChiFinanceLens(period);
+      if (res?.success === false) {
+        alert('同步失敗：' + (res.message || '未知錯誤'));
+      } else {
+        const r = res?.data;
+        alert([
+          `路奇天格 ${period} 同步完成`,
+          r ? `完成單：${r.completion_count} 筆／退回單：${r.return_count} 筆` : '',
+          r ? `同步門市：${r.synced_stores} 家／淨額 NT$${(r.total_net || 0).toLocaleString()}` : '',
+          r?.unmapped_branches?.length ? `⚠️ 無法對應門市：${r.unmapped_branches.map(b => b.branch_name).join('、')}` : '',
+        ].filter(Boolean).join('\n'));
+      }
+    } catch (e) {
+      alert('同步失敗：' + (e?.message || e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <button onClick={handleSync} disabled={busy}
+      style={{ ...smallBtn, background: '#bee3f8', color: '#2c5282' }}>
+      {busy ? '同步中...' : '🔄 同步'}
+    </button>
+  );
+}
+
 // ── 來源單位管理面板 ──────────────────────────────────────────
 function SourcePanel({ sources, onRefresh }) {
   const [showForm, setShowForm]     = useState(false);
@@ -987,8 +1024,13 @@ function SourcePanel({ sources, onRefresh }) {
                                 style={{ ...smallBtn, background: '#e2e8f0', color: '#718096' }}>取消</button>
                             </div>
                           ) : (
-                            <button onClick={() => startEdit(s)}
-                              style={{ ...smallBtn, background: '#f5f0ea', color: '#50422d' }}>編輯</button>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button onClick={() => startEdit(s)}
+                                style={{ ...smallBtn, background: '#f5f0ea', color: '#50422d' }}>編輯</button>
+                              {s.code === 'CHI-LENS' && (
+                                <ChiLensSyncBtn />
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>
