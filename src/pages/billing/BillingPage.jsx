@@ -151,11 +151,16 @@ const S = {
 };
 
 // ─── 完整明細 Modal ──────────────────────────────────────────
-// completion_notes 和 photo_urls 在每個 item 內部，不在訂單頂層
+// 後端 2026-05 更新：response 新增 extra_items / damaged_items 兩個欄位
+// - 有新欄位 → 分兩 section 漂亮渲染（額外保養 + 損壞修繕）
+// - 沒有 → fallback 用舊的 items 陣列（向下相容）
 function OrderDetailModal({ detail, onClose }) {
   if (!detail) return null;
 
-  const items = detail.items || [];
+  const extraItems   = Array.isArray(detail.extra_items)   ? detail.extra_items   : [];
+  const damagedItems = Array.isArray(detail.damaged_items) ? detail.damaged_items : [];
+  const fallbackItems = Array.isArray(detail.items) ? detail.items : [];
+  const useNewFormat = extraItems.length > 0 || damagedItems.length > 0;
 
   return (
     <div style={S.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -165,81 +170,144 @@ function OrderDetailModal({ detail, onClose }) {
             <div style={S.modalTitle}>訂單完整明細</div>
             <div style={{ fontSize: '12px', color: '#718096', marginTop: '4px' }}>
               {detail.source_id || detail.order_id || '-'} ／ {detail.source_type === 'maintenance' ? '養護' : '報修'}
+              {detail.amount != null && (
+                <span style={{ marginLeft: '12px', color: '#50422d', fontWeight: 600 }}>
+                  總額 NT$ {formatAmount(detail.amount)}
+                </span>
+              )}
             </div>
           </div>
           <button style={S.closeBtn} onClick={onClose}>✕</button>
         </div>
 
-        {items.length === 0 && (
+        {!useNewFormat && fallbackItems.length === 0 && (
           <div style={S.empty}>此訂單尚無詳細資料</div>
         )}
 
-        {/* 每個項目獨立一個區塊，含完工說明與照片 */}
-        {items.map((item, idx) => {
-          const photos = item.photo_urls || item.photos || [];
-          const notes  = item.completion_notes || item.notes || '';
+        {useNewFormat ? (
+          <>
+            {extraItems.length > 0 && (
+              <SectionHeader icon="📦" title="額外保養項目" count={extraItems.length} />
+            )}
+            {extraItems.map((item, idx) => (
+              <ExtraItemRow key={`extra-${idx}`} item={item} idx={idx} />
+            ))}
 
-          return (
-            <div key={idx} style={{ borderTop: idx > 0 ? '1px solid #e2e8f0' : 'none', paddingTop: idx > 0 ? '20px' : '0', marginTop: idx > 0 ? '20px' : '0' }}>
-              {/* 項目標題列 */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <div style={{ fontWeight: '600', fontSize: '15px', color: '#2d3748' }}>
-                  {item.item_name || item.name || `項目 ${idx + 1}`}
-                </div>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  {item.status && (
-                    <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '999px', background: item.status === 'completed' ? '#f0fff4' : '#fffbeb', color: item.status === 'completed' ? '#276749' : '#92400e', border: `1px solid ${item.status === 'completed' ? '#9ae6b4' : '#fcd34d'}` }}>
-                      {item.status === 'completed' ? '已完工' : item.status}
-                    </span>
-                  )}
-                  {item.amount != null && (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
-                      <span style={{ fontWeight: '700', color: '#50422d' }}>$ {formatAmount(item.amount)}</span>
-                      {(item.material_cost > 0 || item.labor_cost > 0) && (
-                        <span style={{ fontSize: '11px', color: '#9a8878' }}>
-                          材料 ${formatAmount(item.material_cost || 0)} ＋ 工資 ${formatAmount(item.labor_cost || 0)}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
+            {damagedItems.length > 0 && (
+              <SectionHeader icon="🔧" title="損壞修繕項目" count={damagedItems.length} />
+            )}
+            {damagedItems.map((item, idx) => (
+              <DamagedItemRow key={`dmg-${idx}`} item={item} idx={idx} />
+            ))}
+          </>
+        ) : (
+          fallbackItems.map((item, idx) => (
+            <ExtraItemRow key={`legacy-${idx}`} item={item} idx={idx} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
 
-              {/* 問題描述 */}
-              {item.description && (
-                <>
-                  <div style={S.label}>問題描述</div>
-                  <div style={{ ...S.infoText, marginBottom: '8px' }}>{item.description}</div>
-                </>
-              )}
+function SectionHeader({ icon, title, count }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '8px',
+      padding: '12px 14px', marginTop: '16px', marginBottom: '4px',
+      background: '#faf5ee', borderRadius: '6px',
+      borderLeft: '3px solid #8b6f4e',
+    }}>
+      <span style={{ fontSize: '16px' }}>{icon}</span>
+      <span style={{ fontWeight: 700, color: '#50422d', fontSize: '14px' }}>{title}</span>
+      <span style={{ fontSize: '12px', color: '#9a8878' }}>（{count} 項）</span>
+    </div>
+  );
+}
 
-              {/* 完工說明 */}
-              {notes && (
-                <>
-                  <div style={S.label}>完工說明</div>
-                  <div style={{ ...S.infoText, background: '#f0fff4', padding: '10px 14px', borderRadius: '6px', borderLeft: '3px solid #68d391', marginBottom: '8px' }}>
-                    {notes}
-                  </div>
-                </>
-              )}
+function ExtraItemRow({ item, idx }) {
+  const photos = item.photo_urls || item.photos || [];
+  const notes  = item.completion_notes || item.notes || '';
+  const amount = item.repair_price ?? item.amount ?? null;
 
-              {/* 照片 */}
-              {photos.length > 0 && (
-                <>
-                  <div style={S.label}>照片（{photos.length} 張）</div>
-                  <div style={S.photoGrid}>
-                    {photos.map((url, pIdx) => (
-                      <a key={pIdx} href={url} target="_blank" rel="noreferrer">
-                        <img src={url} alt={`照片${pIdx + 1}`} style={S.photo} />
-                      </a>
-                    ))}
-                  </div>
-                </>
+  return (
+    <div style={{ borderTop: idx > 0 ? '1px solid #e2e8f0' : 'none', paddingTop: idx > 0 ? '20px' : '12px', marginTop: idx > 0 ? '20px' : '0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+        <div style={{ fontWeight: '600', fontSize: '15px', color: '#2d3748' }}>
+          {item.item_name || item.name || `項目 ${idx + 1}`}
+        </div>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {item.status && (
+            <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '999px',
+              background: item.status === 'completed' ? '#f0fff4' : '#fffbeb',
+              color: item.status === 'completed' ? '#276749' : '#92400e',
+              border: `1px solid ${item.status === 'completed' ? '#9ae6b4' : '#fcd34d'}` }}>
+              {item.status === 'completed' ? '已完工' : item.status}
+            </span>
+          )}
+          {amount != null && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+              <span style={{ fontWeight: '700', color: '#50422d' }}>$ {formatAmount(amount)}</span>
+              {(item.material_cost > 0 || item.labor_cost > 0) && (
+                <span style={{ fontSize: '11px', color: '#9a8878' }}>
+                  材料 ${formatAmount(item.material_cost || 0)} ＋ 工資 ${formatAmount(item.labor_cost || 0)}
+                </span>
               )}
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
+
+      {item.description && (
+        <>
+          <div style={S.label}>問題描述</div>
+          <div style={{ ...S.infoText, marginBottom: '8px' }}>{item.description}</div>
+        </>
+      )}
+
+      {notes && (
+        <>
+          <div style={S.label}>完工說明</div>
+          <div style={{ ...S.infoText, background: '#f0fff4', padding: '10px 14px', borderRadius: '6px', borderLeft: '3px solid #68d391', marginBottom: '8px' }}>
+            {notes}
+          </div>
+        </>
+      )}
+
+      {photos.length > 0 && (
+        <>
+          <div style={S.label}>照片（{photos.length} 張）</div>
+          <div style={S.photoGrid}>
+            {photos.map((url, pIdx) => (
+              <a key={pIdx} href={url} target="_blank" rel="noreferrer">
+                <img src={url} alt={`照片${pIdx + 1}`} style={S.photo} />
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function DamagedItemRow({ item, idx }) {
+  return (
+    <div style={{ borderTop: idx > 0 ? '1px solid #e2e8f0' : 'none', paddingTop: idx > 0 ? '16px' : '12px', marginTop: idx > 0 ? '16px' : '0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontWeight: '600', fontSize: '14px', color: '#2d3748' }}>
+          🔧 {item.item_name || `修繕項目 ${idx + 1}`}
+        </div>
+        {item.repair_amount != null && (
+          <span style={{ fontWeight: '700', color: '#50422d', fontSize: '14px' }}>
+            $ {formatAmount(item.repair_amount)}
+          </span>
+        )}
+      </div>
+      {item.notes && (
+        <div style={{ ...S.infoText, marginTop: '6px', fontSize: '13px', color: '#6b5640' }}>
+          {item.notes}
+        </div>
+      )}
     </div>
   );
 }
