@@ -19,6 +19,9 @@ import RecurringExpensesPage from './pages/recurringExpenses/RecurringExpensesPa
 import QuestsPage           from './pages/quests/QuestsPage';
 import AppointedUnitsPage   from './pages/appointedUnits/AppointedUnitsPage';
 import AppointedUnitBindLiff from './pages/appointedUnits/AppointedUnitBindLiff';
+import ProcessesHubPage    from './pages/processes/ProcessesHubPage';
+import HandoverPage        from './pages/processes/HandoverPage';
+import PublicHandoverPage  from './pages/handover/PublicHandoverPage';
 
 // 廠商後台
 import VendorLoginPage  from './pages/vendor/VendorLoginPage';
@@ -69,6 +72,9 @@ function AppRoutes() {
       {/* LIFF：特約廠商綁定（不需登入，不需 Layout） */}
       <Route path="/liff/appointed-unit-bind" element={<AppointedUnitBindLiff />} />
 
+      {/* 門市交接表填寫頁（QR 掃描，不需登入） */}
+      <Route path="/handover/:id" element={<PublicHandoverPage />} />
+
       {/* 主應用（需登入，套 Layout） */}
       <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
       <Route path="/personnel" element={<PrivateRoute><PersonnelPage /></PrivateRoute>} />
@@ -81,6 +87,8 @@ function AppRoutes() {
       <Route path="/recurring-expenses" element={<PrivateRoute><RecurringExpensesPage /></PrivateRoute>} />
       <Route path="/quests"             element={<PrivateRoute><QuestsPage /></PrivateRoute>} />
       <Route path="/appointed-units"    element={<PrivateRoute><AppointedUnitsPage /></PrivateRoute>} />
+      <Route path="/processes"          element={<PrivateRoute><ProcessesHubPage /></PrivateRoute>} />
+      <Route path="/processes/handover" element={<PrivateRoute><HandoverPage /></PrivateRoute>} />
 
       {/* 廠商後台（獨立 JWT，獨立 Layout） */}
       <Route path="/vendor/login" element={vendor ? <Navigate to="/vendor/bills" replace /> : <VendorLoginPage />} />

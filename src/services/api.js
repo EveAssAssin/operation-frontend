@@ -317,6 +317,58 @@ export const questsApi = {
   rejectResubmit: (submissionId, reason) => api.post(`/quests/submissions/${submissionId}/reject-resubmit`, { reason }),
 };
 
+// Processes API（各類流程）
+// admin（需登入）+ public（QR 掃描後）
+export const processesApi = {
+  // 模板
+  listTemplates:   (store_erpid)      => api.get('/processes/templates', store_erpid ? { params: { store_erpid } } : {}),
+  getTemplate:     (id)               => api.get(`/processes/templates/${id}`),
+  createTemplate:  (body)             => api.post('/processes/templates', body),
+  updateTemplate:  (id, body)         => api.patch(`/processes/templates/${id}`, body),
+  deleteTemplate:  (id)               => api.delete(`/processes/templates/${id}`),
+  // 交接
+  listHandovers:   (params = {})      => api.get('/processes/handovers', { params }),
+  getHandover:     (id)               => api.get(`/processes/handovers/${id}`),
+  createHandover:  (body)             => api.post('/processes/handovers', body),
+  cancelHandover:  (id, reason)       => api.post(`/processes/handovers/${id}/cancel`, { reason }),
+  // 選項
+  listStores:      ()                 => api.get('/processes/options/stores'),
+};
+
+// Processes Public API（公開填寫頁用，不會自動帶 token）
+// 特意走 fetch 而非 axios 實例：避免 401 自動踢出 + 不帶登入 token
+const publicBase = (typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+  ? '/api/processes/public'
+  : (import.meta.env.VITE_API_URL || 'https://operation-backend.onrender.com/api') + '/processes/public';
+
+async function publicReq(method, path, body, isMultipart) {
+  const opts = { method, headers: {} };
+  if (body && !isMultipart) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  } else if (isMultipart) {
+    opts.body = body;
+  }
+  const res = await fetch(`${publicBase}${path}`, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+  return data;
+}
+
+export const handoverPublicApi = {
+  get:           (id)                       => publicReq('GET',  `/handovers/${id}`),
+  identify:      (id, body)                 => publicReq('POST', `/handovers/${id}/identify`, body),
+  submitOriginal:(id, body)                 => publicReq('POST', `/handovers/${id}/submit-original`, body),
+  submitNew:     (id, body)                 => publicReq('POST', `/handovers/${id}/submit-new`, body),
+  submitThird:   (id, body)                 => publicReq('POST', `/handovers/${id}/submit-third`, body),
+  uploadPhoto:   (id, fileBlob, fileName)   => {
+    const fd = new FormData();
+    fd.append('photo', fileBlob, fileName || 'photo.jpg');
+    return publicReq('POST', `/handovers/${id}/upload-photo`, fd, true);
+  },
+};
+
 // System API (系統用戶管理)
 export const systemApi = {
   getEmployees:   (params = {}) => api.get('/system/employees', { params }),
