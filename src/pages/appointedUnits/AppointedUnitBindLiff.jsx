@@ -371,6 +371,7 @@ function EmployeeBindForm({ profile, onCancel, onSuccess }) {
   const [unitCode, setUnitCode]   = useState('');
   const [unitName, setUnitName]   = useState('');     // 顯示用，配合 lookup
   const [last4, setLast4]         = useState('');
+  const [introducer, setIntroducer] = useState({ store_erpid: '', store_name: '', member_id: '', member_name: '' });
   const [busy, setBusy]           = useState(false);
   const [err, setErr]             = useState('');
   const [showLookup, setShowLookup] = useState(false);
@@ -379,6 +380,8 @@ function EmployeeBindForm({ profile, onCancel, onSuccess }) {
     setErr('');
     if (!unitCode.trim() || !last4.trim()) return setErr('請填寫所有欄位');
     if (!/^\d{4}$/.test(last4)) return setErr('手機末 4 碼必須是 4 位數字');
+    if (!introducer.store_erpid) return setErr('請選擇介紹門市');
+    if (!introducer.member_id)   return setErr('請選擇介紹人');
     setBusy(true);
     try {
       const r = await appointedUnitsPublicApi.bindEmployee({
@@ -387,6 +390,10 @@ function EmployeeBindForm({ profile, onCancel, onSuccess }) {
         mobile_last4: last4.trim(),
         display_name: profile.displayName,
         picture_url:  profile.pictureUrl,
+        introducer_store_erpid: introducer.store_erpid,
+        introducer_store_name:  introducer.store_name,
+        introducer_member_id:   introducer.member_id,
+        introducer_member_name: introducer.member_name,
       });
       if (!r.ok) throw new Error(r.message || '綁定失敗');
       // 重抓綁定狀態
@@ -419,6 +426,9 @@ function EmployeeBindForm({ profile, onCancel, onSuccess }) {
         <input value={last4} onChange={e => setLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
           inputMode="numeric" placeholder="例如：1234" style={input} maxLength={4} />
       </Field>
+
+      <IntroducerSelector value={introducer} onChange={setIntroducer} />
+
       {err && <div style={{ color: C.danger, fontSize: 13, marginTop: 8 }}>{err}</div>}
       <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
         <button style={{ ...ghostBtn, flex: 1 }} onClick={onCancel}>返回</button>
@@ -441,6 +451,7 @@ function AdminBindForm({ profile, onCancel, onSuccess }) {
   const [unitCode, setUnitCode]   = useState('');
   const [unitName, setUnitName]   = useState('');
   const [bindCode, setBindCode]   = useState('');
+  const [introducer, setIntroducer] = useState({ store_erpid: '', store_name: '', member_id: '', member_name: '' });
   const [busy, setBusy]           = useState(false);
   const [err, setErr]             = useState('');
   const [showLookup, setShowLookup] = useState(false);
@@ -448,6 +459,8 @@ function AdminBindForm({ profile, onCancel, onSuccess }) {
   async function handleSubmit() {
     setErr('');
     if (!unitCode.trim() || !bindCode.trim()) return setErr('請填寫所有欄位');
+    if (!introducer.store_erpid) return setErr('請選擇介紹門市');
+    if (!introducer.member_id)   return setErr('請選擇介紹人');
     setBusy(true);
     try {
       const r = await appointedUnitsPublicApi.bindAdmin({
@@ -456,6 +469,10 @@ function AdminBindForm({ profile, onCancel, onSuccess }) {
         bind_code:    bindCode.trim().toUpperCase(),
         display_name: profile.displayName,
         picture_url:  profile.pictureUrl,
+        introducer_store_erpid: introducer.store_erpid,
+        introducer_store_name:  introducer.store_name,
+        introducer_member_id:   introducer.member_id,
+        introducer_member_name: introducer.member_name,
       });
       if (!r.ok) throw new Error(r.message || '綁定失敗');
       const s = await appointedUnitsPublicApi.bindStatus(profile.userId);
@@ -489,6 +506,9 @@ function AdminBindForm({ profile, onCancel, onSuccess }) {
       <Field label="一次性綁定碼">
         <input value={bindCode} onChange={e => setBindCode(e.target.value.toUpperCase())} placeholder="例如：A2B4D7Q9" style={{ ...input, fontFamily: 'monospace', letterSpacing: 1 }} maxLength={16} />
       </Field>
+
+      <IntroducerSelector value={introducer} onChange={setIntroducer} />
+
       {err && <div style={{ color: C.danger, fontSize: 13, marginTop: 8 }}>{err}</div>}
       <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
         <button style={{ ...ghostBtn, flex: 1 }} onClick={onCancel}>返回</button>
@@ -504,6 +524,82 @@ function AdminBindForm({ profile, onCancel, onSuccess }) {
         />
       )}
     </div>
+  );
+}
+
+// ─── 介紹門市 + 介紹人 下拉（員工/管理員綁定共用）─────────
+// props.value: { store_erpid, store_name, member_id, member_name }
+// 變動時呼叫 onChange(newValue)
+function IntroducerSelector({ value, onChange }) {
+  const [stores, setStores]     = useState([]);
+  const [staff, setStaff]       = useState([]);
+  const [loadingStores, setLoadingStores] = useState(false);
+  const [loadingStaff,  setLoadingStaff]  = useState(false);
+
+  // 載入門市清單
+  useEffect(() => {
+    setLoadingStores(true);
+    appointedUnitsPublicApi.getIntroducerStores()
+      .then(r => setStores(r?.data || []))
+      .catch(() => setStores([]))
+      .finally(() => setLoadingStores(false));
+  }, []);
+
+  // 門市變動時，重新拉員工
+  useEffect(() => {
+    if (!value.store_erpid) { setStaff([]); return; }
+    setLoadingStaff(true);
+    appointedUnitsPublicApi.getIntroducerStaff(value.store_erpid)
+      .then(r => setStaff(r?.data || []))
+      .catch(() => setStaff([]))
+      .finally(() => setLoadingStaff(false));
+  }, [value.store_erpid]);
+
+  function handleStoreChange(e) {
+    const storeErpid = e.target.value;
+    const store = stores.find(s => s.store_erpid === storeErpid);
+    onChange({
+      store_erpid: storeErpid,
+      store_name:  store?.store_name || '',
+      member_id:   '',  // 換門市要清空介紹人
+      member_name: '',
+    });
+  }
+
+  function handleStaffChange(e) {
+    const memberId = e.target.value;
+    const m = staff.find(s => s.app_number === memberId);
+    onChange({
+      ...value,
+      member_id:   memberId,
+      member_name: m?.name || '',
+    });
+  }
+
+  return (
+    <>
+      <Field label="介紹門市">
+        <select value={value.store_erpid} onChange={handleStoreChange} style={input}>
+          <option value="">— {loadingStores ? '載入中...' : '請選擇'} —</option>
+          {stores.map(s => (
+            <option key={s.store_erpid} value={s.store_erpid}>{s.store_name}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="介紹人">
+        <select value={value.member_id} onChange={handleStaffChange} style={input}
+          disabled={!value.store_erpid || loadingStaff}>
+          <option value="">
+            — {!value.store_erpid ? '請先選擇門市' : loadingStaff ? '載入中...' : '請選擇'} —
+          </option>
+          {staff.map(m => (
+            <option key={m.app_number} value={m.app_number}>
+              {m.name}{m.jobtitle ? ` (${m.jobtitle})` : ''}
+            </option>
+          ))}
+        </select>
+      </Field>
+    </>
   );
 }
 

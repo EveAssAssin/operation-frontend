@@ -409,6 +409,9 @@ export const appointedUnitsPublicApi = {
   bindAdmin:    (body)                => api.post('/appointed-units/bind/admin', body),
   unbind:       (line_user_id, reason) => api.post('/appointed-units/bind/unbind', { line_user_id, reason }),
   lookupCode:   (keyword)             => api.post('/appointed-units/bind/lookup-code', { keyword }),
+  // 介紹門市 / 介紹人下拉用
+  getIntroducerStores: ()             => api.get('/appointed-units/bind/introducer-stores'),
+  getIntroducerStaff:  (store_erpid)  => api.get('/appointed-units/bind/introducer-staff', { params: { store_erpid } }),
 };
 
 export default api;
