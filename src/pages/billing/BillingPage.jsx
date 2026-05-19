@@ -38,6 +38,24 @@ function recentMonths(n = 13) {
   return result;
 }
 
+// 金額+筆數 合併儲存格（左下小字筆數，右上大字金額）
+function AmountCell({ amount, count, hideCount, isTotal }) {
+  const amt = Number(amount) || 0;
+  const cnt = Number(count)  || 0;
+  const baseStyle = isTotal ? S.tdTotalR : S.tdR;
+  if (amt === 0 && (hideCount || cnt === 0)) {
+    return <td style={{ ...baseStyle, color: '#cbd5e0' }}>—</td>;
+  }
+  return (
+    <td style={{ ...baseStyle, lineHeight: 1.3 }}>
+      <div>$ {formatAmount(amt)}</div>
+      {!hideCount && (
+        <div style={{ fontSize: '11px', color: '#a0aec0' }}>{cnt} 筆</div>
+      )}
+    </td>
+  );
+}
+
 function exportSummaryCSV(summary, storeMap, month) {
   const headers = ['門市代號', '門市名稱', '部門分類', '養護筆數', '養護金額', '報修筆數', '報修金額', '教育訓練筆數', '教育訓練金額', '廣告費筆數', '廣告費金額', '材料費合計', '工資合計', '合計筆數', '合計金額'];
   const rows = summary.map((s) => [
@@ -488,14 +506,10 @@ export default function BillingPage() {
               <tr>
                 <th style={S.th}>門市</th>
                 <th style={S.th}>部門分類</th>
-                <th style={S.thR}>養護筆數</th>
-                <th style={S.thR}>養護金額</th>
-                <th style={S.thR}>報修筆數</th>
-                <th style={S.thR}>報修金額</th>
-                <th style={S.thR}>教育訓練筆數</th>
-                <th style={S.thR}>教育訓練金額</th>
-                <th style={S.thR}>廣告費筆數</th>
-                <th style={S.thR}>廣告費金額</th>
+                <th style={S.thR}>養護</th>
+                <th style={S.thR}>報修</th>
+                <th style={S.thR}>教育訓練</th>
+                <th style={S.thR}>廣告費</th>
                 <th style={S.thR}>材料費合計</th>
                 <th style={S.thR}>工資合計</th>
                 <th style={S.thR}>合計金額</th>
@@ -520,16 +534,12 @@ export default function BillingPage() {
                         ? <span style={S.categoryBadge}>{s.billing_category}</span>
                         : <span style={{ color: '#a0aec0', fontSize: '12px' }}>—</span>}
                     </td>
-                    <td style={S.tdR}>{s.maintenance_count} 筆</td>
-                    <td style={S.tdR}>$ {formatAmount(s.maintenance_amount)}</td>
-                    <td style={S.tdR}>{s.repair_count} 筆</td>
-                    <td style={S.tdR}>$ {formatAmount(s.repair_amount)}</td>
-                    <td style={S.tdR}>{s.education_count || 0} 筆</td>
-                    <td style={S.tdR}>$ {formatAmount(s.education_amount || 0)}</td>
-                    <td style={S.tdR}>{s.ad_count || 0} 筆</td>
-                    <td style={S.tdR}>$ {formatAmount(s.ad_amount || 0)}</td>
-                    <td style={S.tdR}>$ {formatAmount(s.material_cost_total || 0)}</td>
-                    <td style={S.tdR}>$ {formatAmount(s.labor_cost_total    || 0)}</td>
+                    <AmountCell amount={s.maintenance_amount} count={s.maintenance_count} />
+                    <AmountCell amount={s.repair_amount}      count={s.repair_count} />
+                    <AmountCell amount={s.education_amount}   count={s.education_count} />
+                    <AmountCell amount={s.ad_amount}          count={s.ad_count} />
+                    <AmountCell amount={s.material_cost_total} hideCount />
+                    <AmountCell amount={s.labor_cost_total}    hideCount />
                     <td style={{ ...S.tdR, fontWeight: '600', color: '#50422d' }}>$ {formatAmount(s.total_amount)}</td>
                   </tr>
                 );
@@ -537,16 +547,12 @@ export default function BillingPage() {
               <tr>
                 <td style={{ ...S.tdTotal, color: '#4a5568' }}>合計</td>
                 <td style={S.tdTotal}></td>
-                <td style={S.tdTotalR}>{totals.mc} 筆</td>
-                <td style={S.tdTotalR}>$ {formatAmount(totals.ma)}</td>
-                <td style={S.tdTotalR}>{totals.rc} 筆</td>
-                <td style={S.tdTotalR}>$ {formatAmount(totals.ra)}</td>
-                <td style={S.tdTotalR}>{totals.ec} 筆</td>
-                <td style={S.tdTotalR}>$ {formatAmount(totals.ea)}</td>
-                <td style={S.tdTotalR}>{totals.adc} 筆</td>
-                <td style={S.tdTotalR}>$ {formatAmount(totals.ada)}</td>
-                <td style={S.tdTotalR}>$ {formatAmount(totals.mt)}</td>
-                <td style={S.tdTotalR}>$ {formatAmount(totals.lt)}</td>
+                <AmountCell amount={totals.ma} count={totals.mc} isTotal />
+                <AmountCell amount={totals.ra} count={totals.rc} isTotal />
+                <AmountCell amount={totals.ea} count={totals.ec} isTotal />
+                <AmountCell amount={totals.ada} count={totals.adc} isTotal />
+                <AmountCell amount={totals.mt} hideCount isTotal />
+                <AmountCell amount={totals.lt} hideCount isTotal />
                 <td style={{ ...S.tdTotalR, color: '#50422d' }}>$ {formatAmount(totals.ta)}</td>
               </tr>
             </tbody>
