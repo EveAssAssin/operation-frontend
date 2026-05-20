@@ -171,7 +171,20 @@ export default function Layout({ children }) {
             </div>
           </div>
           <a
-            href={`https://portal.ruki-ai.com/portal.html${user?.line_uid ? `?uid=${encodeURIComponent(user.line_uid)}` : ''}`}
+            href={
+              user?.line_uid
+                ? `https://portal.ruki-ai.com/portal.html?uid=${encodeURIComponent(user.line_uid)}`
+                : '#'
+            }
+            onClick={(e) => {
+              // 沒 line_uid → portal 會顯示「缺少登入資訊」錯誤頁
+              // 改成登出後跳本系統登入頁
+              if (!user?.line_uid) {
+                e.preventDefault();
+                logout();
+                navigate('/login');
+              }
+            }}
             style={styles.portalBtn}
           >
             🏠 返回統一登入口
