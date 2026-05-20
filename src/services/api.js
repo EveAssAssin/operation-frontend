@@ -237,6 +237,8 @@ export const recruitmentApi = {
   deleteApplicant:   (id)           => api.delete(`/recruitment/applicants/${id}`),
 
   getInterviews:     (result)       => api.get('/recruitment/interviews', result ? { params: { result } } : {}),
+  // 帶任意參數版（支援 month、result 等）
+  getInterviewsByParams: (params = {}) => api.get('/recruitment/interviews', { params }),
   updateInterview:   (id, body)     => api.patch(`/recruitment/interviews/${id}`, body),
   uploadAudio:       (id, file)     => {
     const form = new FormData();

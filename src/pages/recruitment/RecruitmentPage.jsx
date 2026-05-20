@@ -1,7 +1,7 @@
 // pages/recruitment/RecruitmentPage.jsx
 // 人力招募模組：人力需求 / 履歷紀錄 / 面試紀錄
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { recruitmentApi, personnelApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -66,6 +66,35 @@ const RESULT_BADGE = {
   no_show:   <Badge text="🚫 未到場"  color="#c05621" bg="#fffaf0" border="#fbd38d" />,
   found_job: <Badge text="💼 已找到工作" color="#6b46c1" bg="#faf5ff" border="#d6bcfa" />,
 };
+
+// ── 狀態統計列（依月份模式顯示）──────────────────────────────
+// counts: { status_key: number } / badges: 對應 status 的 Badge 物件
+function StatusCountsStrip({ counts, badges }) {
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  // 把 counts 轉成有順序的 entries，依 badges 定義順序顯示
+  const entries = Object.keys(badges)
+    .filter(k => counts[k] > 0)
+    .map(k => ({ key: k, badge: badges[k], count: counts[k] }));
+  // 沒在 badges 定義但有資料的，補在最後
+  for (const k of Object.keys(counts)) {
+    if (!badges[k] && counts[k] > 0) {
+      entries.push({ key: k, badge: <Badge text={k} />, count: counts[k] });
+    }
+  }
+  return (
+    <div style={{ display:'flex', flexWrap:'wrap', gap:8, alignItems:'center',
+                  padding:'10px 14px', marginBottom:12, background:'#fafaf7',
+                  border:'1px solid #ece8df', borderRadius:8 }}>
+      <span style={{ fontSize:12, color:'#888', marginRight:4 }}>共 {total} 筆</span>
+      {entries.map(e => (
+        <span key={e.key} style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+          {e.badge}
+          <span style={{ fontSize:12, fontWeight:700, color:'#50422d' }}>{e.count}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 // ════════════════════════════════════════════════════════════
 // Tab 1：人力需求表
@@ -229,8 +258,9 @@ function NeedsTab({ storeMap }) {
 // Tab 2：履歷紀錄
 // ════════════════════════════════════════════════════════════
 function ResumesTab({ storeMap }) {
-  const [viewAll, setViewAll]     = useState(false);   // 全部瀏覽模式
+  const [viewMode, setViewMode]   = useState('date');  // 'date' | 'all' | 'month'
   const [date, setDate]           = useState(today());
+  const [month, setMonth]         = useState(today().slice(0, 7)); // YYYY-MM
   const [platform, setPlatform]   = useState('');
   const [statusFilter, setStatusFilter] = useState(''); // 全部 / pending / invited / rejected
   const [applicants, setApplicants] = useState([]);
@@ -254,8 +284,11 @@ function ResumesTab({ storeMap }) {
         platform: platform || undefined,
         status:   statusFilter || undefined,
       };
-      if (viewAll) {
+      if (viewMode === 'all') {
         const r = await recruitmentApi.getAllApplicants(params);
+        setApplicants(r.data || []);
+      } else if (viewMode === 'month') {
+        const r = await recruitmentApi.getApplicants({ ...params, month });
         setApplicants(r.data || []);
       } else {
         const r = await recruitmentApi.getApplicants({ ...params, date });
@@ -263,7 +296,14 @@ function ResumesTab({ storeMap }) {
       }
     } catch (e) { setMsg({ type:'error', text: e.message }); }
     finally { setLoading(false); }
-  }, [date, platform, statusFilter, viewAll]);
+  }, [date, month, platform, statusFilter, viewMode]);
+
+  // 計算各狀態數量（依月份模式下顯示）
+  const statusCounts = useMemo(() => {
+    const c = {};
+    for (const a of applicants) c[a.status] = (c[a.status] || 0) + 1;
+    return c;
+  }, [applicants]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -347,21 +387,27 @@ function ResumesTab({ storeMap }) {
     <div>
       {/* 篩選列 */}
       <div style={{ display:'flex', gap:10, marginBottom:14, alignItems:'center', flexWrap:'wrap' }}>
-        {/* 全部 / 依日期 切換 */}
+        {/* 依日期 / 全部 / 依月份 三段切換 */}
         <div style={{ display:'flex', border:`1px solid ${C.border}`, borderRadius:6, overflow:'hidden' }}>
-          <button
-            style={{ padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
-              background: !viewAll ? C.dark : '#fff', color: !viewAll ? '#fff' : '#718096' }}
-            onClick={() => setViewAll(false)}
-          >依日期</button>
-          <button
-            style={{ padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
-              background: viewAll ? C.dark : '#fff', color: viewAll ? '#fff' : '#718096' }}
-            onClick={() => setViewAll(true)}
-          >全部瀏覽</button>
+          {[
+            { v: 'date',  label: '依日期' },
+            { v: 'all',   label: '全部瀏覽' },
+            { v: 'month', label: '依月份' },
+          ].map(opt => (
+            <button
+              key={opt.v}
+              style={{ padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
+                background: viewMode === opt.v ? C.dark : '#fff',
+                color:      viewMode === opt.v ? '#fff' : '#718096' }}
+              onClick={() => setViewMode(opt.v)}
+            >{opt.label}</button>
+          ))}
         </div>
-        {!viewAll && (
+        {viewMode === 'date' && (
           <input style={{ ...S.inp, width:150 }} type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        )}
+        {viewMode === 'month' && (
+          <input style={{ ...S.inp, width:150 }} type="month" value={month} onChange={e=>setMonth(e.target.value)} />
         )}
         <select style={S.sel} value={platform} onChange={e=>setPlatform(e.target.value)}>
           <option value="">全部平台</option>
@@ -382,6 +428,11 @@ function ResumesTab({ storeMap }) {
         </select>
         <button style={S.btnP} onClick={()=>setShowAdd(v=>!v)}>+ 新增投遞者</button>
       </div>
+
+      {/* 依月份模式：狀態統計列 */}
+      {viewMode === 'month' && applicants.length > 0 && (
+        <StatusCountsStrip counts={statusCounts} badges={STATUS_BADGE} />
+      )}
 
       {msg && <div style={S.alert(msg.type)}>{msg.text}</div>}
 
@@ -646,6 +697,7 @@ function InterviewsTab() {
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [filter, setFilter]         = useState('pending');
+  const [month,  setMonth]          = useState('');  // '' = 全部 / 'YYYY-MM' = 依月份
   const [msg, setMsg]               = useState(null);
   const [expanded, setExpanded]     = useState(null);
   const [editForm, setEditForm]     = useState({});
@@ -655,16 +707,38 @@ function InterviewsTab() {
   const [smsSending, setSmsSending] = useState(null); // interviewId currently sending
   const audioRef = useRef(null);
 
+  // 撈全部 interview（不帶 result 篩選），讓前端依當前 filter 過濾並計算各狀態數量
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await recruitmentApi.getInterviews(filter || undefined);
+      // recruitmentApi.getInterviews 只接 result 字串；要帶 month 需用直接 api.get
+      // 但我們可以包裝：把 month 透過 axios params 帶上（用內部 helper）
+      const params = {};
+      if (month) params.month = month;
+      const r = await recruitmentApi.getInterviewsByParams(params);
       setInterviews(r.data || []);
     } catch (e) { setMsg({ type:'error', text: e.message }); }
     finally { setLoading(false); }
-  }, [filter]);
+  }, [month]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 各狀態數量（pending = result is null）
+  const resultCounts = useMemo(() => {
+    const c = { pending: 0, pass: 0, fail: 0, no_show: 0, found_job: 0 };
+    for (const iv of interviews) {
+      const r = iv.result || 'pending';
+      c[r] = (c[r] || 0) + 1;
+    }
+    return c;
+  }, [interviews]);
+
+  // 依 filter 過濾顯示用清單
+  const filteredInterviews = useMemo(() => {
+    if (!filter) return interviews;
+    if (filter === 'pending') return interviews.filter(iv => !iv.result);
+    return interviews.filter(iv => iv.result === filter);
+  }, [interviews, filter]);
 
   function toggleExpand(id, interview) {
     if (expanded === id) { setExpanded(null); return; }
@@ -720,19 +794,42 @@ function InterviewsTab() {
     finally { setSmsSending(null); }
   }
 
+  // 全部數量（用於「全部」按鈕）
+  const totalCount = interviews.length;
+
   return (
     <div>
+      {/* 月份篩選列 */}
+      <div style={{ display:'flex', gap:10, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
+        <div style={{ display:'flex', border:`1px solid ${C.border}`, borderRadius:6, overflow:'hidden' }}>
+          <button
+            style={{ padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
+              background: !month ? C.dark : '#fff', color: !month ? '#fff' : '#718096' }}
+            onClick={() => setMonth('')}
+          >全部</button>
+          <button
+            style={{ padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
+              background: month ? C.dark : '#fff', color: month ? '#fff' : '#718096' }}
+            onClick={() => setMonth(month || today().slice(0, 7))}
+          >依月份</button>
+        </div>
+        {month && (
+          <input style={{ ...S.inp, width:150 }} type="month" value={month} onChange={e=>setMonth(e.target.value || today().slice(0,7))} />
+        )}
+      </div>
+
+      {/* 狀態按鈕：每顆帶數量 */}
       <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
         {[
-          { v:'pending',   label:'待面試' },
-          { v:'pass',      label:'✅ 已通過' },
-          { v:'fail',      label:'❌ 未通過' },
-          { v:'no_show',   label:'🚫 未到場' },
-          { v:'found_job', label:'💼 已找到工作' },
-          { v:'',          label:'全部' },
-        ].map(({ v, label }) => (
+          { v:'pending',   label:'待面試',         count: resultCounts.pending },
+          { v:'pass',      label:'✅ 已通過',       count: resultCounts.pass },
+          { v:'fail',      label:'❌ 未通過',       count: resultCounts.fail },
+          { v:'no_show',   label:'🚫 未到場',       count: resultCounts.no_show },
+          { v:'found_job', label:'💼 已找到工作',   count: resultCounts.found_job },
+          { v:'',          label:'全部',            count: totalCount },
+        ].map(({ v, label, count }) => (
           <button key={v} style={{ ...S.btnS, ...(filter===v?{background:C.dark,color:'#fff',border:`1px solid ${C.dark}`}:{}) }} onClick={()=>setFilter(v)}>
-            {label}
+            {label} <span style={{ marginLeft:4, fontWeight:700 }}>{count}</span>
           </button>
         ))}
       </div>
@@ -742,7 +839,7 @@ function InterviewsTab() {
       <div style={S.card}>
         {loading ? (
           <div style={{ textAlign:'center', color:'#a0aec0', padding:32 }}>載入中...</div>
-        ) : interviews.length === 0 ? (
+        ) : filteredInterviews.length === 0 ? (
           <div style={{ textAlign:'center', color:'#a0aec0', padding:32 }}>無面試紀錄</div>
         ) : (
           <table style={S.table}>
@@ -759,7 +856,7 @@ function InterviewsTab() {
               </tr>
             </thead>
             <tbody>
-              {interviews.map(iv => {
+              {filteredInterviews.map(iv => {
                 const ap = iv.recruitment_applicants || {};
                 const isOpen = expanded === iv.id;
                 return (
