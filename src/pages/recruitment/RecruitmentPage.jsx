@@ -393,12 +393,15 @@ function ResumesTab({ storeMap }) {
             { v: 'date',  label: '依日期' },
             { v: 'all',   label: '全部瀏覽' },
             { v: 'month', label: '依月份' },
-          ].map(opt => (
+          ].map((opt, idx, arr) => (
             <button
               key={opt.v}
-              style={{ padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
+              style={{
+                padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
                 background: viewMode === opt.v ? C.dark : '#fff',
-                color:      viewMode === opt.v ? '#fff' : '#718096' }}
+                color:      viewMode === opt.v ? '#fff' : '#718096',
+                borderRight: idx < arr.length - 1 ? `1px solid ${C.border}` : 'none',
+              }}
               onClick={() => setViewMode(opt.v)}
             >{opt.label}</button>
           ))}
@@ -490,7 +493,7 @@ function ResumesTab({ storeMap }) {
                 <th style={S.th}>姓名</th>
                 <th style={S.th}>代碼</th>
                 <th style={S.th}>應徵門市</th>
-                {viewAll && <th style={S.th}>投遞日期</th>}
+                {viewMode !== 'date' && <th style={S.th}>投遞日期</th>}
                 <th style={S.th}>狀態</th>
                 <th style={S.th}>面試日期 / 時間</th>
                 <th style={S.th}>備註</th>
@@ -504,7 +507,7 @@ function ResumesTab({ storeMap }) {
                   <td style={S.td}><span style={{ fontWeight:600 }}>{a.name}</span></td>
                   <td style={S.td}><span style={{ fontFamily:'monospace', color:'#718096', fontSize:12 }}>{a.code || '—'}</span></td>
                   <td style={S.td}>{a.target_store_name || '—'}</td>
-                  {viewAll && <td style={S.td}><span style={{ fontSize:12, color:'#718096' }}>{fmtDate(a.date)}</span></td>}
+                  {viewMode !== 'date' && <td style={S.td}><span style={{ fontSize:12, color:'#718096' }}>{fmtDate(a.date)}</span></td>}
                   <td style={S.td}>{STATUS_BADGE[a.status] || a.status}</td>
                   <td style={S.td}>
                     {a.interview_date
@@ -804,7 +807,8 @@ function InterviewsTab() {
         <div style={{ display:'flex', border:`1px solid ${C.border}`, borderRadius:6, overflow:'hidden' }}>
           <button
             style={{ padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
-              background: !month ? C.dark : '#fff', color: !month ? '#fff' : '#718096' }}
+              background: !month ? C.dark : '#fff', color: !month ? '#fff' : '#718096',
+              borderRight: `1px solid ${C.border}` }}
             onClick={() => setMonth('')}
           >全部</button>
           <button
