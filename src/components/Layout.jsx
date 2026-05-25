@@ -34,6 +34,12 @@ const NAV_ITEMS = [
     icon:  '🤝',
     minRole: 'operation_staff',
   },
+  {
+    path:  '/point-redemption',
+    label: '分數兌換',
+    icon:  '🪙',
+    minRole: 'operation_staff',
+  },
 ];
 
 // 角色中文標籤

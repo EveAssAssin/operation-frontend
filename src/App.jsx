@@ -22,6 +22,8 @@ import AppointedUnitBindLiff from './pages/appointedUnits/AppointedUnitBindLiff'
 import ProcessesHubPage    from './pages/processes/ProcessesHubPage';
 import HandoverPage        from './pages/processes/HandoverPage';
 import PublicHandoverPage  from './pages/handover/PublicHandoverPage';
+import PointRedeemPage      from './pages/pointRedemption/PointRedeemPage';
+import PointRedeemAdminPage from './pages/pointRedemption/PointRedeemAdminPage';
 
 // 廠商後台
 import VendorLoginPage  from './pages/vendor/VendorLoginPage';
@@ -75,6 +77,9 @@ function AppRoutes() {
       {/* 門市交接表填寫頁（QR 掃描，不需登入） */}
       <Route path="/handover/:id" element={<PublicHandoverPage />} />
 
+      {/* 分數兌換 — 員工自助頁（手機/LINE，不需登入，?app_number=） */}
+      <Route path="/points" element={<PointRedeemPage />} />
+
       {/* 主應用（需登入，套 Layout） */}
       <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
       <Route path="/personnel" element={<PrivateRoute><PersonnelPage /></PrivateRoute>} />
@@ -87,6 +92,7 @@ function AppRoutes() {
       <Route path="/recurring-expenses" element={<PrivateRoute><RecurringExpensesPage /></PrivateRoute>} />
       <Route path="/quests"             element={<PrivateRoute><QuestsPage /></PrivateRoute>} />
       <Route path="/appointed-units"    element={<PrivateRoute><AppointedUnitsPage /></PrivateRoute>} />
+      <Route path="/point-redemption"   element={<PrivateRoute><PointRedeemAdminPage /></PrivateRoute>} />
       <Route path="/processes"          element={<PrivateRoute><ProcessesHubPage /></PrivateRoute>} />
       <Route path="/processes/handover" element={<PrivateRoute><HandoverPage /></PrivateRoute>} />
 

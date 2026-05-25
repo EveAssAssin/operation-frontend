@@ -416,4 +416,24 @@ export const appointedUnitsPublicApi = {
   getIntroducerStaff:  (store_erpid)  => api.get('/appointed-units/bind/introducer-staff', { params: { store_erpid } }),
 };
 
+// 分數兌換模組（管理後台 — 需 SSO 登入）
+export const pointRedemptionApi = {
+  listItems:       ()            => api.get('/point-redemption/items'),
+  createItem:      (body)        => api.post('/point-redemption/items', body),
+  updateItem:      (id, body)    => api.put(`/point-redemption/items/${id}`, body),
+  deleteItem:      (id)          => api.delete(`/point-redemption/items/${id}`),
+  listRedemptions: (params = {}) => api.get('/point-redemption/redemptions', { params }),
+  fulfill:         (id)          => api.post(`/point-redemption/redemptions/${id}/fulfill`),
+  getBalance:      (erpid)       => api.get(`/point-redemption/balance/${erpid}`),
+};
+
+// 分數兌換模組（員工自助公開入口 — 不需登入，用 app_number 驗證）
+export const pointRedemptionPublicApi = {
+  verify:        (app_number)          => api.get('/point-redemption/public/verify', { params: { app_number } }),
+  catalog:       ()                    => api.get('/point-redemption/public/catalog'),
+  balance:       (app_number)          => api.get('/point-redemption/public/balance', { params: { app_number } }),
+  redeem:        (app_number, item_id) => api.post('/point-redemption/public/redeem', { app_number, item_id }),
+  myRedemptions: (app_number)          => api.get('/point-redemption/public/redemptions', { params: { app_number } }),
+};
+
 export default api;
