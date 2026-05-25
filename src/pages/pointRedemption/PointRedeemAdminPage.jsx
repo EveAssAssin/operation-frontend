@@ -34,8 +34,10 @@ const ITEM_TYPES = [
 const typeLabel = (v) => (ITEM_TYPES.find(t => t.value === v) || {}).label || v;
 
 const STATUS_META = {
-  completed: { label: '已兌換', color: C.ok },
+  pending:   { label: '送審中', color: '#b7791f' },
+  completed: { label: '已通過', color: C.ok },
   fulfilled: { label: '已發放', color: '#1d4ed8' },
+  rejected:  { label: '已駁回', color: C.danger },
   cancelled: { label: '已取消', color: C.danger },
 };
 
@@ -246,7 +248,8 @@ function ItemModal({ item, onClose, onSaved }) {
 function RedemptionsTab() {
   const [rows, setRows]    = useState([]);
   const [loading, setLoad] = useState(true);
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState('pending');   // 預設先看待審
+  const [busyId, setBusyId] = useState(null);
 
   const reload = useCallback(async () => {
     setLoad(true);
@@ -258,24 +261,58 @@ function RedemptionsTab() {
   }, [status]);
   useEffect(() => { reload(); }, [reload]);
 
+  async function approve(row) {
+    if (!window.confirm(`確認通過 ${row.employee_name} 兌換「${row.item_name}」？\n通過後會立即扣 ${row.points_cost} 分並回寫 MAP。`)) return;
+    setBusyId(row.id);
+    try {
+      await pointRedemptionApi.approve(row.id);
+      await reload();
+    } catch (e) { alert('審核失敗：' + (e?.message || e)); }
+    finally { setBusyId(null); }
+  }
+
+  async function reject(row) {
+    const reason = window.prompt(`駁回 ${row.employee_name} 的「${row.item_name}」兌換申請。\n請填寫駁回原因：`);
+    if (reason == null) return;
+    if (!reason.trim()) { alert('請填寫駁回原因'); return; }
+    setBusyId(row.id);
+    try {
+      await pointRedemptionApi.reject(row.id, reason.trim());
+      await reload();
+    } catch (e) { alert('駁回失敗：' + (e?.message || e)); }
+    finally { setBusyId(null); }
+  }
+
   async function fulfill(row) {
     if (!window.confirm(`確認「${row.item_name}」已發放給 ${row.employee_name}？`)) return;
+    setBusyId(row.id);
     try {
       await pointRedemptionApi.fulfill(row.id);
-      reload();
+      await reload();
     } catch (e) { alert('操作失敗：' + (e?.message || e)); }
+    finally { setBusyId(null); }
   }
+
+  const pendingCount = rows.filter(r => r.status === 'pending').length;
 
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
         <span style={{ fontSize: 13, color: C.textMid }}>狀態：</span>
-        <select value={status} onChange={e => setStatus(e.target.value)} style={{ ...input, width: 160 }}>
-          <option value="">全部</option>
-          <option value="completed">已兌換（待發放）</option>
+        <select value={status} onChange={e => setStatus(e.target.value)} style={{ ...input, width: 170 }}>
+          <option value="pending">送審中（待審核）</option>
+          <option value="completed">已通過（待發放）</option>
           <option value="fulfilled">已發放</option>
+          <option value="rejected">已駁回</option>
           <option value="cancelled">已取消</option>
+          <option value="">全部</option>
         </select>
+        <button onClick={reload} style={{ ...miniBtn, padding: '6px 12px' }}>🔄 重新整理</button>
+        {status === 'pending' && pendingCount > 0 && (
+          <span style={{ fontSize: 12, color: '#b7791f', fontWeight: 700 }}>
+            {pendingCount} 筆待審核
+          </span>
+        )}
       </div>
 
       {loading ? <Loading /> : (
@@ -283,17 +320,19 @@ function RedemptionsTab() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: C.bg, color: C.textMid, textAlign: 'left' }}>
-                <Th>時間</Th><Th>員工</Th><Th>門市</Th><Th>品項</Th>
-                <Th>類型</Th><Th>分數</Th><Th>MAP 寫入</Th><Th>狀態</Th><Th>操作</Th>
+                <Th>申請時間</Th><Th>員工</Th><Th>門市</Th><Th>品項</Th>
+                <Th>類型</Th><Th>分數</Th><Th>MAP 寫入</Th><Th>狀態</Th><Th>審核</Th><Th>操作</Th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
-                <tr><td colSpan={9} style={{ textAlign: 'center', color: C.textLight, padding: 30 }}>沒有兌換紀錄</td></tr>
+                <tr><td colSpan={10} style={{ textAlign: 'center', color: C.textLight, padding: 30 }}>沒有兌換紀錄</td></tr>
               )}
               {rows.map(r => {
                 const st = STATUS_META[r.status] || { label: r.status, color: C.textMid };
+                const isPending  = r.status === 'pending';
                 const canFulfill = r.status === 'completed' && r.item_type === 'physical';
+                const busy = busyId === r.id;
                 return (
                   <tr key={r.id} style={{ borderTop: `1px solid ${C.border}` }}>
                     <Td>{fmtTime(r.redeemed_at)}</Td>
@@ -303,19 +342,42 @@ function RedemptionsTab() {
                     <Td>{typeLabel(r.item_type)}</Td>
                     <Td><b style={{ color: C.danger }}>-{r.points_cost}</b></Td>
                     <Td>
-                      <span style={{ color: r.map_write_status === 'success' ? C.ok : C.danger }}>
-                        {r.map_write_status === 'success' ? '成功' : '失敗'}
-                      </span>
+                      {r.map_write_status == null
+                        ? <span style={{ color: C.textLight }}>—</span>
+                        : <span style={{ color: r.map_write_status === 'success' ? C.ok : C.danger }}>
+                            {r.map_write_status === 'success' ? '成功' : '失敗'}
+                          </span>}
                     </Td>
                     <Td>
                       <span style={{ color: st.color, fontWeight: 700 }}>{st.label}</span>
+                      {r.status === 'rejected' && r.reject_reason && (
+                        <div style={{ fontSize: 11, color: C.danger, marginTop: 2 }}>{r.reject_reason}</div>
+                      )}
                     </Td>
                     <Td>
-                      {canFulfill
-                        ? <button onClick={() => fulfill(r)} style={miniBtn}>標記已發放</button>
-                        : (r.status === 'fulfilled' && r.fulfilled_at
-                            ? <span style={{ fontSize: 11, color: C.textLight }}>{fmtTime(r.fulfilled_at)}</span>
-                            : '—')}
+                      {r.approved_by
+                        ? <span style={{ fontSize: 11, color: C.textLight }}>
+                            {r.approved_by}<br />{fmtTime(r.approved_at)}
+                          </span>
+                        : '—'}
+                    </Td>
+                    <Td>
+                      {isPending ? (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => approve(r)} disabled={busy}
+                            style={{ ...miniBtn, background: C.ok, color: '#fff', borderColor: C.ok }}>
+                            {busy ? '…' : '通過'}
+                          </button>
+                          <button onClick={() => reject(r)} disabled={busy}
+                            style={{ ...miniBtn, background: '#fff', color: C.danger, borderColor: C.danger }}>
+                            駁回
+                          </button>
+                        </div>
+                      ) : canFulfill ? (
+                        <button onClick={() => fulfill(r)} disabled={busy} style={miniBtn}>標記已發放</button>
+                      ) : (r.status === 'fulfilled' && r.fulfilled_at)
+                          ? <span style={{ fontSize: 11, color: C.textLight }}>{fmtTime(r.fulfilled_at)}</span>
+                          : '—'}
                     </Td>
                   </tr>
                 );

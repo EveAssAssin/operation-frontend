@@ -423,6 +423,8 @@ export const pointRedemptionApi = {
   updateItem:      (id, body)    => api.put(`/point-redemption/items/${id}`, body),
   deleteItem:      (id)          => api.delete(`/point-redemption/items/${id}`),
   listRedemptions: (params = {}) => api.get('/point-redemption/redemptions', { params }),
+  approve:         (id)          => api.post(`/point-redemption/redemptions/${id}/approve`),
+  reject:          (id, reason)  => api.post(`/point-redemption/redemptions/${id}/reject`, { reason }),
   fulfill:         (id)          => api.post(`/point-redemption/redemptions/${id}/fulfill`),
   getBalance:      (erpid)       => api.get(`/point-redemption/balance/${erpid}`),
 };

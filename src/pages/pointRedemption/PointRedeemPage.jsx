@@ -29,8 +29,10 @@ const TYPE_META = {
   other:    { label: '其他',     icon: '✨' },
 };
 const STATUS_META = {
-  completed: { label: '已兌換', color: C.ok },
+  pending:   { label: '審核中', color: '#b7791f' },
+  completed: { label: '已通過', color: C.ok },
   fulfilled: { label: '已發放', color: '#1d4ed8' },
+  rejected:  { label: '已駁回', color: C.danger },
   cancelled: { label: '已取消', color: C.danger },
 };
 const LS_KEY = 'point_redeem_app_number';
@@ -87,14 +89,14 @@ export default function PointRedeemPage() {
       alert(`分數不足：目前 ${balance.totalScore} 分，需要 ${cost} 分`);
       return;
     }
-    if (!window.confirm(`確定用 ${cost} 分兌換「${item.name}」嗎？\n兌換後分數會立即扣除，無法取消。`)) return;
+    if (!window.confirm(`確定申請兌換「${item.name}」（${cost} 分）嗎？\n送出後需營運部主管審核通過才會扣分。`)) return;
     setRedeeming(item.id);
     try {
       const r = await pointRedemptionPublicApi.redeem(appNumber, item.id);
       if (!r.success) throw new Error(r.message || '兌換失敗');
       await loadAll(appNumber);
       setTab('history');
-      alert(`兌換成功！\n「${item.name}」已兌換，剩餘 ${r.data.balance_after} 分。`);
+      alert(`已送出兌換申請！\n「${item.name}」正在等待營運部審核，通過後會扣分並以 LINE 通知你。`);
     } catch (e) {
       alert('兌換失敗：' + (e?.message || e));
     } finally {
@@ -197,10 +199,10 @@ export default function PointRedeemPage() {
                       background: disabled ? '#e5e2da' : C.primary,
                       color: disabled ? C.textLight : '#fff',
                     }}>
-                    {redeeming === item.id ? '處理中'
+                    {redeeming === item.id ? '送出中'
                       : noStock ? '已兌完'
                       : notEnough ? '分數不足'
-                      : '兌換'}
+                      : '申請兌換'}
                   </button>
                 </div>
               );
@@ -214,6 +216,8 @@ export default function PointRedeemPage() {
             {redemptions.length === 0 && <Empty>還沒有兌換紀錄</Empty>}
             {redemptions.map(r => {
               const st = STATUS_META[r.status] || { label: r.status, color: C.textMid };
+              const deducted = r.status === 'completed' || r.status === 'fulfilled';
+              const pending  = r.status === 'pending';
               return (
                 <div key={r.id} style={{
                   background: C.card, border: `1px solid ${C.border}`,
@@ -221,8 +225,12 @@ export default function PointRedeemPage() {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{r.item_name}</span>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: C.danger }}>
-                      -{r.points_cost} 分
+                    <span style={{
+                      fontSize: 14, fontWeight: 800,
+                      color: deducted ? C.danger : pending ? '#b7791f' : C.textLight,
+                      textDecoration: (r.status === 'rejected' || r.status === 'cancelled') ? 'line-through' : 'none',
+                    }}>
+                      {deducted ? '-' : ''}{r.points_cost} 分
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
@@ -234,6 +242,16 @@ export default function PointRedeemPage() {
                       background: st.color + '15', padding: '2px 8px', borderRadius: 4,
                     }}>{st.label}</span>
                   </div>
+                  {pending && (
+                    <div style={{ fontSize: 11, color: '#b7791f', marginTop: 6 }}>
+                      ⏳ 等待營運部審核，通過後才會扣分
+                    </div>
+                  )}
+                  {r.status === 'rejected' && r.reject_reason && (
+                    <div style={{ fontSize: 11, color: C.danger, marginTop: 6 }}>
+                      駁回原因：{r.reject_reason}
+                    </div>
+                  )}
                 </div>
               );
             })}
