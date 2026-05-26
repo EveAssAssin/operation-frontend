@@ -49,6 +49,10 @@ export default function PointRedeemPage() {
   const [redeeming, setRedeeming] = useState(null);   // 正在兌換的 item id
   const [tab, setTab]             = useState('catalog'); // catalog | history
   const [qtyMap, setQtyMap]       = useState({});       // { [itemId]: quantity }，現金型選用
+  const [refreshing, setRefreshing] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detail, setDetail]         = useState(null);   // { records, totalScore, ... }
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const loadAll = useCallback(async (app) => {
     const [balRes, catRes, hisRes] = await Promise.all([
@@ -83,6 +87,48 @@ export default function PointRedeemPage() {
       }
     })();
   }, [loadAll]);
+
+  // 手動刷新（餘額 + 我的紀錄；不重抓品項目錄）
+  const refresh = useCallback(async () => {
+    if (!appNumber || refreshing) return;
+    setRefreshing(true);
+    try {
+      const [balRes, hisRes] = await Promise.all([
+        pointRedemptionPublicApi.balance(appNumber),
+        pointRedemptionPublicApi.myRedemptions(appNumber),
+      ]);
+      if (balRes?.success) {
+        setEmployee(balRes.data.employee);
+        setBalance(balRes.data.balance);
+      }
+      if (hisRes?.success) setRedemptions(Array.isArray(hisRes.data) ? hisRes.data : []);
+      setDetail(null);   // 強制重抓明細
+    } catch (e) { console.error(e); }
+    finally { setRefreshing(false); }
+  }, [appNumber, refreshing]);
+
+  // 視窗回前景時自動刷新（解決：主管在後台按通過後員工頁面餘額未更新）
+  useEffect(() => {
+    function onVis() {
+      if (document.visibilityState === 'visible') refresh();
+    }
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [refresh]);
+
+  async function openDetail() {
+    setDetailOpen(true);
+    if (detail) return;
+    setDetailLoading(true);
+    try {
+      const r = await pointRedemptionPublicApi.scoreDetail(appNumber);
+      if (!r.success) throw new Error(r.message || '讀取明細失敗');
+      setDetail(r.data);
+    } catch (e) {
+      alert('讀取明細失敗：' + (e?.message || e));
+      setDetailOpen(false);
+    } finally { setDetailLoading(false); }
+  }
 
   // 算單一品項的最大可選倍數（讓「全換」/驗證用）
   function maxQtyOf(item) {
@@ -148,8 +194,22 @@ export default function PointRedeemPage() {
           background: `linear-gradient(135deg, ${C.primary}, ${C.primaryD})`,
           borderRadius: 16, padding: '20px 22px', color: '#fff',
           boxShadow: '0 4px 12px rgba(168,111,8,0.25)',
+          position: 'relative',
         }}>
-          <div style={{ fontSize: 13, opacity: 0.9 }}>
+          <button
+            onClick={refresh}
+            disabled={refreshing}
+            title="重新整理餘額"
+            style={{
+              position: 'absolute', top: 14, right: 14,
+              background: 'rgba(255,255,255,0.18)', color: '#fff',
+              border: 'none', borderRadius: 999, width: 34, height: 34,
+              fontSize: 16, cursor: refreshing ? 'wait' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'transform 0.5s',
+              transform: refreshing ? 'rotate(360deg)' : 'none',
+            }}>↻</button>
+          <div style={{ fontSize: 13, opacity: 0.9, paddingRight: 40 }}>
             {employee?.name}{employee?.store_name ? ` · ${employee.store_name}` : ''}
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 10 }}>
@@ -158,8 +218,13 @@ export default function PointRedeemPage() {
             </span>
             <span style={{ fontSize: 15, opacity: 0.9 }}>可兌換分數</span>
           </div>
-          <div style={{ fontSize: 11, opacity: 0.8, marginTop: 8 }}>
-            分數來自 MAP 系統紀錄即時加總
+          <div style={{ fontSize: 11, opacity: 0.85, marginTop: 8 }}>
+            MAP 紀錄加總
+            {balance?.recordCount != null && ` · 依 ${balance.recordCount} 筆紀錄`}
+            {' · '}
+            <span onClick={openDetail} style={{ textDecoration: 'underline', cursor: 'pointer' }}>
+              看明細
+            </span>
           </div>
         </div>
 
@@ -382,6 +447,87 @@ export default function PointRedeemPage() {
         <div style={{ textAlign: 'center', fontSize: 11, color: C.textLight, margin: '24px 0 8px' }}>
           樂活眼鏡 · 分數兌換
         </div>
+      </div>
+
+      {detailOpen && (
+        <DetailModal
+          loading={detailLoading}
+          detail={detail}
+          onClose={() => setDetailOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function DetailModal({ loading, detail, onClose }) {
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200,
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: '14px 14px 0 0', width: '100%', maxWidth: 480,
+        maxHeight: '85vh', display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>MAP 評分紀錄明細</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: 22, cursor: 'pointer', color: C.textMid }}>×</button>
+        </div>
+
+        <div style={{
+          padding: '10px 16px', background: '#fffbeb',
+          fontSize: 12, color: C.textMid, lineHeight: 1.5,
+          borderBottom: `1px solid ${C.border}`,
+        }}>
+          ⚠️ 此為 MAP API 實際回傳的紀錄。若加總與你在 MAP 系統看到的「累計」不一致，
+          代表 API 未提供前期分或部分來源紀錄。可截圖此頁與 MAP 系統對照後告知管理員。
+        </div>
+
+        {loading && <div style={{ padding: 40, textAlign: 'center', color: C.textLight }}>載入中...</div>}
+
+        {!loading && detail && (
+          <>
+            <div style={{ padding: '12px 16px', background: '#f5f4f1', fontSize: 13 }}>
+              <div>API 回傳：<b>{detail.recordCount}</b> 筆紀錄</div>
+              <div>分數加總：<b style={{ color: C.primaryD }}>{detail.totalScore}</b> 分</div>
+              <div>獎金加總：NT$<b>{detail.totalBonus}</b></div>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              {(!detail.records || detail.records.length === 0) && (
+                <div style={{ padding: 40, textAlign: 'center', color: C.textLight, fontSize: 13 }}>
+                  沒有紀錄
+                </div>
+              )}
+              {detail.records?.map((r, i) => {
+                const s = Number(r.score || 0);
+                return (
+                  <div key={i} style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{r.reasonTitle}</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: s < 0 ? C.danger : s > 0 ? C.ok : C.textLight }}>
+                        {s > 0 ? '+' : ''}{s}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: C.textLight, marginTop: 3, display: 'flex', justifyContent: 'space-between' }}>
+                      <span>
+                        {(r.createTime || '').replace('T', ' ').slice(0, 16)}
+                        {r.sourceType ? ` · ${r.sourceType}` : ''}
+                        {r.reasonCategory ? ` · ${r.reasonCategory}` : ''}
+                      </span>
+                      {Number(r.bonus) !== 0 && (
+                        <span style={{ color: C.ok }}>NT${r.bonus}</span>
+                      )}
+                    </div>
+                    {r.editor && (
+                      <div style={{ fontSize: 11, color: C.textLight, marginTop: 2 }}>編輯者：{r.editor}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
