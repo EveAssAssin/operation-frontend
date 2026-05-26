@@ -434,7 +434,7 @@ export const pointRedemptionPublicApi = {
   verify:        (app_number)          => api.get('/point-redemption/public/verify', { params: { app_number } }),
   catalog:       ()                    => api.get('/point-redemption/public/catalog'),
   balance:       (app_number)          => api.get('/point-redemption/public/balance', { params: { app_number } }),
-  redeem:        (app_number, item_id) => api.post('/point-redemption/public/redeem', { app_number, item_id }),
+  redeem:        (app_number, item_id, quantity = 1) => api.post('/point-redemption/public/redeem', { app_number, item_id, quantity }),
   myRedemptions: (app_number)          => api.get('/point-redemption/public/redemptions', { params: { app_number } }),
 };
 

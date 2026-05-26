@@ -48,6 +48,7 @@ export default function PointRedeemPage() {
   const [redemptions, setRedemptions] = useState([]);
   const [redeeming, setRedeeming] = useState(null);   // 正在兌換的 item id
   const [tab, setTab]             = useState('catalog'); // catalog | history
+  const [qtyMap, setQtyMap]       = useState({});       // { [itemId]: quantity }，現金型選用
 
   const loadAll = useCallback(async (app) => {
     const [balRes, catRes, hisRes] = await Promise.all([
@@ -83,23 +84,51 @@ export default function PointRedeemPage() {
     })();
   }, [loadAll]);
 
+  // 算單一品項的最大可選倍數（讓「全換」/驗證用）
+  function maxQtyOf(item) {
+    if (!balance) return 1;
+    const unit     = Number(item.points_cost) || 1;
+    const minAfter = Number(item.min_balance_after || 0);
+    const budget   = balance.totalScore - minAfter;
+    const byBalance = Math.floor(budget / unit);
+    const byStock   = (item.stock === null || item.stock === undefined)
+      ? Infinity : Number(item.stock);
+    return Math.max(0, Math.min(byBalance, byStock));
+  }
+
+  function getQty(item) {
+    return Math.max(1, Math.trunc(Number(qtyMap[item.id]) || 1));
+  }
+  function setQty(item, n) {
+    const maxQ = Math.max(1, maxQtyOf(item));
+    const safe = Math.max(1, Math.min(maxQ, Math.trunc(Number(n) || 1)));
+    setQtyMap(m => ({ ...m, [item.id]: safe }));
+  }
+
   async function handleRedeem(item) {
     if (redeeming) return;
-    const cost = Number(item.points_cost);
+    const unit  = Number(item.points_cost) || 1;
+    const qty   = item.item_type === 'cash' ? getQty(item) : 1;
+    const cost  = unit * qty;
     if (balance && balance.totalScore < cost) {
       alert(`分數不足：目前 ${balance.totalScore} 分，需要 ${cost} 分`);
       return;
     }
-    const cashHint = item.item_type === 'cash' ? `\n換算：扣 ${cost} 分 → NT$${cost * CASH_RATIO} 獎金。` : '';
-    const reserveHint = item.min_balance_after > 0 ? `\n（兌換後必須保留 ≥ ${item.min_balance_after} 分）` : '';
-    if (!window.confirm(`確定申請兌換「${item.name}」（${cost} 分）嗎？${cashHint}${reserveHint}\n送出後需營運部主管審核通過才會扣分。`)) return;
+    const after = balance ? balance.totalScore - cost : null;
+    const isCash = item.item_type === 'cash';
+    const cashHint = isCash ? `\n換算：扣 ${cost} 分 → NT$${cost * CASH_RATIO} 獎金。` : '';
+    const reserveHint = item.min_balance_after > 0
+      ? `\n（兌換後必須保留 ≥ ${item.min_balance_after} 分，預估剩 ${after}）`
+      : '';
+    const label = isCash && qty > 1 ? `「${item.name}」×${qty}（${cost} 分）` : `「${item.name}」（${cost} 分）`;
+    if (!window.confirm(`確定申請兌換${label} 嗎？${cashHint}${reserveHint}\n送出後需營運部主管審核通過才會扣分。`)) return;
     setRedeeming(item.id);
     try {
-      const r = await pointRedemptionPublicApi.redeem(appNumber, item.id);
+      const r = await pointRedemptionPublicApi.redeem(appNumber, item.id, qty);
       if (!r.success) throw new Error(r.message || '兌換失敗');
       await loadAll(appNumber);
       setTab('history');
-      alert(`已送出兌換申請！\n「${item.name}」正在等待營運部審核，通過後會扣分並以 LINE 通知你。`);
+      alert(`已送出兌換申請！\n${label} 正在等待營運部審核，通過後會扣分並以 LINE 通知你。`);
     } catch (e) {
       alert('兌換失敗：' + (e?.message || e));
     } finally {
@@ -151,76 +180,139 @@ export default function PointRedeemPage() {
               <Empty>目前沒有可兌換的品項</Empty>
             )}
             {items.map(item => {
-              const cost      = Number(item.points_cost);
+              const unit      = Number(item.points_cost);
               const minAfter  = Number(item.min_balance_after || 0);
               const isCash    = item.item_type === 'cash';
+              const qty       = isCash ? getQty(item) : 1;
+              const cost      = unit * qty;
               const cashAmt   = isCash ? cost * CASH_RATIO : 0;
               const noStock   = item.stock !== null && item.stock !== undefined && Number(item.stock) <= 0;
               const after     = balance ? balance.totalScore - cost : 0;
               const notEnough = balance && (balance.totalScore < cost || after < minAfter);
               const disabled  = noStock || notEnough || !!redeeming;
               const meta      = TYPE_META[item.item_type] || TYPE_META.other;
+              const maxQ      = isCash ? maxQtyOf(item) : 1;
               return (
                 <div key={item.id} style={{
                   background: C.card, border: `1px solid ${C.border}`,
-                  borderRadius: 14, padding: 14, display: 'flex', gap: 12,
+                  borderRadius: 14, padding: 14,
+                  display: 'flex', flexDirection: 'column', gap: 12,
                 }}>
-                  <div style={{
-                    width: 56, height: 56, borderRadius: 12, flexShrink: 0,
-                    background: item.image_url ? `center/cover no-repeat url(${item.image_url})` : '#f3efe4',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
-                  }}>
-                    {!item.image_url && meta.icon}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{item.name}</span>
-                      <span style={{
-                        fontSize: 10, color: C.primaryD, background: '#fdf3df',
-                        padding: '1px 6px', borderRadius: 4, whiteSpace: 'nowrap',
-                      }}>{meta.label}</span>
-                    </div>
-                    {item.description && (
-                      <div style={{ fontSize: 12, color: C.textMid, marginTop: 3, lineHeight: 1.45 }}>
-                        {item.description}
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 16, fontWeight: 800, color: C.primaryD }}>
-                        {cost} <span style={{ fontSize: 11, fontWeight: 600 }}>分</span>
-                      </span>
-                      {isCash && (
-                        <span style={{ fontSize: 13, fontWeight: 700, color: C.ok }}>
-                          → NT${cashAmt}
-                        </span>
-                      )}
-                      {item.stock !== null && item.stock !== undefined && (
-                        <span style={{ fontSize: 11, color: noStock ? C.danger : C.textLight }}>
-                          {noStock ? '已兌完' : `庫存 ${item.stock}`}
-                        </span>
-                      )}
-                      {minAfter > 0 && (
-                        <span style={{ fontSize: 11, color: C.textMid, background: '#fffbeb', padding: '1px 6px', borderRadius: 4 }}>
-                          兌換後須保留 ≥ {minAfter} 分
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleRedeem(item)}
-                    disabled={disabled}
-                    style={{
-                      alignSelf: 'center', padding: '9px 14px', borderRadius: 9,
-                      border: 'none', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
-                      cursor: disabled ? 'not-allowed' : 'pointer',
-                      background: disabled ? '#e5e2da' : C.primary,
-                      color: disabled ? C.textLight : '#fff',
+                  {/* 上半：圖 + 資訊 + 單次按鈕 */}
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <div style={{
+                      width: 56, height: 56, borderRadius: 12, flexShrink: 0,
+                      background: item.image_url ? `center/cover no-repeat url(${item.image_url})` : '#f3efe4',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
                     }}>
-                    {redeeming === item.id ? '送出中'
-                      : noStock ? '已兌完'
-                      : notEnough ? '分數不足'
-                      : '申請兌換'}
-                  </button>
+                      {!item.image_url && meta.icon}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{item.name}</span>
+                        <span style={{
+                          fontSize: 10, color: C.primaryD, background: '#fdf3df',
+                          padding: '1px 6px', borderRadius: 4, whiteSpace: 'nowrap',
+                        }}>{meta.label}</span>
+                      </div>
+                      {item.description && (
+                        <div style={{ fontSize: 12, color: C.textMid, marginTop: 3, lineHeight: 1.45 }}>
+                          {item.description}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 16, fontWeight: 800, color: C.primaryD }}>
+                          {isCash ? unit : cost} <span style={{ fontSize: 11, fontWeight: 600 }}>分{isCash ? '/組' : ''}</span>
+                        </span>
+                        {isCash && (
+                          <span style={{ fontSize: 13, fontWeight: 700, color: C.ok }}>
+                            → NT${unit * CASH_RATIO}/組
+                          </span>
+                        )}
+                        {item.stock !== null && item.stock !== undefined && (
+                          <span style={{ fontSize: 11, color: noStock ? C.danger : C.textLight }}>
+                            {noStock ? '已兌完' : `庫存 ${item.stock}`}
+                          </span>
+                        )}
+                        {minAfter > 0 && (
+                          <span style={{ fontSize: 11, color: C.textMid, background: '#fffbeb', padding: '1px 6px', borderRadius: 4 }}>
+                            兌換後須保留 ≥ {minAfter} 分
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {!isCash && (
+                      <button
+                        onClick={() => handleRedeem(item)}
+                        disabled={disabled}
+                        style={{
+                          alignSelf: 'center', padding: '9px 14px', borderRadius: 9,
+                          border: 'none', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                          background: disabled ? '#e5e2da' : C.primary,
+                          color: disabled ? C.textLight : '#fff',
+                        }}>
+                        {redeeming === item.id ? '送出中'
+                          : noStock ? '已兌完'
+                          : notEnough ? '分數不足'
+                          : '申請兌換'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 下半（僅現金型）：數量輸入 + 快速鈕 + 申請按鈕 */}
+                  {isCash && (
+                    <div style={{ borderTop: `1px dashed ${C.border}`, paddingTop: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 12, color: C.textMid }}>兌換組數</span>
+                        <input
+                          type="number" inputMode="numeric" min={1} max={maxQ || 1}
+                          value={qty}
+                          onChange={e => setQty(item, e.target.value)}
+                          style={{
+                            width: 86, padding: '6px 10px', fontSize: 16, fontWeight: 700,
+                            border: `1px solid ${C.border}`, borderRadius: 8,
+                            textAlign: 'center',
+                          }}
+                        />
+                        <span style={{ fontSize: 11, color: C.textLight }}>最多 {maxQ}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                        {[10, 100, 1000].filter(n => n <= maxQ).map(n => (
+                          <QtyChip key={n} onClick={() => setQty(item, n)}>{n}</QtyChip>
+                        ))}
+                        {maxQ > 0 && <QtyChip onClick={() => setQty(item, maxQ)}>全換 ({maxQ})</QtyChip>}
+                      </div>
+                      <div style={{
+                        background: '#fdf6e7', borderRadius: 8, padding: '8px 10px',
+                        marginTop: 10, fontSize: 13, color: C.text,
+                      }}>
+                        <div>共 <b>{qty}</b> 組 = 扣 <b style={{ color: C.danger }}>{cost} 分</b> →
+                          <b style={{ color: C.ok }}> NT${cashAmt}</b> 獎金</div>
+                        {balance && (
+                          <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>
+                            兌換後剩 <b style={{ color: after < minAfter ? C.danger : C.textMid }}>{after}</b> 分
+                            {minAfter > 0 && `（須保留 ≥ ${minAfter}）`}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleRedeem(item)}
+                        disabled={disabled}
+                        style={{
+                          width: '100%', marginTop: 10, padding: '11px 14px', borderRadius: 10,
+                          border: 'none', fontSize: 14, fontWeight: 800,
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                          background: disabled ? '#e5e2da' : C.primary,
+                          color: disabled ? C.textLight : '#fff',
+                        }}>
+                        {redeeming === item.id ? '送出中...'
+                          : noStock ? '已兌完'
+                          : notEnough ? `不足或低於保留分（剩 ${after}）`
+                          : `申請兌換 ${cost} 分（NT$${cashAmt}）`}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -241,7 +333,12 @@ export default function PointRedeemPage() {
                   borderRadius: 12, padding: '12px 14px',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{r.item_name}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
+                      {r.item_name}
+                      {Number(r.quantity) > 1 && (
+                        <span style={{ marginLeft: 6, fontSize: 12, color: C.textMid }}>×{r.quantity}</span>
+                      )}
+                    </span>
                     <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                       <span style={{
                         fontSize: 14, fontWeight: 800,
@@ -287,6 +384,16 @@ export default function PointRedeemPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function QtyChip({ onClick, children }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: '4px 10px', fontSize: 12, fontWeight: 700,
+      borderRadius: 999, border: `1px solid ${C.border}`,
+      background: '#fff', color: C.primaryD, cursor: 'pointer',
+    }}>{children}</button>
   );
 }
 

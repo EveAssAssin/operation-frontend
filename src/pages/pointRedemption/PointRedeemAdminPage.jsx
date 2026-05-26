@@ -352,7 +352,12 @@ function RedemptionsTab() {
                     <Td>{fmtTime(r.redeemed_at)}</Td>
                     <Td>{r.employee_name || r.employee_erpid}</Td>
                     <Td>{r.store_name || '—'}</Td>
-                    <Td>{r.item_name}</Td>
+                    <Td>
+                      {r.item_name}
+                      {Number(r.quantity) > 1 && (
+                        <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: C.mid, background: '#f0e9dd', padding: '1px 6px', borderRadius: 4 }}>×{r.quantity}</span>
+                      )}
+                    </Td>
                     <Td>{typeLabel(r.item_type)}</Td>
                     <Td><b style={{ color: C.danger }}>-{r.points_cost}</b></Td>
                     <Td>
