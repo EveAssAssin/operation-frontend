@@ -163,6 +163,7 @@ function ItemModal({ item, onClose, onSaved }) {
     image_url:   item.image_url   || '',
     sort_order:  item.sort_order  ?? 0,
     is_active:   item.is_active ?? true,
+    min_balance_after: item.min_balance_after ?? (item.item_type === 'cash' ? 200 : 0),
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState('');
@@ -183,6 +184,7 @@ function ItemModal({ item, onClose, onSaved }) {
         image_url:   form.image_url.trim() || null,
         sort_order:  Number(form.sort_order) || 0,
         is_active:   !!form.is_active,
+        min_balance_after: Math.max(0, Math.trunc(Number(form.min_balance_after) || 0)),
       };
       if (isNew) await pointRedemptionApi.createItem(payload);
       else       await pointRedemptionApi.updateItem(item.id, payload);
@@ -222,6 +224,18 @@ function ItemModal({ item, onClose, onSaved }) {
             style={input} />
         </Field>
       </div>
+      {form.item_type === 'cash' && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontSize: 13, color: '#92400e' }}>
+          💰 現金型品項：兌換比例固定為 <b>1 分 = NT$100</b>。<br/>
+          {form.points_cost && (
+            <>此品項：扣 <b>{Number(form.points_cost) || 0}</b> 分 → 寫入 <b>NT${(Number(form.points_cost) || 0) * 100}</b> 獎金到員工 MAP。</>
+          )}
+        </div>
+      )}
+      <Field label={`兌換後最低餘額（≥ 此值才可兌換${form.item_type === 'cash' ? '；現金型建議 200' : '；填 0 = 不限制'}）`}>
+        <input type="number" value={form.min_balance_after} onChange={e => set('min_balance_after', e.target.value)}
+          min={0} placeholder="0" style={input} />
+      </Field>
       <Field label="圖片網址（選填）">
         <input value={form.image_url} onChange={e => set('image_url', e.target.value)}
           placeholder="https://..." style={input} />

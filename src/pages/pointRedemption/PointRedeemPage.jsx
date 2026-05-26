@@ -36,6 +36,7 @@ const STATUS_META = {
   cancelled: { label: '已取消', color: C.danger },
 };
 const LS_KEY = 'point_redeem_app_number';
+const CASH_RATIO = 100;   // cash 型品項：1 分 = NT$100（與後端一致）
 
 export default function PointRedeemPage() {
   const [phase, setPhase]   = useState('init');   // init | ready | error
@@ -89,7 +90,9 @@ export default function PointRedeemPage() {
       alert(`分數不足：目前 ${balance.totalScore} 分，需要 ${cost} 分`);
       return;
     }
-    if (!window.confirm(`確定申請兌換「${item.name}」（${cost} 分）嗎？\n送出後需營運部主管審核通過才會扣分。`)) return;
+    const cashHint = item.item_type === 'cash' ? `\n換算：扣 ${cost} 分 → NT$${cost * CASH_RATIO} 獎金。` : '';
+    const reserveHint = item.min_balance_after > 0 ? `\n（兌換後必須保留 ≥ ${item.min_balance_after} 分）` : '';
+    if (!window.confirm(`確定申請兌換「${item.name}」（${cost} 分）嗎？${cashHint}${reserveHint}\n送出後需營運部主管審核通過才會扣分。`)) return;
     setRedeeming(item.id);
     try {
       const r = await pointRedemptionPublicApi.redeem(appNumber, item.id);
@@ -149,8 +152,12 @@ export default function PointRedeemPage() {
             )}
             {items.map(item => {
               const cost      = Number(item.points_cost);
+              const minAfter  = Number(item.min_balance_after || 0);
+              const isCash    = item.item_type === 'cash';
+              const cashAmt   = isCash ? cost * CASH_RATIO : 0;
               const noStock   = item.stock !== null && item.stock !== undefined && Number(item.stock) <= 0;
-              const notEnough = balance && balance.totalScore < cost;
+              const after     = balance ? balance.totalScore - cost : 0;
+              const notEnough = balance && (balance.totalScore < cost || after < minAfter);
               const disabled  = noStock || notEnough || !!redeeming;
               const meta      = TYPE_META[item.item_type] || TYPE_META.other;
               return (
@@ -178,13 +185,23 @@ export default function PointRedeemPage() {
                         {item.description}
                       </div>
                     )}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 16, fontWeight: 800, color: C.primaryD }}>
                         {cost} <span style={{ fontSize: 11, fontWeight: 600 }}>分</span>
                       </span>
+                      {isCash && (
+                        <span style={{ fontSize: 13, fontWeight: 700, color: C.ok }}>
+                          → NT${cashAmt}
+                        </span>
+                      )}
                       {item.stock !== null && item.stock !== undefined && (
                         <span style={{ fontSize: 11, color: noStock ? C.danger : C.textLight }}>
                           {noStock ? '已兌完' : `庫存 ${item.stock}`}
+                        </span>
+                      )}
+                      {minAfter > 0 && (
+                        <span style={{ fontSize: 11, color: C.textMid, background: '#fffbeb', padding: '1px 6px', borderRadius: 4 }}>
+                          兌換後須保留 ≥ {minAfter} 分
                         </span>
                       )}
                     </div>
@@ -225,12 +242,19 @@ export default function PointRedeemPage() {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{r.item_name}</span>
-                    <span style={{
-                      fontSize: 14, fontWeight: 800,
-                      color: deducted ? C.danger : pending ? '#b7791f' : C.textLight,
-                      textDecoration: (r.status === 'rejected' || r.status === 'cancelled') ? 'line-through' : 'none',
-                    }}>
-                      {deducted ? '-' : ''}{r.points_cost} 分
+                    <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                      <span style={{
+                        fontSize: 14, fontWeight: 800,
+                        color: deducted ? C.danger : pending ? '#b7791f' : C.textLight,
+                        textDecoration: (r.status === 'rejected' || r.status === 'cancelled') ? 'line-through' : 'none',
+                      }}>
+                        {deducted ? '-' : ''}{r.points_cost} 分
+                      </span>
+                      {r.item_type === 'cash' && Number(r.bonus_amount) > 0 && (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: deducted ? C.ok : C.textLight }}>
+                          {deducted ? '+' : ''}NT${r.bonus_amount}
+                        </span>
+                      )}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
