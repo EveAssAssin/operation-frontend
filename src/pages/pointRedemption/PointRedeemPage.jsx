@@ -499,7 +499,9 @@ function DetailModal({ loading, detail, onClose }) {
                   沒有紀錄
                 </div>
               )}
-              {detail.records?.map((r, i) => {
+              {[...(detail.records || [])]
+                .sort((a, b) => String(b.createTime || '').localeCompare(String(a.createTime || '')))
+                .map((r, i) => {
                 const s = Number(r.score || 0);
                 return (
                   <div key={i} style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}` }}>
