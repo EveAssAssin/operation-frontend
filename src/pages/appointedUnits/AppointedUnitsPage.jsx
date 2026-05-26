@@ -397,7 +397,7 @@ function BindingsPanel() {
         <button style={btn('primary')} onClick={() => load(1)}>查詢</button>
       </div>
 
-      <div style={{ background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+      <div style={{ background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, overflow: 'hidden', overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead style={{ background: C.bg }}>
             <tr>
@@ -405,20 +405,42 @@ function BindingsPanel() {
               <th style={th()}>單位</th>
               <th style={th()}>身分</th>
               <th style={th()}>綁定客編</th>
+              <th style={th()}>綁定門市</th>
+              <th style={th()}>綁定人員</th>
               <th style={th()}>狀態</th>
               <th style={th()}>綁定時間</th>
               <th style={th()}>操作</th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={7} style={td('center')}>載入中...</td></tr>}
-            {!loading && list.length === 0 && <tr><td colSpan={7} style={td('center')}>無資料</td></tr>}
+            {loading && <tr><td colSpan={9} style={td('center')}>載入中...</td></tr>}
+            {!loading && list.length === 0 && <tr><td colSpan={9} style={td('center')}>無資料</td></tr>}
             {!loading && list.map(b => (
               <tr key={b.id} style={{ borderTop: `1px solid ${C.border}` }}>
                 <td style={td()}>{b.line_display_name || '—'}</td>
                 <td style={td()}><b>{b.unit_code}</b><br /><span style={{ color: C.textLight, fontSize: 11 }}>{b.unit_name_snap}</span></td>
                 <td style={td()}>{b.binding_role === 'admin' ? '管理員' : '員工'}</td>
                 <td style={td()}>{b.client_id || '—'}<br /><span style={{ color: C.textLight, fontSize: 11 }}>{b.member_name_snap || ''}</span></td>
+                <td style={td()}>
+                  {b.introducer_store_name
+                    ? <>
+                        <b>{b.introducer_store_name}</b>
+                        {b.introducer_store_erpid && (
+                          <><br /><span style={{ color: C.textLight, fontSize: 11 }}>{b.introducer_store_erpid}</span></>
+                        )}
+                      </>
+                    : <span style={{ color: C.textLight }}>—</span>}
+                </td>
+                <td style={td()}>
+                  {b.introducer_member_name
+                    ? <>
+                        <b>{b.introducer_member_name}</b>
+                        {b.introducer_member_id && (
+                          <><br /><span style={{ color: C.textLight, fontSize: 11 }}>{b.introducer_member_id}</span></>
+                        )}
+                      </>
+                    : <span style={{ color: C.textLight }}>—</span>}
+                </td>
                 <td style={td()}>
                   {b.status === 'active' && <span style={pillStyle('#f0fff4', '#2d6a4f', '#b7e4c7')}>綁定中</span>}
                   {b.status === 'unbound' && <span style={pillStyle('#f3f3f3', '#666', '#ccc')}>已解除</span>}
