@@ -10,7 +10,16 @@ import { useAuth } from '../contexts/AuthContext';
 const NAV_ITEMS = [
   { path: '/dashboard',       label: '首頁',     icon: '🏠' },
   { path: '/personnel',       label: '人員管理', icon: '👥', minRole: 'operation_staff' },
-  { path: '/billing',         label: '工程開帳', icon: '🔧', minRole: 'operation_staff' },
+  {
+    key:   'dept-billing',
+    label: '部門開帳',
+    icon:  '🏢',
+    minRole: 'operation_staff',
+    children: [
+      { path: '/billing', label: '工程開帳', icon: '🔧' },
+      // 之後新增的部門開帳（企劃部 / 美睫部 等）都加在這裡
+    ],
+  },
   { path: '/billing-v2',      label: '帳單管理', icon: '🧾', minRole: 'operation_staff' },
   { path: '/billing-report',  label: '帳單月報', icon: '📊', minRole: 'operation_staff' },
   { path: '/checks',          label: '支票紀錄', icon: '🏦', minRole: 'operation_staff' },
