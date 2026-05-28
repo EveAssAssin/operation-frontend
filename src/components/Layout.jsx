@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 const NAV_ITEMS = [
   { path: '/dashboard',       label: '首頁',     icon: '🏠' },
   { path: '/personnel',       label: '人員管理', icon: '👥', minRole: 'operation_staff' },
+  { path: '/basic-data',      label: '基本資料', icon: '📚', minRole: 'operation_staff' },
   {
     key:   'dept-billing',
     label: '部門開帳',

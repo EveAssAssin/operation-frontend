@@ -439,4 +439,32 @@ export const pointRedemptionPublicApi = {
   myRedemptions: (app_number)          => api.get('/point-redemption/public/redemptions', { params: { app_number } }),
 };
 
+// 基本資料模組（電費 / 電話 / 房租 / 自訂 — 含 audit log + LINE 推播）
+export const basicDataApi = {
+  // 選項
+  getStores:        ()            => api.get('/basic-data/options/stores'),
+  getSystemUsers:   ()            => api.get('/basic-data/options/system-users'),
+  // 分類
+  listCategories:   ()            => api.get('/basic-data/categories'),
+  createCategory:   (body)        => api.post('/basic-data/categories', body),
+  updateCategory:   (id, body)    => api.patch(`/basic-data/categories/${id}`, body),
+  deleteCategory:   (id)          => api.delete(`/basic-data/categories/${id}`),
+  // 欄位
+  listFields:       (categoryId)         => api.get(`/basic-data/categories/${categoryId}/fields`),
+  createField:      (categoryId, body)   => api.post(`/basic-data/categories/${categoryId}/fields`, body),
+  updateField:      (id, body)           => api.patch(`/basic-data/fields/${id}`, body),
+  deleteField:      (id)                 => api.delete(`/basic-data/fields/${id}`),
+  // 資料
+  listFacts:        (params = {})        => api.get('/basic-data/facts', { params }),
+  createFact:       (body)               => api.post('/basic-data/facts', body),
+  updateFact:       (id, body)           => api.patch(`/basic-data/facts/${id}`, body),
+  deleteFact:       (id)                 => api.delete(`/basic-data/facts/${id}`),
+  // 歷史紀錄
+  listHistory:      (params = {})        => api.get('/basic-data/history', { params }),
+  // 推播訂閱
+  listSubscribers:  ()                   => api.get('/basic-data/subscribers'),
+  upsertSubscriber: (body)               => api.post('/basic-data/subscribers', body),
+  deleteSubscriber: (id)                 => api.delete(`/basic-data/subscribers/${id}`),
+};
+
 export default api;
