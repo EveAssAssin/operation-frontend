@@ -467,4 +467,24 @@ export const basicDataApi = {
   deleteSubscriber: (id)                 => api.delete(`/basic-data/subscribers/${id}`),
 };
 
+// 排程推播模組（自訂排程 + 變數展開 + 個人/角色群收件人）
+export const scheduledNotifyApi = {
+  // 輔助
+  getSystemUsers: () => api.get('/scheduled-notify/options/system-users'),
+  getRoles:       () => api.get('/scheduled-notify/options/roles'),
+  getVariables:   () => api.get('/scheduled-notify/options/variables'),
+  preview:        (body) => api.post('/scheduled-notify/preview', body),
+  // CRUD
+  list:    ()           => api.get('/scheduled-notify'),
+  get:     (id)         => api.get(`/scheduled-notify/${id}`),
+  create:  (body)       => api.post('/scheduled-notify', body),
+  update:  (id, body)   => api.patch(`/scheduled-notify/${id}`, body),
+  remove:  (id)         => api.delete(`/scheduled-notify/${id}`),
+  // 立即執行
+  runNow:  (id)         => api.post(`/scheduled-notify/${id}/run-now`),
+  // 歷史紀錄
+  listLogs:    (id)     => api.get(`/scheduled-notify/${id}/logs`),
+  listAllLogs: ()       => api.get('/scheduled-notify/logs/all'),
+};
+
 export default api;

@@ -50,6 +50,12 @@ const NAV_ITEMS = [
     icon:  '🪙',
     minRole: 'operation_staff',
   },
+  {
+    path:  '/scheduled-notify',
+    label: '排程推播',
+    icon:  '⏰',
+    minRole: 'operation_staff',
+  },
 ];
 
 // 角色中文標籤

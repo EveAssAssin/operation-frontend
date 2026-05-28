@@ -25,6 +25,7 @@ import PublicHandoverPage  from './pages/handover/PublicHandoverPage';
 import PointRedeemPage      from './pages/pointRedemption/PointRedeemPage';
 import PointRedeemAdminPage from './pages/pointRedemption/PointRedeemAdminPage';
 import BasicDataPage        from './pages/basicData/BasicDataPage';
+import ScheduledNotifyPage  from './pages/scheduledNotify/ScheduledNotifyPage';
 
 // 廠商後台
 import VendorLoginPage  from './pages/vendor/VendorLoginPage';
@@ -97,6 +98,7 @@ function AppRoutes() {
       <Route path="/processes"          element={<PrivateRoute><ProcessesHubPage /></PrivateRoute>} />
       <Route path="/processes/handover" element={<PrivateRoute><HandoverPage /></PrivateRoute>} />
       <Route path="/basic-data"         element={<PrivateRoute><BasicDataPage /></PrivateRoute>} />
+      <Route path="/scheduled-notify"   element={<PrivateRoute><ScheduledNotifyPage /></PrivateRoute>} />
 
       {/* 廠商後台（獨立 JWT，獨立 Layout） */}
       <Route path="/vendor/login" element={vendor ? <Navigate to="/vendor/bills" replace /> : <VendorLoginPage />} />
