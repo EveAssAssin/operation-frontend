@@ -169,6 +169,26 @@ export const vendorApi = {
   createBill:   (data) => vendorApi_base.post('/bills', data),
   updateBill:   (id, data) => vendorApi_base.patch(`/bills/${id}`, data),
   submitBill:   (id) => vendorApi_base.post(`/bills/${id}/submit`),
+
+  // ── 廠商前台 — 基本資料 / 銀行帳號 / 請款（S1）─────────────
+  // 基本資料
+  getProfile:        ()         => vendorApi_base.get('/profile'),
+  updateProfile:     (body)     => vendorApi_base.patch('/profile', body),
+  // 銀行帳號
+  listBankAccounts:  ()         => vendorApi_base.get('/bank-accounts'),
+  createBankAccount: (body)     => vendorApi_base.post('/bank-accounts', body),
+  updateBankAccount: (id, body) => vendorApi_base.patch(`/bank-accounts/${id}`, body),
+  deleteBankAccount: (id)       => vendorApi_base.delete(`/bank-accounts/${id}`),
+  // 請款單
+  listRequests:      (params = {})    => vendorApi_base.get('/requests', { params }),
+  getRequest:        (id)             => vendorApi_base.get(`/requests/${id}`),
+  createRequest:     (body)           => vendorApi_base.post('/requests', body),
+  updateRequest:     (id, body)       => vendorApi_base.patch(`/requests/${id}`, body),
+  deleteRequest:     (id)             => vendorApi_base.delete(`/requests/${id}`),
+  submitRequest:     (id)             => vendorApi_base.post(`/requests/${id}/submit`),
+  // 附件
+  addFile:           (id, body)       => vendorApi_base.post(`/requests/${id}/files`, body),
+  deleteFile:        (id)             => vendorApi_base.delete(`/files/${id}`),
 };
 
 // Checks API（支票紀錄系統 v2）
@@ -485,6 +505,48 @@ export const scheduledNotifyApi = {
   // 歷史紀錄
   listLogs:    (id)     => api.get(`/scheduled-notify/${id}/logs`),
   listAllLogs: ()       => api.get('/scheduled-notify/logs/all'),
+};
+
+// 廠商請款（系統人員端）
+export const vendorPaymentApi = {
+  // 公司付款方資料
+  getCompanyProfile:    ()           => api.get('/vendor-payment/company-profile'),
+  upsertCompanyProfile: (body)       => api.put('/vendor-payment/company-profile', body),
+  // 銀行帳號
+  listBankAccounts:     (sourceId)            => api.get(`/vendor-payment/sources/${sourceId}/bank-accounts`),
+  createBankAccount:    (sourceId, body)      => api.post(`/vendor-payment/sources/${sourceId}/bank-accounts`, body),
+  updateBankAccount:    (id, body)            => api.patch(`/vendor-payment/bank-accounts/${id}`, body),
+  deleteBankAccount:    (id)                  => api.delete(`/vendor-payment/bank-accounts/${id}`),
+  // 請款單
+  listRequests:         (params = {})         => api.get('/vendor-payment/requests', { params }),
+  getRequest:           (id)                  => api.get(`/vendor-payment/requests/${id}`),
+  createRequest:        (body)                => api.post('/vendor-payment/requests', body),
+  updateRequest:        (id, body)            => api.patch(`/vendor-payment/requests/${id}`, body),
+  deleteRequest:        (id)                  => api.delete(`/vendor-payment/requests/${id}`),
+  submitRequest:        (id)                  => api.post(`/vendor-payment/requests/${id}/submit`),
+  approveRequest:       (id)                  => api.post(`/vendor-payment/requests/${id}/approve`),
+  rejectRequest:        (id, reason)          => api.post(`/vendor-payment/requests/${id}/reject`, { reason }),
+  markPaid:             (id)                  => api.post(`/vendor-payment/requests/${id}/mark-paid`),
+  // 附件
+  addFile:              (id, body)            => api.post(`/vendor-payment/requests/${id}/files`, body),
+  deleteFile:           (id)                  => api.delete(`/vendor-payment/files/${id}`),
+  // 發票
+  addInvoice:           (id, body)            => api.post(`/vendor-payment/requests/${id}/invoices`, body),
+  updateInvoice:        (id, body)            => api.patch(`/vendor-payment/invoices/${id}`, body),
+  deleteInvoice:        (id)                  => api.delete(`/vendor-payment/invoices/${id}`),
+};
+
+// 分權系統（角色 / 模組 / 權限設定）
+export const permissionsApi = {
+  // 任何人可呼叫
+  getMyModules:    () => api.get('/permissions/my-modules'),
+  // 讀
+  listRoles:       () => api.get('/permissions/roles'),
+  listModules:     () => api.get('/permissions/modules'),
+  listPermissions: () => api.get('/permissions/permissions'),
+  // 寫（只有 admin 等級角色可呼叫）
+  setPermission:   (body)  => api.put('/permissions/permission', body),
+  setBulk:         (items) => api.put('/permissions/permissions/bulk', { items }),
 };
 
 export default api;

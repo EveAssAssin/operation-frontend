@@ -2,11 +2,11 @@
 // 開帳系統 v2：帳單管理（來源單位 / 會計科目 / 帳單建立與審核）
 
 import { useState, useEffect, useCallback } from 'react';
-import { billingV2Api, personnelApi, billingApi } from '../../services/api';
+import { billingV2Api, personnelApi, billingApi, vendorPaymentApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 // ── 廠商帳號管理面板 ──────────────────────────────────────────
-function VendorAccountsPanel({ sources }) {
+function VendorAccountsPanel({ sources, onSourceUpdate }) {
   const [accounts, setAccounts]   = useState([]);
   const [loading, setLoading]     = useState(false);
   const [showForm, setShowForm]   = useState(false);
@@ -15,6 +15,7 @@ function VendorAccountsPanel({ sources }) {
   const [msg, setMsg]             = useState('');
   const [resetPwdId, setResetPwdId] = useState(null);
   const [newPwd, setNewPwd]       = useState('');
+  const [detailSource, setDetailSource] = useState(null);   // { source } 開啟廠商詳細編輯
   const [form, setForm] = useState({
     source_id: '',
     username: '',
@@ -200,6 +201,14 @@ function VendorAccountsPanel({ sources }) {
                         style={{ ...smallBtn, background: '#f5f0ea', color: '#50422d', border: '1px solid #cdbea2' }}>
                         重設密碼
                       </button>
+                      <button
+                        onClick={() => {
+                          const src = sources.find(s => s.id === acc.source_id);
+                          if (src) setDetailSource(src);
+                        }}
+                        style={{ ...smallBtn, background: '#fff8ec', color: '#8b6f4e', border: '1px solid #e5c99a' }}>
+                        📝 廠商資料 / 銀行
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -244,6 +253,652 @@ function VendorAccountsPanel({ sources }) {
           </tbody>
         </table>
       )}
+
+      {detailSource && (
+        <VendorDetailModal
+          source={detailSource}
+          onClose={() => { setDetailSource(null); onSourceUpdate?.(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+//  廠商詳細編輯 Modal — 聯絡資料 + 銀行帳號
+// ════════════════════════════════════════════════════════════
+function VendorDetailModal({ source, onClose }) {
+  const [tab, setTab] = useState('contact');   // contact | bank
+  const [form, setForm] = useState({
+    short_name:      source.short_name      || '',
+    contact_name:    source.contact_name    || '',
+    contact_phone:   source.contact_phone   || '',
+    contact_email:   source.contact_email   || '',
+    contact_line_id: source.contact_line_id || '',
+    tax_id:          source.tax_id          || '',
+    address:         source.address         || '',
+    notes:           source.notes           || '',
+  });
+  const [banks, setBanks]   = useState([]);
+  const [busy, setBusy]     = useState(false);
+  const [msg, setMsg]       = useState('');
+  const [bankForm, setBankForm] = useState({ bank_code: '', branch_code: '', account_no: '', account_name: '', is_default: false, note: '' });
+  const [editingBankId, setEditingBankId] = useState(null);
+
+  const loadBanks = useCallback(async () => {
+    try {
+      const r = await vendorPaymentApi.listBankAccounts(source.id);
+      setBanks(Array.isArray(r?.data) ? r.data : []);
+    } catch (e) { console.error(e); }
+  }, [source.id]);
+
+  useEffect(() => { loadBanks(); }, [loadBanks]);
+
+  async function saveContact() {
+    setBusy(true);
+    try {
+      const res = await billingV2Api.updateSource(source.id, form);
+      if (res.success) setMsg('✓ 已儲存');
+      else setMsg('✗ ' + res.message);
+    } catch (e) { setMsg('✗ ' + e.message); }
+    finally { setBusy(false); setTimeout(() => setMsg(''), 3000); }
+  }
+
+  async function saveBank() {
+    if (!bankForm.bank_code || !bankForm.account_no || !bankForm.account_name) {
+      return alert('銀行代號 / 帳號 / 戶名 必填');
+    }
+    setBusy(true);
+    try {
+      if (editingBankId) {
+        await vendorPaymentApi.updateBankAccount(editingBankId, bankForm);
+      } else {
+        await vendorPaymentApi.createBankAccount(source.id, bankForm);
+      }
+      setBankForm({ bank_code: '', branch_code: '', account_no: '', account_name: '', is_default: false, note: '' });
+      setEditingBankId(null);
+      loadBanks();
+    } catch (e) { alert('失敗：' + e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function deleteBank(id) {
+    if (!window.confirm('刪除此銀行帳號？')) return;
+    try { await vendorPaymentApi.deleteBankAccount(id); loadBanks(); }
+    catch (e) { alert('失敗：' + e.message); }
+  }
+
+  function editBank(b) {
+    setEditingBankId(b.id);
+    setBankForm({
+      bank_code: b.bank_code, branch_code: b.branch_code || '',
+      account_no: b.account_no, account_name: b.account_name,
+      is_default: !!b.is_default, note: b.note || '',
+    });
+  }
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: 10, width: '100%', maxWidth: 720, maxHeight: '90vh',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e0d5c8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#3a2e1e' }}>📝 {source.name}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#6b5640' }}>×</button>
+        </div>
+
+        <div style={{ display: 'flex', borderBottom: '1px solid #e0d5c8' }}>
+          <button onClick={() => setTab('contact')} style={{
+            flex: 1, padding: '12px', border: 'none', cursor: 'pointer',
+            background: tab === 'contact' ? '#fff' : '#f5f0ea',
+            color: tab === 'contact' ? '#50422d' : '#6b5640',
+            fontWeight: tab === 'contact' ? 700 : 500, fontSize: 13,
+            borderBottom: tab === 'contact' ? '2px solid #50422d' : '2px solid transparent',
+          }}>👤 聯絡 / 基本資料</button>
+          <button onClick={() => setTab('bank')} style={{
+            flex: 1, padding: '12px', border: 'none', cursor: 'pointer',
+            background: tab === 'bank' ? '#fff' : '#f5f0ea',
+            color: tab === 'bank' ? '#50422d' : '#6b5640',
+            fontWeight: tab === 'bank' ? 700 : 500, fontSize: 13,
+            borderBottom: tab === 'bank' ? '2px solid #50422d' : '2px solid transparent',
+          }}>🏦 銀行帳號（{banks.length}）</button>
+        </div>
+
+        <div style={{ padding: 20, overflow: 'auto', flex: 1 }}>
+          {msg && <div style={msg.startsWith('✓') ? successBox : errorBox}>{msg}</div>}
+
+          {tab === 'contact' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <FieldRow label="廠商縮寫（匯款附言用，例：精華光學 → 精華）">
+                <input style={inputStyle} value={form.short_name}
+                  onChange={e => setForm(f => ({ ...f, short_name: e.target.value }))}
+                  placeholder="例：精華" />
+              </FieldRow>
+              <FieldRow label="統編 / 身分證">
+                <input style={inputStyle} value={form.tax_id}
+                  onChange={e => setForm(f => ({ ...f, tax_id: e.target.value }))} />
+              </FieldRow>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <FieldRow label="聯絡人">
+                  <input style={inputStyle} value={form.contact_name}
+                    onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))} />
+                </FieldRow>
+                <FieldRow label="聯絡電話">
+                  <input style={inputStyle} value={form.contact_phone}
+                    onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} />
+                </FieldRow>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <FieldRow label="E-mail">
+                  <input style={inputStyle} value={form.contact_email}
+                    onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} />
+                </FieldRow>
+                <FieldRow label="LINE ID">
+                  <input style={inputStyle} value={form.contact_line_id}
+                    onChange={e => setForm(f => ({ ...f, contact_line_id: e.target.value }))}
+                    placeholder="@xxx 或 ID" />
+                </FieldRow>
+              </div>
+              <FieldRow label="地址">
+                <input style={inputStyle} value={form.address}
+                  onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
+              </FieldRow>
+              <FieldRow label="備註">
+                <textarea rows={3} style={{ ...inputStyle, resize: 'vertical' }} value={form.notes}
+                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+              </FieldRow>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button onClick={saveContact} disabled={busy} style={primaryBtn}>
+                  {busy ? '處理中...' : '💾 儲存聯絡資料'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tab === 'bank' && (
+            <div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16 }}>
+                <thead>
+                  <tr style={{ background: '#f5f0ea' }}>
+                    <th style={th}>銀行代號</th>
+                    <th style={th}>分行</th>
+                    <th style={th}>帳號</th>
+                    <th style={th}>戶名</th>
+                    <th style={th}>預設</th>
+                    <th style={th}>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {banks.length === 0 && (
+                    <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: '#a0aec0', padding: 16 }}>尚無銀行帳號</td></tr>
+                  )}
+                  {banks.map(b => (
+                    <tr key={b.id}>
+                      <td style={td}>{b.bank_code}</td>
+                      <td style={td}>{b.branch_code || '—'}</td>
+                      <td style={{ ...td, fontFamily: 'monospace' }}>{b.account_no}</td>
+                      <td style={td}>{b.account_name}</td>
+                      <td style={td}>
+                        {b.is_default && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 12, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>預設</span>}
+                      </td>
+                      <td style={td}>
+                        <button onClick={() => editBank(b)}  style={{ ...smallBtn, marginRight: 4 }}>編輯</button>
+                        <button onClick={() => deleteBank(b.id)} style={{ ...smallBtn, background: '#fff5f5', color: '#c53030', border: '1px solid #fed7d7' }}>刪除</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div style={{ borderTop: '2px dashed #cdbea2', paddingTop: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#3a2e1e', marginBottom: 8 }}>
+                  {editingBankId ? '✏️ 編輯銀行帳號' : '➕ 新增銀行帳號'}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '100px 100px 1fr', gap: 8, marginBottom: 8 }}>
+                  <input style={inputStyle} placeholder="總行 3 碼" value={bankForm.bank_code}
+                    onChange={e => setBankForm(f => ({ ...f, bank_code: e.target.value }))} />
+                  <input style={inputStyle} placeholder="分行 4 碼" value={bankForm.branch_code}
+                    onChange={e => setBankForm(f => ({ ...f, branch_code: e.target.value }))} />
+                  <input style={inputStyle} placeholder="帳號" value={bankForm.account_no}
+                    onChange={e => setBankForm(f => ({ ...f, account_no: e.target.value }))} />
+                </div>
+                <input style={{ ...inputStyle, marginBottom: 8 }} placeholder="戶名" value={bankForm.account_name}
+                  onChange={e => setBankForm(f => ({ ...f, account_name: e.target.value }))} />
+                <input style={{ ...inputStyle, marginBottom: 8 }} placeholder="備註（選填）" value={bankForm.note}
+                  onChange={e => setBankForm(f => ({ ...f, note: e.target.value }))} />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 13 }}>
+                  <input type="checkbox" checked={bankForm.is_default}
+                    onChange={e => setBankForm(f => ({ ...f, is_default: e.target.checked }))} />
+                  <span>設為預設（請款時預設用此帳號）</span>
+                </label>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  {editingBankId && (
+                    <button onClick={() => {
+                      setEditingBankId(null);
+                      setBankForm({ bank_code: '', branch_code: '', account_no: '', account_name: '', is_default: false, note: '' });
+                    }} style={cancelBtn}>取消</button>
+                  )}
+                  <button onClick={saveBank} disabled={busy} style={primaryBtn}>
+                    {busy ? '...' : (editingBankId ? '💾 更新' : '➕ 新增')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FieldRow({ label, children }) {
+  return (
+    <label style={{ display: 'block' }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#6b5640', marginBottom: 4 }}>{label}</div>
+      {children}
+    </label>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+//   廠商請款審核面板 — 會計列待審/已通過/已撥款/已退回 + 操作
+// ════════════════════════════════════════════════════════════
+const REQ_STATUS_LABEL = {
+  draft:     '草稿',
+  submitted: '待審',
+  approved:  '已通過',
+  paid:      '已撥款',
+  rejected:  '已退回',
+};
+const REQ_STATUS_COLOR = {
+  draft:     ['#f3f3f3', '#666',     '#ccc'],
+  submitted: ['#fff8ec', '#8b6f4e',  '#e5c99a'],
+  approved:  ['#f0fff4', '#2d6a4f',  '#b7e4c7'],
+  paid:      ['#e6fffa', '#2c7a7b',  '#81e6d9'],
+  rejected:  ['#fff0f0', '#c53030',  '#feb2b2'],
+};
+
+function VendorPaymentReviewPanel({ sources }) {
+  const [list, setList]       = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter]   = useState({ status: 'submitted', source_id: '', period: '', keyword: '' });
+  const [detail, setDetail]   = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (filter.status)    params.status    = filter.status;
+      if (filter.source_id) params.source_id = filter.source_id;
+      if (filter.period)    params.period    = filter.period;
+      if (filter.keyword)   params.keyword   = filter.keyword;
+      const r = await vendorPaymentApi.listRequests(params);
+      setList(Array.isArray(r?.data) ? r.data : []);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [filter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const vendorSources = sources.filter(s => s.source_type === 'vendor');
+
+  // 快捷統計
+  const counts = list.reduce((m, r) => { m[r.status] = (m[r.status] || 0) + 1; return m; }, {});
+
+  return (
+    <div>
+      {/* 篩選列 */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <select style={selectStyle} value={filter.status}
+                onChange={e => setFilter(f => ({ ...f, status: e.target.value }))}>
+          <option value="">全部狀態</option>
+          <option value="submitted">⏳ 待審</option>
+          <option value="approved">✓ 已通過</option>
+          <option value="paid">💰 已撥款</option>
+          <option value="rejected">✗ 已退回</option>
+          <option value="draft">📝 草稿</option>
+        </select>
+        <select style={selectStyle} value={filter.source_id}
+                onChange={e => setFilter(f => ({ ...f, source_id: e.target.value }))}>
+          <option value="">全部廠商</option>
+          {vendorSources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        <input style={{ ...inputStyle, width: 110 }} type="month" value={filter.period}
+               onChange={e => setFilter(f => ({ ...f, period: e.target.value }))} />
+        <input style={{ ...inputStyle, width: 200 }} placeholder="🔍 搜尋（單號 / 標題）"
+               value={filter.keyword} onChange={e => setFilter(f => ({ ...f, keyword: e.target.value }))} />
+        <button onClick={load} style={cancelBtn}>↻ 重新整理</button>
+      </div>
+
+      {/* 統計 */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, fontSize: 12 }}>
+        {Object.entries(REQ_STATUS_LABEL).map(([k, label]) => {
+          const [bg, color, border] = REQ_STATUS_COLOR[k];
+          return (
+            <button key={k}
+              onClick={() => setFilter(f => ({ ...f, status: k }))}
+              style={{
+                padding: '4px 10px', borderRadius: 999, border: `1px solid ${border}`,
+                background: filter.status === k ? bg : '#fff', color,
+                cursor: 'pointer', fontWeight: 600,
+              }}>
+              {label} {counts[k] || 0}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e0d5c8', overflow: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead style={{ background: '#f5f0ea' }}>
+            <tr>
+              <th style={th}>單號 / 月份</th>
+              <th style={th}>廠商</th>
+              <th style={th}>標題</th>
+              <th style={{ ...th, textAlign: 'right' }}>金額</th>
+              <th style={th}>附言</th>
+              <th style={th}>狀態</th>
+              <th style={th}>送審時間</th>
+              <th style={th}>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', padding: 20 }}>載入中...</td></tr>}
+            {!loading && list.length === 0 && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: '#a0aec0', padding: 20 }}>無資料</td></tr>}
+            {!loading && list.map(r => {
+              const [bg, color, border] = REQ_STATUS_COLOR[r.status] || REQ_STATUS_COLOR.draft;
+              return (
+                <tr key={r.id} style={trHover}>
+                  <td style={td}>
+                    <b style={{ fontFamily: 'monospace' }}>{r.request_no || '—'}</b>
+                    <div style={{ fontSize: 11, color: '#a0aec0' }}>{r.period}</div>
+                  </td>
+                  <td style={td}>{r.source?.name || '—'}</td>
+                  <td style={td}>{r.title}</td>
+                  <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
+                    {fmtMoney(r.total_amount)}
+                  </td>
+                  <td style={td}>
+                    <code style={{ fontSize: 11, color: '#6b5640' }}>{r.remit_memo || '—'}</code>
+                  </td>
+                  <td style={td}>
+                    <span style={{
+                      display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+                      background: bg, color, border: `1px solid ${border}`,
+                    }}>{REQ_STATUS_LABEL[r.status]}</span>
+                  </td>
+                  <td style={{ ...td, fontSize: 11, color: '#6b5640' }}>
+                    {r.submitted_at ? new Date(r.submitted_at).toLocaleString('zh-TW', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
+                  </td>
+                  <td style={td}>
+                    <button onClick={() => setDetail(r)} style={smallBtn}>檢視 / 操作</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {detail && (
+        <VendorPaymentDetailModal
+          requestId={detail.id}
+          onClose={() => { setDetail(null); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+//   單筆請款詳情 + 審核操作
+// ────────────────────────────────────────────────────────────
+function VendorPaymentDetailModal({ requestId, onClose }) {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [showReject, setShowReject] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showAddInvoice, setShowAddInvoice] = useState(false);
+  const [invForm, setInvForm] = useState({ invoice_no: '', invoice_date: '', amount: '', pre_tax_amount: '', tax_amount: '', vendor_tax_id: '' });
+
+  const load = useCallback(async () => {
+    try {
+      const r = await vendorPaymentApi.getRequest(requestId);
+      setData(r?.data || null);
+    } catch (e) { console.error(e); }
+  }, [requestId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function doApprove() {
+    if (!window.confirm('確定通過此請款？')) return;
+    setBusy(true);
+    try { await vendorPaymentApi.approveRequest(requestId); load(); }
+    catch (e) { alert('失敗：' + e.message); }
+    finally { setBusy(false); }
+  }
+  async function doReject() {
+    if (!rejectReason.trim()) return alert('請填寫退回原因');
+    setBusy(true);
+    try {
+      await vendorPaymentApi.rejectRequest(requestId, rejectReason);
+      setShowReject(false); setRejectReason('');
+      load();
+    } catch (e) { alert('失敗：' + e.message); }
+    finally { setBusy(false); }
+  }
+  async function doMarkPaid() {
+    if (!window.confirm('確定標記為已撥款？')) return;
+    setBusy(true);
+    try { await vendorPaymentApi.markPaid(requestId); load(); }
+    catch (e) { alert('失敗：' + e.message); }
+    finally { setBusy(false); }
+  }
+  async function doAddInvoice() {
+    if (!invForm.invoice_no || !invForm.amount) return alert('發票號碼 + 金額必填');
+    setBusy(true);
+    try {
+      await vendorPaymentApi.addInvoice(requestId, invForm);
+      setShowAddInvoice(false);
+      setInvForm({ invoice_no: '', invoice_date: '', amount: '', pre_tax_amount: '', tax_amount: '', vendor_tax_id: '' });
+      load();
+    } catch (e) { alert('失敗：' + e.message); }
+    finally { setBusy(false); }
+  }
+  async function delInvoice(id) {
+    if (!window.confirm('刪除此發票紀錄？')) return;
+    try { await vendorPaymentApi.deleteInvoice(id); load(); }
+    catch (e) { alert('失敗：' + e.message); }
+  }
+
+  if (!data) {
+    return (
+      <Modal title="載入中…" onClose={onClose} width={720}>
+        <div style={{ padding: 30, textAlign: 'center', color: '#a0aec0' }}>載入中…</div>
+      </Modal>
+    );
+  }
+
+  const [bg, color, border] = REQ_STATUS_COLOR[data.status] || REQ_STATUS_COLOR.draft;
+  const canApproveReject = data.status === 'submitted';
+  const canMarkPaid      = data.status === 'approved';
+
+  return (
+    <Modal title={`📝 ${data.request_no} — ${data.title}`} onClose={onClose} width={800}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* 摘要 */}
+        <div style={{ background: '#f5f0ea', padding: 12, borderRadius: 6, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, fontSize: 13 }}>
+          <div><span style={{ color: '#a0aec0' }}>廠商：</span>{data.source?.name}</div>
+          <div><span style={{ color: '#a0aec0' }}>月份：</span>{data.period}</div>
+          <div><span style={{ color: '#a0aec0' }}>金額：</span><b>{fmtMoney(data.total_amount)}</b></div>
+          <div><span style={{ color: '#a0aec0' }}>狀態：</span>
+            <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: bg, color, border: `1px solid ${border}` }}>
+              {REQ_STATUS_LABEL[data.status]}
+            </span>
+          </div>
+          <div><span style={{ color: '#a0aec0' }}>附言：</span><code style={{ fontSize: 12 }}>{data.remit_memo || '—'}</code></div>
+          <div><span style={{ color: '#a0aec0' }}>建立者：</span>{data.created_by_type === 'vendor' ? '廠商自助' : '系統人員'}</div>
+        </div>
+
+        {data.description && (
+          <div style={{ padding: 12, background: '#fff', border: '1px solid #e0d5c8', borderRadius: 6, fontSize: 13, whiteSpace: 'pre-wrap' }}>
+            {data.description}
+          </div>
+        )}
+
+        {data.rejection_reason && (
+          <div style={{ padding: 10, background: '#fff0f0', border: '1px solid #feb2b2', borderRadius: 6, fontSize: 12, color: '#c53030' }}>
+            <b>退回原因：</b>{data.rejection_reason}
+          </div>
+        )}
+
+        {/* 撥款帳號 */}
+        {data.bank_account && (
+          <div style={{ padding: 10, background: '#fff', border: '1px solid #e0d5c8', borderRadius: 6 }}>
+            <div style={{ fontSize: 12, color: '#a0aec0', marginBottom: 4 }}>🏦 撥款帳號</div>
+            <div style={{ fontSize: 13 }}>
+              <b>{data.bank_account.account_name}</b> · {data.bank_account.bank_code}-{data.bank_account.branch_code} · <code style={{ fontFamily: 'monospace' }}>{data.bank_account.account_no}</code>
+            </div>
+          </div>
+        )}
+
+        {/* 附件 */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>📎 附件（{data.files?.length || 0}）</div>
+          {(!data.files || data.files.length === 0) && (
+            <div style={{ fontSize: 12, color: '#a0aec0' }}>無附件</div>
+          )}
+          {(data.files || []).map(f => (
+            <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#f5f0ea', borderRadius: 4, marginBottom: 4, fontSize: 12 }}>
+              <span style={{
+                padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                background: '#fff', color: '#6b5640', border: '1px solid #cdbea2',
+              }}>{({ summary: '總表', detail: '明細', invoice: '發票', other: '其他' })[f.file_type]}</span>
+              <a href={f.file_url} target="_blank" rel="noreferrer" style={{ color: '#3b5bdb', textDecoration: 'underline', flex: 1 }}>
+                {f.file_name}
+              </a>
+              <span style={{ color: '#a0aec0' }}>{new Date(f.uploaded_at).toLocaleString('zh-TW', { dateStyle: 'short', timeStyle: 'short' })}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* 發票 */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>🧾 發票（{data.invoices?.length || 0}）</div>
+            <button onClick={() => setShowAddInvoice(s => !s)} style={smallBtn}>
+              {showAddInvoice ? '取消' : '+ 新增發票紀錄'}
+            </button>
+          </div>
+
+          {showAddInvoice && (
+            <div style={{ padding: 10, background: '#fff8ec', border: '1px solid #e5c99a', borderRadius: 6, marginBottom: 6 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6 }}>
+                <input style={inputStyle} placeholder="發票號碼" value={invForm.invoice_no}
+                       onChange={e => setInvForm(f => ({ ...f, invoice_no: e.target.value }))} />
+                <input style={inputStyle} placeholder="開立統編" value={invForm.vendor_tax_id}
+                       onChange={e => setInvForm(f => ({ ...f, vendor_tax_id: e.target.value }))} />
+                <input type="date" style={inputStyle} value={invForm.invoice_date}
+                       onChange={e => setInvForm(f => ({ ...f, invoice_date: e.target.value }))} />
+                <input style={inputStyle} placeholder="含稅金額" type="number" value={invForm.amount}
+                       onChange={e => setInvForm(f => ({ ...f, amount: e.target.value }))} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 6 }}>
+                <button onClick={doAddInvoice} disabled={busy} style={primaryBtn}>儲存</button>
+              </div>
+            </div>
+          )}
+
+          {(!data.invoices || data.invoices.length === 0) ? (
+            <div style={{ fontSize: 12, color: '#a0aec0' }}>無發票紀錄</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead style={{ background: '#f5f0ea' }}>
+                <tr>
+                  <th style={th}>發票號</th>
+                  <th style={th}>日期</th>
+                  <th style={th}>開立統編</th>
+                  <th style={{ ...th, textAlign: 'right' }}>含稅</th>
+                  <th style={{ ...th, textAlign: 'right' }}>稅額</th>
+                  <th style={th}>可扣抵</th>
+                  <th style={th}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data.invoices || []).map(inv => (
+                  <tr key={inv.id}>
+                    <td style={td}><code>{inv.invoice_no}</code></td>
+                    <td style={td}>{inv.invoice_date || '—'}</td>
+                    <td style={td}>{inv.vendor_tax_id || '—'}</td>
+                    <td style={{ ...td, textAlign: 'right' }}>{fmtMoney(inv.amount)}</td>
+                    <td style={{ ...td, textAlign: 'right' }}>{inv.tax_amount != null ? fmtMoney(inv.tax_amount) : '—'}</td>
+                    <td style={td}>{inv.is_input_tax_eligible ? '✓' : '✗'}</td>
+                    <td style={td}>
+                      <button onClick={() => delInvoice(inv.id)} style={{ ...smallBtn, background: '#fff5f5', color: '#c53030', border: '1px solid #fed7d7' }}>刪</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* 退回原因 input */}
+        {showReject && (
+          <div style={{ padding: 10, background: '#fff0f0', border: '1px solid #feb2b2', borderRadius: 6 }}>
+            <div style={{ fontSize: 12, marginBottom: 4, color: '#c53030', fontWeight: 700 }}>退回原因</div>
+            <textarea rows={2} value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+                      style={{ ...inputStyle, resize: 'vertical' }}
+                      placeholder="請說明退回原因，廠商會在前台看到" />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 6 }}>
+              <button onClick={() => { setShowReject(false); setRejectReason(''); }} style={cancelBtn}>取消</button>
+              <button onClick={doReject} disabled={busy} style={{ ...primaryBtn, background: '#c53030' }}>確認退回</button>
+            </div>
+          </div>
+        )}
+
+        {/* 操作 */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid #e0d5c8', paddingTop: 12 }}>
+          <button onClick={onClose} style={cancelBtn}>關閉</button>
+          {canApproveReject && (
+            <>
+              <button onClick={() => setShowReject(true)} disabled={busy}
+                      style={{ ...cancelBtn, color: '#c53030', borderColor: '#feb2b2' }}>✗ 退回</button>
+              <button onClick={doApprove} disabled={busy}
+                      style={{ ...primaryBtn, background: '#2d6a4f' }}>✓ 通過</button>
+            </>
+          )}
+          {canMarkPaid && (
+            <button onClick={doMarkPaid} disabled={busy}
+                    style={{ ...primaryBtn, background: '#2c7a7b' }}>💰 標記已撥款</button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// 共用 Modal（簡化版，避免跟既有 Modal 衝突先 inline 一個）
+function Modal({ title, children, onClose, width = 800 }) {
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: 10, width: '100%', maxWidth: width, maxHeight: '90vh',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid #e0d5c8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#3a2e1e' }}>{title}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#6b5640' }}>×</button>
+        </div>
+        <div style={{ padding: 18, overflow: 'auto', flex: 1 }}>{children}</div>
+      </div>
     </div>
   );
 }
@@ -1197,9 +1852,10 @@ export default function BillingV2Page() {
     billingV2Api.getSources({ is_active: true }).then(r => r.success && setSources(r.data));
 
   const TABS = [
-    { key: 'bills',   label: '帳單列表' },
-    { key: 'sources', label: '來源單位',   hidden: !canManage(user?.role) },
-    { key: 'vendors', label: '廠商帳號管理', hidden: !canManage(user?.role) },
+    { key: 'bills',           label: '帳單列表' },
+    { key: 'vendor_payment',  label: '廠商請款審核' },
+    { key: 'sources',         label: '來源單位',     hidden: !canManage(user?.role) },
+    { key: 'vendors',         label: '廠商帳號管理', hidden: !canManage(user?.role) },
   ].filter(t => !t.hidden);
 
   return (
@@ -1349,7 +2005,12 @@ export default function BillingV2Page() {
 
       {/* 廠商帳號管理 */}
       {tab === 'vendors' && (
-        <VendorAccountsPanel sources={sources} />
+        <VendorAccountsPanel sources={sources} onSourceUpdate={refreshSources} />
+      )}
+
+      {/* 廠商請款審核 */}
+      {tab === 'vendor_payment' && (
+        <VendorPaymentReviewPanel sources={sources} />
       )}
 
       {/* 帳單詳情 Modal */}

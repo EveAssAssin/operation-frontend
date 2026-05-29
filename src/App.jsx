@@ -26,11 +26,14 @@ import PointRedeemPage      from './pages/pointRedemption/PointRedeemPage';
 import PointRedeemAdminPage from './pages/pointRedemption/PointRedeemAdminPage';
 import BasicDataPage        from './pages/basicData/BasicDataPage';
 import ScheduledNotifyPage  from './pages/scheduledNotify/ScheduledNotifyPage';
+import PermissionsPage      from './pages/permissions/PermissionsPage';
 
 // 廠商後台
-import VendorLoginPage  from './pages/vendor/VendorLoginPage';
-import VendorBillsPage  from './pages/vendor/VendorBillsPage';
-import VendorLayout     from './pages/vendor/VendorLayout';
+import VendorLoginPage    from './pages/vendor/VendorLoginPage';
+import VendorBillsPage    from './pages/vendor/VendorBillsPage';
+import VendorRequestsPage from './pages/vendor/VendorRequestsPage';
+import VendorProfilePage  from './pages/vendor/VendorProfilePage';
+import VendorLayout       from './pages/vendor/VendorLayout';
 
 // 通用簽收頁面（LINE LIFF / Web，不需登入）
 import UniversalSignPage from './pages/sign/UniversalSignPage';
@@ -99,11 +102,14 @@ function AppRoutes() {
       <Route path="/processes/handover" element={<PrivateRoute><HandoverPage /></PrivateRoute>} />
       <Route path="/basic-data"         element={<PrivateRoute><BasicDataPage /></PrivateRoute>} />
       <Route path="/scheduled-notify"   element={<PrivateRoute><ScheduledNotifyPage /></PrivateRoute>} />
+      <Route path="/system/permissions" element={<PrivateRoute><PermissionsPage /></PrivateRoute>} />
 
       {/* 廠商後台（獨立 JWT，獨立 Layout） */}
-      <Route path="/vendor/login" element={vendor ? <Navigate to="/vendor/bills" replace /> : <VendorLoginPage />} />
-      <Route path="/vendor/bills" element={<VendorPrivateRoute><VendorBillsPage /></VendorPrivateRoute>} />
-      <Route path="/vendor"       element={<Navigate to="/vendor/login" replace />} />
+      <Route path="/vendor/login"    element={vendor ? <Navigate to="/vendor/bills" replace /> : <VendorLoginPage />} />
+      <Route path="/vendor/bills"    element={<VendorPrivateRoute><VendorBillsPage /></VendorPrivateRoute>} />
+      <Route path="/vendor/requests" element={<VendorPrivateRoute><VendorRequestsPage /></VendorPrivateRoute>} />
+      <Route path="/vendor/profile"  element={<VendorPrivateRoute><VendorProfilePage /></VendorPrivateRoute>} />
+      <Route path="/vendor"          element={<Navigate to="/vendor/login" replace />} />
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

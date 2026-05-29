@@ -7,77 +7,76 @@ import { useAuth } from '../contexts/AuthContext';
 
 // ── 導覽項目定義 ─────────────────────────────────────────────
 // 有 children 的項目可展開，自身不導頁
+// moduleKey 對應 DB modules.key，用於分權系統過濾選單
 const NAV_ITEMS = [
-  { path: '/dashboard',       label: '首頁',     icon: '🏠' },
-  { path: '/personnel',       label: '人員管理', icon: '👥', minRole: 'operation_staff' },
-  { path: '/basic-data',      label: '基本資料', icon: '📚', minRole: 'operation_staff' },
+  { path: '/dashboard',       label: '首頁',     icon: '🏠', moduleKey: 'dashboard' },
+  { path: '/personnel',       label: '人員管理', icon: '👥', minRole: 'operation_staff', moduleKey: 'personnel' },
+  { path: '/basic-data',      label: '基本資料', icon: '📚', minRole: 'operation_staff', moduleKey: 'basic_data' },
   {
     key:   'dept-billing',
     label: '部門開帳',
     icon:  '🏢',
     minRole: 'operation_staff',
+    moduleKey: 'billing',
     children: [
-      { path: '/billing', label: '工程開帳', icon: '🔧' },
+      { path: '/billing', label: '工程開帳', icon: '🔧', moduleKey: 'billing' },
       // 之後新增的部門開帳（企劃部 / 美睫部 等）都加在這裡
     ],
   },
-  { path: '/billing-v2',      label: '帳單管理', icon: '🧾', minRole: 'operation_staff' },
-  { path: '/billing-report',  label: '帳單月報', icon: '📊', minRole: 'operation_staff' },
-  { path: '/checks',          label: '支票紀錄', icon: '🏦', minRole: 'operation_staff' },
-  { path: '/recurring-expenses', label: '常態費用', icon: '💴', minRole: 'operation_staff' },
-  { path: '/recruitment',     label: '人力招募', icon: '🧑‍💼', minRole: 'operation_staff' },
-  { path: '/sales-events',    label: '業績活動', icon: '📣', minRole: 'operation_staff' },
-  { path: '/quests',          label: '任務派發', icon: '📋', minRole: 'operation_staff' },
+  { path: '/billing-v2',      label: '帳單管理', icon: '🧾', minRole: 'operation_staff', moduleKey: 'billing_v2' },
+  { path: '/billing-report',  label: '帳單月報', icon: '📊', minRole: 'operation_staff', moduleKey: 'billing_report' },
+  { path: '/checks',          label: '支票紀錄', icon: '🏦', minRole: 'operation_staff', moduleKey: 'checks' },
+  { path: '/recurring-expenses', label: '常態費用', icon: '💴', minRole: 'operation_staff', moduleKey: 'recurring_expenses' },
+  { path: '/recruitment',     label: '人力招募', icon: '🧑‍💼', minRole: 'operation_staff', moduleKey: 'recruitment' },
+  { path: '/sales-events',    label: '業績活動', icon: '📣', minRole: 'operation_staff', moduleKey: 'sales_events' },
+  { path: '/quests',          label: '任務派發', icon: '📋', minRole: 'operation_staff', moduleKey: 'quests' },
   {
     key:   'processes',
     label: '各類流程',
     icon:  '🗂️',
     minRole: 'operation_staff',
+    moduleKey: 'processes',
     children: [
-      { path: '/processes/handover', label: '門市交接表', icon: '📝' },
+      { path: '/processes/handover', label: '門市交接表', icon: '📝', moduleKey: 'processes' },
       // 之後新增的子流程都加在這裡
     ],
   },
-  {
-    path:  '/appointed-units',
-    label: '特約廠商',
-    icon:  '🤝',
-    minRole: 'operation_staff',
-  },
-  {
-    path:  '/point-redemption',
-    label: '分數兌換',
-    icon:  '🪙',
-    minRole: 'operation_staff',
-  },
-  {
-    path:  '/scheduled-notify',
-    label: '排程推播',
-    icon:  '⏰',
-    minRole: 'operation_staff',
-  },
+  { path:  '/appointed-units',    label: '特約廠商', icon:  '🤝', minRole: 'operation_staff', moduleKey: 'appointed_units' },
+  { path:  '/point-redemption',   label: '分數兌換', icon:  '🪙', minRole: 'operation_staff', moduleKey: 'point_redemption' },
+  { path:  '/scheduled-notify',   label: '排程推播', icon:  '⏰', minRole: 'operation_staff', moduleKey: 'scheduled_notify' },
+  // 系統設定 — 僅 admin 角色（is_admin=true）能看
+  { path:  '/system/permissions', label: '權限管理', icon:  '⚙', adminOnly: true, moduleKey: 'system_settings' },
 ];
 
 // 角色中文標籤
 const ROLE_LABELS = {
-  super_admin:     '超級管理員',
-  operation_lead:  '營運部主管',
-  operation_staff: '營運部部員',
+  super_admin:          '超級管理員',
+  dept_head:            '部門主管',
+  operation_lead:       '營運部主管',
+  operation_accounting: '營運部會計',
+  operation_hr:         '營運部人事',
+  operation_staff:      '營運部部員',
 };
 
 const ROLE_COLORS = {
-  super_admin:     '#fed7d7',
-  operation_lead:  '#faf5ee',
-  operation_staff: '#f5f0ea',
+  super_admin:          '#fed7d7',
+  dept_head:            '#fef3c7',
+  operation_lead:       '#fef3c7',
+  operation_accounting: '#dbeafe',
+  operation_hr:         '#dcfce7',
+  operation_staff:      '#f5f0ea',
 };
 const ROLE_TEXT = {
-  super_admin:     '#c53030',
-  operation_lead:  '#8b6f4e',
-  operation_staff: '#50422d',
+  super_admin:          '#c53030',
+  dept_head:            '#92400e',
+  operation_lead:       '#8b6f4e',
+  operation_accounting: '#1e40af',
+  operation_hr:         '#15803d',
+  operation_staff:      '#50422d',
 };
 
 export default function Layout({ children }) {
-  const { user, logout, hasRole } = useAuth();
+  const { user, logout, hasRole, hasModule, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -120,7 +119,14 @@ export default function Layout({ children }) {
         {/* 導覽連結 */}
         <nav style={styles.nav}>
           {NAV_ITEMS
-            .filter(item => !item.minRole || hasRole(item.minRole))
+            .filter(item => {
+              // adminOnly：僅全權角色（is_admin=true）能看
+              if (item.adminOnly) return isAdmin();
+              // 分權系統：有 moduleKey 就用 hasModule 過濾
+              if (item.moduleKey) return hasModule(item.moduleKey);
+              // 沒有 moduleKey 才退回原本的 minRole 檢查（向下相容）
+              return !item.minRole || hasRole(item.minRole);
+            })
             .map(item => {
               if (Array.isArray(item.children)) {
                 const isExpanded = expanded.has(item.key);
