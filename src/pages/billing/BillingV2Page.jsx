@@ -2,7 +2,7 @@
 // 開帳系統 v2：帳單管理（來源單位 / 會計科目 / 帳單建立與審核）
 
 import { useState, useEffect, useCallback } from 'react';
-import { billingV2Api, personnelApi, billingApi, vendorPaymentApi } from '../../services/api';
+import { billingV2Api, personnelApi, billingApi, vendorPaymentApi, paymentBatchApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 // ── 廠商帳號管理面板 ──────────────────────────────────────────
@@ -881,6 +881,500 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
     </Modal>
   );
 }
+
+// ════════════════════════════════════════════════════════════
+//   匯款批次面板（S2）
+// ════════════════════════════════════════════════════════════
+const BATCH_STATUS_LABEL = {
+  preparing: '⏳ 準備中',
+  exported:  '📤 已匯出',
+  paid:      '💰 已撥款',
+  cancelled: '✗ 已取消',
+};
+const BATCH_STATUS_COLOR = {
+  preparing: ['#fff8ec', '#8b6f4e', '#e5c99a'],
+  exported:  ['#e0f2fe', '#0369a1', '#7dd3fc'],
+  paid:      ['#e6fffa', '#2c7a7b', '#81e6d9'],
+  cancelled: ['#f3f3f3', '#888',    '#ccc'],
+};
+
+function PaymentBatchPanel() {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [detail, setDetail] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (filterStatus) params.status = filterStatus;
+      const r = await paymentBatchApi.listBatches(params);
+      setList(Array.isArray(r?.data) ? r.data : []);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [filterStatus]);
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+        <select style={selectStyle} value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}>
+          <option value="">全部狀態</option>
+          {Object.entries(BATCH_STATUS_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+        <div style={{ flex: 1 }} />
+        <button onClick={() => setCreating(true)} style={primaryBtn}>+ 建立批次</button>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e0d5c8', overflow: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead style={{ background: '#f5f0ea' }}>
+            <tr>
+              <th style={th}>批次號 / 撥款日</th>
+              <th style={th}>付款方</th>
+              <th style={{ ...th, textAlign: 'right' }}>金額</th>
+              <th style={{ ...th, textAlign: 'right' }}>筆數</th>
+              <th style={th}>狀態</th>
+              <th style={th}>建立時間</th>
+              <th style={th}>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', padding: 20 }}>載入中…</td></tr>}
+            {!loading && list.length === 0 && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', padding: 20, color: '#a0aec0' }}>尚無批次，點「+ 建立批次」</td></tr>}
+            {!loading && list.map(b => {
+              const [bg, color, border] = BATCH_STATUS_COLOR[b.status] || BATCH_STATUS_COLOR.preparing;
+              return (
+                <tr key={b.id} style={trHover}>
+                  <td style={td}>
+                    <b style={{ fontFamily: 'monospace' }}>{b.batch_no}</b>
+                    <div style={{ fontSize: 11, color: '#a0aec0' }}>{b.payment_date}</div>
+                  </td>
+                  <td style={td}>{b.payer_account_name || '—'}<br /><span style={{ fontSize: 11, color: '#a0aec0', fontFamily: 'monospace' }}>{b.payer_bank_code}-{b.payer_branch_code}</span></td>
+                  <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
+                    {fmtMoney(b.total_amount)}
+                  </td>
+                  <td style={{ ...td, textAlign: 'right' }}>{b.total_items}</td>
+                  <td style={td}>
+                    <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: bg, color, border: `1px solid ${border}` }}>
+                      {BATCH_STATUS_LABEL[b.status]}
+                    </span>
+                  </td>
+                  <td style={{ ...td, fontSize: 11, color: '#6b5640' }}>
+                    {new Date(b.created_at).toLocaleString('zh-TW', { dateStyle: 'short', timeStyle: 'short' })}
+                  </td>
+                  <td style={td}>
+                    <button onClick={() => setDetail(b)} style={smallBtn}>檢視 / 操作</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {creating && <CreateBatchModal onClose={() => { setCreating(false); load(); }} />}
+      {detail   && <BatchDetailModal batchId={detail.id} onClose={() => { setDetail(null); load(); }} />}
+    </div>
+  );
+}
+
+// ── 建立批次 ────────────────────────────────────────────────
+function CreateBatchModal({ onClose }) {
+  const [eligible, setEligible] = useState([]);
+  const [selected, setSelected] = useState(new Set());
+  const [filterPeriod, setFilterPeriod] = useState('');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const params = filterPeriod ? { period: filterPeriod } : {};
+      const r = await paymentBatchApi.listEligible(params);
+      setEligible(Array.isArray(r?.data) ? r.data : []);
+    } catch (e) { console.error(e); }
+  }, [filterPeriod]);
+  useEffect(() => { load(); }, [load]);
+
+  function toggle(id) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    if (selected.size === eligible.length) setSelected(new Set());
+    else setSelected(new Set(eligible.map(r => r.id)));
+  }
+
+  const totalAmount = eligible
+    .filter(r => selected.has(r.id))
+    .reduce((s, r) => s + Number(r.total_amount || 0), 0);
+
+  async function submit() {
+    if (selected.size === 0) return alert('請至少選一筆');
+    if (!paymentDate) return alert('撥款日必填');
+    setBusy(true);
+    try {
+      await paymentBatchApi.createBatch({
+        payment_date: paymentDate,
+        request_ids:  Array.from(selected),
+        note,
+      });
+      onClose();
+    } catch (e) { alert('失敗：' + e.message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <Modal title="📥 建立匯款批次" onClose={onClose} width={900}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <FieldRow label="撥款日 *">
+            <input type="date" style={inputStyle} value={paymentDate}
+                   onChange={e => setPaymentDate(e.target.value)} />
+          </FieldRow>
+          <FieldRow label="篩選月份（選填）">
+            <input type="month" style={inputStyle} value={filterPeriod}
+                   onChange={e => setFilterPeriod(e.target.value)} />
+          </FieldRow>
+        </div>
+
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#3a2e1e', marginTop: 4 }}>
+          📋 可加入的已通過請款（{eligible.length} 筆）
+        </div>
+        <div style={{ maxHeight: 400, overflow: 'auto', border: '1px solid #e0d5c8', borderRadius: 6 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead style={{ background: '#f5f0ea', position: 'sticky', top: 0 }}>
+              <tr>
+                <th style={{ ...th, width: 30 }}>
+                  <input type="checkbox" checked={selected.size === eligible.length && eligible.length > 0}
+                         onChange={toggleAll} />
+                </th>
+                <th style={th}>單號</th>
+                <th style={th}>廠商</th>
+                <th style={th}>月份</th>
+                <th style={{ ...th, textAlign: 'right' }}>金額</th>
+                <th style={th}>銀行</th>
+                <th style={th}>附言</th>
+              </tr>
+            </thead>
+            <tbody>
+              {eligible.length === 0 && (
+                <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: '#a0aec0', padding: 20 }}>無可加入的請款（必須是「已通過」）</td></tr>
+              )}
+              {eligible.map(r => (
+                <tr key={r.id} style={{ background: selected.has(r.id) ? '#fff8ec' : undefined }}>
+                  <td style={td}>
+                    <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
+                  </td>
+                  <td style={td}><code>{r.request_no}</code></td>
+                  <td style={td}>{r.source?.name}</td>
+                  <td style={td}>{r.period}</td>
+                  <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{fmtMoney(r.total_amount)}</td>
+                  <td style={td}>
+                    {r.bank_account ? (
+                      <div style={{ fontSize: 11 }}>
+                        {r.bank_account.bank_code}-{r.bank_account.branch_code}<br />
+                        <code>{r.bank_account.account_no}</code> / {r.bank_account.account_name}
+                      </div>
+                    ) : <span style={{ color: '#c53030', fontSize: 11 }}>⚠ 未設定銀行</span>}
+                  </td>
+                  <td style={td}><code style={{ fontSize: 11 }}>{r.remit_memo || '—'}</code></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <FieldRow label="批次備註（選填）">
+          <textarea rows={2} style={{ ...inputStyle, resize: 'vertical' }} value={note}
+                    onChange={e => setNote(e.target.value)} />
+        </FieldRow>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e0d5c8', paddingTop: 12 }}>
+          <div style={{ fontSize: 14 }}>
+            已選 <b>{selected.size}</b> 筆，合計 <b style={{ color: '#50422d' }}>{fmtMoney(totalAmount)}</b>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} style={cancelBtn}>取消</button>
+            <button onClick={submit} disabled={busy || selected.size === 0} style={primaryBtn}>
+              {busy ? '處理中…' : '建立批次'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── 批次詳情 ────────────────────────────────────────────────
+function BatchDetailModal({ batchId, onClose }) {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await paymentBatchApi.getBatch(batchId);
+      setData(r?.data || null);
+    } catch (e) { console.error(e); }
+  }, [batchId]);
+  useEffect(() => { load(); }, [load]);
+
+  async function downloadXlsx() {
+    setBusy(true);
+    try {
+      const token = localStorage.getItem('operation_token');
+      const baseURL = window.location.hostname === 'localhost' ? '/api' : (import.meta.env.VITE_API_URL || 'https://operation-backend.onrender.com/api');
+      const url = baseURL + paymentBatchApi.exportBatchUrl(batchId);
+      const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      if (!resp.ok) { alert('匯出失敗'); return; }
+      const blob = await resp.blob();
+      const cd = resp.headers.get('Content-Disposition') || '';
+      const m = cd.match(/filename\*=UTF-8''([^;]+)/);
+      const filename = m ? decodeURIComponent(m[1]) : `${data.batch_no}.xlsx`;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      load();
+    } catch (e) { alert('失敗：' + e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function markPaid() {
+    if (!window.confirm(`確認所有 ${data.total_items} 筆請款已實際撥款？\n標記後對應請款的狀態會變為「已撥款」`)) return;
+    setBusy(true);
+    try { await paymentBatchApi.markPaid(batchId); load(); }
+    catch (e) { alert('失敗：' + e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function doCancel() {
+    const reason = window.prompt('取消原因？');
+    if (!reason) return;
+    setBusy(true);
+    try { await paymentBatchApi.cancelBatch(batchId, reason); load(); }
+    catch (e) { alert('失敗：' + e.message); }
+    finally { setBusy(false); }
+  }
+
+  if (!data) {
+    return <Modal title="載入中…" onClose={onClose} width={900}><div style={{ padding: 30, textAlign: 'center' }}>載入中…</div></Modal>;
+  }
+
+  const [bg, color, border] = BATCH_STATUS_COLOR[data.status] || BATCH_STATUS_COLOR.preparing;
+
+  return (
+    <Modal title={`📦 ${data.batch_no}`} onClose={onClose} width={900}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ padding: 12, background: '#f5f0ea', borderRadius: 6, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, fontSize: 13 }}>
+          <div><span style={{ color: '#a0aec0' }}>撥款日：</span>{data.payment_date}</div>
+          <div><span style={{ color: '#a0aec0' }}>金額：</span><b>{fmtMoney(data.total_amount)}</b></div>
+          <div><span style={{ color: '#a0aec0' }}>筆數：</span>{data.total_items}</div>
+          <div><span style={{ color: '#a0aec0' }}>狀態：</span>
+            <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: bg, color, border: `1px solid ${border}` }}>
+              {BATCH_STATUS_LABEL[data.status]}
+            </span>
+          </div>
+          <div><span style={{ color: '#a0aec0' }}>付款方：</span>{data.payer_account_name} <code style={{ fontSize: 11 }}>{data.payer_bank_code}-{data.payer_branch_code} / {data.payer_account_no}</code></div>
+        </div>
+
+        {data.cancelled_reason && (
+          <div style={{ padding: 10, background: '#f3f3f3', border: '1px solid #ccc', borderRadius: 6, fontSize: 12 }}>
+            <b>取消原因：</b>{data.cancelled_reason}
+          </div>
+        )}
+
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>📋 明細（{data.items?.length || 0}）</div>
+          <div style={{ maxHeight: 350, overflow: 'auto', border: '1px solid #e0d5c8', borderRadius: 6 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead style={{ background: '#f5f0ea', position: 'sticky', top: 0 }}>
+                <tr>
+                  <th style={th}>請款單號</th>
+                  <th style={th}>廠商</th>
+                  <th style={th}>銀行</th>
+                  <th style={th}>戶名</th>
+                  <th style={{ ...th, textAlign: 'right' }}>金額</th>
+                  <th style={th}>附言</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data.items || []).map(it => (
+                  <tr key={it.id}>
+                    <td style={td}><code>{it.request?.request_no || '—'}</code></td>
+                    <td style={td}>{it.source_name}</td>
+                    <td style={td}>{it.bank_code}-{it.branch_code} <code style={{ fontSize: 11 }}>{it.account_no}</code></td>
+                    <td style={td}>{it.account_name}</td>
+                    <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{fmtMoney(it.amount)}</td>
+                    <td style={td}><code style={{ fontSize: 11 }}>{it.memo || '—'}</code></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid #e0d5c8', paddingTop: 12 }}>
+          <button onClick={onClose} style={cancelBtn}>關閉</button>
+          {data.status !== 'paid' && data.status !== 'cancelled' && (
+            <button onClick={doCancel} disabled={busy} style={{ ...cancelBtn, color: '#c53030', borderColor: '#feb2b2' }}>
+              ✗ 取消批次
+            </button>
+          )}
+          {data.status !== 'cancelled' && (
+            <button onClick={downloadXlsx} disabled={busy} style={primaryBtn}>
+              📥 下載元大格式 xlsx
+            </button>
+          )}
+          {(data.status === 'exported' || data.status === 'preparing') && (
+            <button onClick={markPaid} disabled={busy} style={{ ...primaryBtn, background: '#2c7a7b' }}>
+              💰 標記已撥款
+            </button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+
+// ════════════════════════════════════════════════════════════
+//   進項發票面板
+// ════════════════════════════════════════════════════════════
+function InputInvoicePanel() {
+  const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [exportLog, setExportLog] = useState([]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await paymentBatchApi.listInputInvoices(period);
+      setList(Array.isArray(r?.data) ? r.data : []);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [period]);
+
+  const loadLog = useCallback(async () => {
+    try {
+      const r = await paymentBatchApi.listExportLog();
+      setExportLog(Array.isArray(r?.data) ? r.data : []);
+    } catch (e) { console.error(e); }
+  }, []);
+
+  useEffect(() => { load(); loadLog(); }, [load, loadLog]);
+
+  async function download() {
+    try {
+      const token = localStorage.getItem('operation_token');
+      const baseURL = window.location.hostname === 'localhost' ? '/api' : (import.meta.env.VITE_API_URL || 'https://operation-backend.onrender.com/api');
+      const url = baseURL + paymentBatchApi.exportInputInvoiceUrl(period);
+      const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      if (!resp.ok) { alert('匯出失敗'); return; }
+      const blob = await resp.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `進項發票_${period}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      loadLog();
+    } catch (e) { alert('失敗：' + e.message); }
+  }
+
+  const totalAmt = list.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const totalTax = list.reduce((s, r) => s + Number(r.tax_amount || 0), 0);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+        <input type="month" style={{ ...inputStyle, width: 160 }} value={period}
+               onChange={e => setPeriod(e.target.value)} />
+        <button onClick={load} style={cancelBtn}>↻ 重新整理</button>
+        <div style={{ flex: 1 }} />
+        <button onClick={download} style={primaryBtn} disabled={list.length === 0}>
+          📥 匯出 CSV（{list.length} 筆）
+        </button>
+      </div>
+
+      <div style={{ marginBottom: 12, padding: 12, background: '#fff8ec', border: '1px solid #e5c99a', borderRadius: 6, fontSize: 13 }}>
+        <b>{period}</b> 月份共 {list.length} 張發票 ｜
+        含稅 <b>{fmtMoney(totalAmt)}</b> ｜
+        稅額 <b>{fmtMoney(totalTax)}</b>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e0d5c8', overflow: 'auto', marginBottom: 16 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead style={{ background: '#f5f0ea' }}>
+            <tr>
+              <th style={th}>發票日期</th>
+              <th style={th}>發票號碼</th>
+              <th style={th}>廠商</th>
+              <th style={th}>開立統編</th>
+              <th style={{ ...th, textAlign: 'right' }}>未稅</th>
+              <th style={{ ...th, textAlign: 'right' }}>稅額</th>
+              <th style={{ ...th, textAlign: 'right' }}>含稅</th>
+              <th style={th}>請款單號</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', padding: 20 }}>載入中…</td></tr>}
+            {!loading && list.length === 0 && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', padding: 20, color: '#a0aec0' }}>該月無進項發票</td></tr>}
+            {!loading && list.map(inv => (
+              <tr key={inv.id}>
+                <td style={td}>{inv.invoice_date}</td>
+                <td style={td}><code>{inv.invoice_no}</code></td>
+                <td style={td}>{inv.request?.source?.name || '—'}</td>
+                <td style={td}>{inv.vendor_tax_id || '—'}</td>
+                <td style={{ ...td, textAlign: 'right' }}>{inv.pre_tax_amount != null ? fmtMoney(inv.pre_tax_amount) : '—'}</td>
+                <td style={{ ...td, textAlign: 'right' }}>{inv.tax_amount != null ? fmtMoney(inv.tax_amount) : '—'}</td>
+                <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{fmtMoney(inv.amount)}</td>
+                <td style={td}><code>{inv.request?.request_no || '—'}</code></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 匯出歷史 */}
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6, color: '#3a2e1e' }}>🕐 匯出歷史</div>
+      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e0d5c8', overflow: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead style={{ background: '#f5f0ea' }}>
+            <tr>
+              <th style={th}>匯出時間</th>
+              <th style={th}>月份</th>
+              <th style={{ ...th, textAlign: 'right' }}>筆數</th>
+              <th style={{ ...th, textAlign: 'right' }}>金額</th>
+              <th style={th}>匯出者</th>
+            </tr>
+          </thead>
+          <tbody>
+            {exportLog.length === 0 && <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: '#a0aec0' }}>無紀錄</td></tr>}
+            {exportLog.map(log => (
+              <tr key={log.id}>
+                <td style={td}>{new Date(log.exported_at).toLocaleString('zh-TW', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                <td style={td}>{log.period}</td>
+                <td style={{ ...td, textAlign: 'right' }}>{log.invoice_count}</td>
+                <td style={{ ...td, textAlign: 'right' }}>{fmtMoney(log.total_amount)}</td>
+                <td style={td}>{log.exporter?.name || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 
 // 共用 Modal（簡化版，避免跟既有 Modal 衝突先 inline 一個）
 function Modal({ title, children, onClose, width = 800 }) {
@@ -1854,6 +2348,8 @@ export default function BillingV2Page() {
   const TABS = [
     { key: 'bills',           label: '帳單列表' },
     { key: 'vendor_payment',  label: '廠商請款審核' },
+    { key: 'payment_batch',   label: '匯款批次' },
+    { key: 'input_invoice',   label: '進項發票' },
     { key: 'sources',         label: '來源單位',     hidden: !canManage(user?.role) },
     { key: 'vendors',         label: '廠商帳號管理', hidden: !canManage(user?.role) },
   ].filter(t => !t.hidden);
@@ -2011,6 +2507,16 @@ export default function BillingV2Page() {
       {/* 廠商請款審核 */}
       {tab === 'vendor_payment' && (
         <VendorPaymentReviewPanel sources={sources} />
+      )}
+
+      {/* 匯款批次 */}
+      {tab === 'payment_batch' && (
+        <PaymentBatchPanel />
+      )}
+
+      {/* 進項發票 */}
+      {tab === 'input_invoice' && (
+        <InputInvoicePanel />
       )}
 
       {/* 帳單詳情 Modal */}

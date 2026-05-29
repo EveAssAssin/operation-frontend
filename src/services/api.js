@@ -536,6 +536,24 @@ export const vendorPaymentApi = {
   deleteInvoice:        (id)                  => api.delete(`/vendor-payment/invoices/${id}`),
 };
 
+// 匯款批次（S2：元大格式 + 進項發票）
+export const paymentBatchApi = {
+  // 批次
+  listBatches:    (params = {})  => api.get('/payment-batch/batches', { params }),
+  getBatch:       (id)           => api.get(`/payment-batch/batches/${id}`),
+  createBatch:    (body)         => api.post('/payment-batch/batches', body),
+  cancelBatch:    (id, reason)   => api.post(`/payment-batch/batches/${id}/cancel`, { reason }),
+  markPaid:       (id)           => api.post(`/payment-batch/batches/${id}/mark-paid`),
+  // 可加入批次的請款
+  listEligible:   (params = {})  => api.get('/payment-batch/eligible-requests', { params }),
+  // 匯出 url（直接給 a tag 下載，需含 token 在 header → 用 fetch 包）
+  exportBatchUrl: (id)           => `/payment-batch/batches/${id}/export`,
+  exportInputInvoiceUrl: (period) => `/payment-batch/input-invoices/export?period=${period}`,
+  // 進項發票
+  listInputInvoices: (period)    => api.get('/payment-batch/input-invoices', { params: { period } }),
+  listExportLog:     ()          => api.get('/payment-batch/input-invoices/export-log'),
+};
+
 // 分權系統（角色 / 模組 / 權限設定）
 export const permissionsApi = {
   // 任何人可呼叫
