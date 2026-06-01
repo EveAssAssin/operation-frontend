@@ -318,20 +318,15 @@ function renderValue(v, type) {
 //             視角 2：依門市（左門市列表 + 右多分類資料）
 // ════════════════════════════════════════════════════════════
 function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrFields }) {
-  const [allFacts, setAllFacts] = useState([]);
-  const [fieldsByCat, setFieldsByCat] = useState({});  // {catId: [fields]}
+  const [allFacts, setAllFacts]       = useState([]);   // 全系統 facts（一次撈完）
+  const [fieldsByCat, setFieldsByCat] = useState({});   // {catId: [fields]}
 
-  useEffect(() => {
-    if (!selStoreErpid && stores.length) setSelStoreErpid(stores[0].store_erpid);
-  }, [stores, selStoreErpid, setSelStoreErpid]);
-
-  const loadFacts = useCallback(async () => {
-    if (!selStoreErpid) return;
+  // 一次撈所有 facts + 所有分類欄位
+  const loadAll = useCallback(async () => {
     try {
-      const res = await basicDataApi.listFacts({ store_erpid: selStoreErpid });
+      const res = await basicDataApi.listFacts({});   // 不帶 store_erpid → 撈全部
       setAllFacts(Array.isArray(res?.data) ? res.data : []);
 
-      // 同步抓所有分類的欄位（一次）
       if (Object.keys(fieldsByCat).length === 0 && categories.length) {
         const entries = await Promise.all(categories.map(c =>
           basicDataApi.listFields(c.id).then(r => [c.id, Array.isArray(r?.data) ? r.data : []])
@@ -339,28 +334,84 @@ function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrF
         setFieldsByCat(Object.fromEntries(entries));
       }
     } catch (e) { console.error(e); }
-  }, [selStoreErpid, categories, fieldsByCat]);
+  }, [categories, fieldsByCat]);
 
-  useEffect(() => { loadFacts(); }, [loadFacts]);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
-  const factsByCat = useMemo(() => {
+  // 各 store_erpid 的 facts 索引
+  const factsByStore = useMemo(() => {
     const map = {};
-    allFacts.forEach(f => { (map[f.category_id] = map[f.category_id] || []).push(f); });
+    allFacts.forEach(f => {
+      const k = f.store_erpid || '_none';
+      (map[k] = map[k] || []).push(f);
+    });
     return map;
   }, [allFacts]);
 
-  const selStore = stores.find(s => s.store_erpid === selStoreErpid);
+  // 統計：當前選中 store 的 facts，依分類分組
+  const factsByCat = useMemo(() => {
+    const map = {};
+    (factsByStore[selStoreErpid] || []).forEach(f => {
+      (map[f.category_id] = map[f.category_id] || []).push(f);
+    });
+    return map;
+  }, [factsByStore, selStoreErpid]);
+
+  // 未對應門市：entity_facts 裡的 store_erpid 不在 departments → 用 store_name 當顯示
+  const unmappedStores = useMemo(() => {
+    const validErpids = new Set(stores.map(s => s.store_erpid));
+    const seen = new Map();
+    for (const f of allFacts) {
+      if (!f.store_erpid) continue;
+      if (validErpids.has(f.store_erpid)) continue;
+      if (!seen.has(f.store_erpid)) {
+        seen.set(f.store_erpid, { store_erpid: f.store_erpid, store_name: f.store_name || f.store_erpid });
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) => a.store_name.localeCompare(b.store_name, 'zh-TW'));
+  }, [allFacts, stores]);
+
+  // 初始選中：優先 departments 第一個，沒有再用未對應第一個
+  useEffect(() => {
+    if (selStoreErpid) return;
+    if (stores.length)         setSelStoreErpid(stores[0].store_erpid);
+    else if (unmappedStores.length) setSelStoreErpid(unmappedStores[0].store_erpid);
+  }, [stores, unmappedStores, selStoreErpid, setSelStoreErpid]);
+
+  // 算每個分類的合計（只把 field_type='number' 的欄位加總）
+  function sumCategory(facts, fields) {
+    let sum = 0;
+    for (const f of facts) {
+      for (const fd of fields) {
+        if (fd.field_type !== 'number') continue;
+        const v = f.data?.[fd.field_key];
+        const n = Number(v);
+        if (!isNaN(n) && v !== null && v !== '') sum += n;
+      }
+    }
+    return sum;
+  }
+
+  const selStore         = stores.find(s => s.store_erpid === selStoreErpid);
+  const selUnmappedStore = unmappedStores.find(s => s.store_erpid === selStoreErpid);
+  const isUnmapped       = !selStore && !!selUnmappedStore;
+  const displayStore     = selStore || selUnmappedStore;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 12 }}>
       {/* 左：門市清單 */}
       <div style={{ background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, maxHeight: '75vh', overflow: 'auto' }}>
-        <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.border}`, fontSize: 13, fontWeight: 700, color: C.textDark, position: 'sticky', top: 0, background: C.bg }}>
-          門市 / 部門（{stores.length}）
+        <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.border}`, fontSize: 13, fontWeight: 700, color: C.textDark, position: 'sticky', top: 0, background: C.bg, zIndex: 1 }}>
+          🏬 正式門市 / 部門（{stores.length}）
         </div>
         {stores.map(s => {
           const isActive = s.store_erpid === selStoreErpid;
-          const factCnt  = allFacts.length; // 對選中的這個 store 有效
+          const sFacts   = factsByStore[s.store_erpid] || [];
+          // 依分類整理「N」筆
+          const catSummary = categories.map(c => {
+            const n = sFacts.filter(f => f.category_id === c.id).length;
+            return n > 0 ? `${c.icon || ''}${n}` : null;
+          }).filter(Boolean).join(' ');
           return (
             <button key={s.store_erpid}
               onClick={() => setSelStoreErpid(s.store_erpid)}
@@ -374,27 +425,79 @@ function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrF
                 borderBottom: `1px solid ${C.border}`,
               }}>
               <div style={{ fontWeight: 600 }}>{s.store_name}</div>
-              <div style={{ fontSize: 11, color: C.textLight }}>{s.store_erpid}{isActive && ` · ${factCnt} 筆`}</div>
+              <div style={{ fontSize: 11, color: C.textLight }}>{s.store_erpid}</div>
+              {catSummary && <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>{catSummary}</div>}
             </button>
           );
         })}
+
+        {/* 未對應門市區塊 */}
+        {unmappedStores.length > 0 && (
+          <>
+            <div style={{ padding: '10px 12px', borderTop: `2px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, fontSize: 13, fontWeight: 700, color: '#c53030', background: '#fff0f0', position: 'sticky', top: 0 }}>
+              ⚠ 未對應門市（{unmappedStores.length}）
+            </div>
+            <div style={{ padding: '6px 12px', fontSize: 11, color: '#c53030', background: '#fff8f8', borderBottom: `1px solid ${C.border}` }}>
+              下列門市名沒對應到正式 departments，請點進去手動編輯每筆資料改門市
+            </div>
+            {unmappedStores.map(s => {
+              const isActive = s.store_erpid === selStoreErpid;
+              const sFacts   = factsByStore[s.store_erpid] || [];
+              const catSummary = categories.map(c => {
+                const n = sFacts.filter(f => f.category_id === c.id).length;
+                return n > 0 ? `${c.icon || ''}${n}` : null;
+              }).filter(Boolean).join(' ');
+              return (
+                <button key={s.store_erpid}
+                  onClick={() => setSelStoreErpid(s.store_erpid)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '10px 14px', border: 'none',
+                    background: isActive ? '#fff0f0' : 'transparent',
+                    color: isActive ? '#c53030' : C.textDark,
+                    borderLeft: isActive ? `3px solid #c53030` : '3px solid transparent',
+                    cursor: 'pointer', fontSize: 13,
+                    borderBottom: `1px solid ${C.border}`,
+                  }}>
+                  <div style={{ fontWeight: 600 }}>⚠ {s.store_name}</div>
+                  <div style={{ fontSize: 11, color: '#c53030' }}>未分類 · 共 {sFacts.length} 筆</div>
+                  {catSummary && <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>{catSummary}</div>}
+                </button>
+              );
+            })}
+          </>
+        )}
       </div>
 
       {/* 右：該門市所有分類資料 */}
       <div>
-        {!selStore && <div style={{ padding: 30, color: C.textLight }}>請從左側選一個門市</div>}
-        {selStore && (
+        {!displayStore && <div style={{ padding: 30, color: C.textLight }}>請從左側選一個門市</div>}
+        {displayStore && (
           <>
-            <div style={{ background: C.bgCard, padding: '12px 16px', borderRadius: 8, border: `1px solid ${C.border}`, marginBottom: 12 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: C.textDark }}>🏬 {selStore.store_name}</div>
-              <div style={{ fontSize: 12, color: C.textLight }}>{selStore.store_erpid}</div>
+            <div style={{
+              background: isUnmapped ? '#fff0f0' : C.bgCard,
+              padding: '12px 16px', borderRadius: 8,
+              border: `1px solid ${isUnmapped ? '#feb2b2' : C.border}`,
+              marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: isUnmapped ? '#c53030' : C.textDark }}>
+                {isUnmapped ? '⚠ ' : '🏬 '}{displayStore.store_name}
+              </div>
+              <div style={{ fontSize: 12, color: isUnmapped ? '#c53030' : C.textLight }}>{displayStore.store_erpid}</div>
+              {isUnmapped && (
+                <div style={{ marginTop: 8, fontSize: 12, color: '#c53030', lineHeight: 1.6 }}>
+                  ❗ 此門市名稱沒有對應到正式部門表（departments）。資料能看但統計報表會跑不出來。<br />
+                  💡 點下面任一筆 ✏️ 編輯 → 「門市/部門」下拉選正式門市，就會搬過去。
+                </div>
+              )}
             </div>
             {categories.map(cat => {
               const list   = factsByCat[cat.id] || [];
               const fields = fieldsByCat[cat.id] || [];
+              const sum    = sumCategory(list, fields);
               return (
                 <div key={cat.id} style={{ marginBottom: 12, background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}` }}>
-                  <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: C.textDark }}>
                       {cat.icon || '📂'} {cat.name}
                     </div>
@@ -404,6 +507,12 @@ function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrF
                       color: list.length === 0 ? '#c53030' : '#2d6a4f',
                       border: `1px solid ${list.length === 0 ? '#feb2b2' : '#b7e4c7'}`,
                     }}>{list.length === 0 ? '⚠ 尚未填寫' : `${list.length} 筆`}</span>
+                    {sum > 0 && (
+                      <span style={{
+                        fontSize: 12, padding: '2px 10px', borderRadius: 999,
+                        background: '#fff8ec', color: C.dark, border: `1px solid ${C.light}`, fontWeight: 700,
+                      }}>合計 NT$ {Number(sum).toLocaleString()}</span>
+                    )}
                     <div style={{ flex: 1 }} />
                     <button style={btn('ghost')} onClick={() => onMgrFields(cat.id)}>⚙ 欄位</button>
                   </div>
