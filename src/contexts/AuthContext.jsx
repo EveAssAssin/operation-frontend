@@ -75,17 +75,20 @@ export function AuthProvider({ children }) {
     return (roleLevel[user.role] || 0) >= (roleLevel[minRole] || 999);
   }, [user]);
 
-  // 分權檢查 helper
-  const hasModule = useCallback((moduleKey, action = 'view') => {
-    if (!myModules) return true;           // 還沒載入 → 暫時放行（不擋）
-    const m = myModules.find(x => x.key === moduleKey);
-    if (!m) return false;
-    return action === 'edit' ? !!m.can_edit : !!m.can_view;
-  }, [myModules]);
-
   const isAdmin = useCallback(() => {
     return ['super_admin', 'dept_head', 'operation_lead'].includes(user?.role);
   }, [user]);
+
+  // 分權檢查 helper
+  //   admin 角色一律放行（不論 myModules 狀況）
+  //   一般角色：myModules 未載入 → 暫時放行；載入後依清單
+  const hasModule = useCallback((moduleKey, action = 'view') => {
+    if (['super_admin', 'dept_head', 'operation_lead'].includes(user?.role)) return true;
+    if (!myModules) return true;
+    const m = myModules.find(x => x.key === moduleKey);
+    if (!m) return false;
+    return action === 'edit' ? !!m.can_edit : !!m.can_view;
+  }, [myModules, user]);
 
   const roleLabel = {
     super_admin:          '超級管理員',

@@ -100,6 +100,11 @@ export const billingApi = {
   // 企劃部廣告費同步 — 同步等待回應版本 (debug 含 DB 寫入後實際筆數 + samples)
   syncAdBudgetDebug: (month) =>
     api.post('/billing/ad-sync-debug', null, { params: { month }, timeout: 60000 }),
+  // 企劃部廣告費明細（同月份）
+  getAdOrders: (month) =>
+    api.get('/billing/ad-orders', { params: { month } }),
+  // 環境變數檢查（給 ad budget 用，看 AD_BUDGET_API_URL 是否設定）
+  envCheck: () => api.get('/billing/env-check'),
 };
 
 // Billing V2 API（開帳系統 v2）

@@ -2403,10 +2403,7 @@ export default function BillingV2Page() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#2d3748' }}>開帳系統</h2>
         {tab === 'bills' && (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <AdBudgetSyncBtn />
-            <button onClick={() => setShowCreate(true)} style={primaryBtn}>＋ 新增帳單</button>
-          </div>
+          <button onClick={() => setShowCreate(true)} style={primaryBtn}>＋ 新增帳單</button>
         )}
       </div>
 
