@@ -97,6 +97,9 @@ export const billingApi = {
   // 路奇天格鏡片帳單（chi-finance-system）— 同步等待回應版本（最多 60 秒）
   syncChiFinanceLens: (period) =>
     api.post('/billing/sync/chi-finance-lens/sync-now', { period }, { timeout: 60000 }),
+  // 企劃部廣告費同步 — 同步等待回應版本 (debug 含 DB 寫入後實際筆數 + samples)
+  syncAdBudgetDebug: (month) =>
+    api.post('/billing/ad-sync-debug', null, { params: { month }, timeout: 60000 }),
 };
 
 // Billing V2 API（開帳系統 v2）

@@ -2011,6 +2011,50 @@ function BillItemsTable({ items }) {
 }
 
 // ── 路奇天格手動同步按鈕（只給 code='CHI-LENS' 的來源顯示）──
+function AdBudgetSyncBtn() {
+  const [busy, setBusy] = useState(false);
+  async function handleSync() {
+    const def = new Date();
+    const cur = `${def.getFullYear()}-${String(def.getMonth() + 1).padStart(2, '0')}`;
+    const month = window.prompt('要同步哪個月份的企劃部廣告費？格式 YYYY-MM', cur);
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) return;
+    if (!window.confirm(`確定要同步企劃部廣告費 ${month}？`)) return;
+    setBusy(true);
+    try {
+      const res = await billingApi.syncAdBudgetDebug(month);
+      if (res?.success === false) {
+        alert('同步失敗：' + (res.message || '未知錯誤') + (res.stack ? '\n\n' + res.stack.join('\n') : ''));
+      } else {
+        const samples = res?.samples || [];
+        const sampleStr = samples.slice(0, 5).map(s =>
+          `  ${s.order_id} / ${s.store_erpid} / ${s.billing_category || '-'} / NT$${(s.amount || 0).toLocaleString()}`
+        ).join('\n');
+        alert([
+          `企劃部廣告費 ${month} 同步完成`,
+          ``,
+          `同步回應：${JSON.stringify(res?.sync_result || {})}`,
+          `資料庫實際筆數：${res?.rows_in_db || 0}`,
+          res?.fallback_count_in_samples > 0
+            ? `⚠️ 前 5 筆 sample 中有 ${res.fallback_count_in_samples} 筆 store_erpid 是 fallback（未對應到 departments）`
+            : '',
+          samples.length > 0 ? `Sample (前 ${samples.length} 筆)：\n${sampleStr}` : '無資料寫入',
+          res?.count_err ? `❌ count 查詢錯誤：${res.count_err}` : '',
+        ].filter(Boolean).join('\n'));
+      }
+    } catch (e) {
+      alert('同步失敗：' + (e?.message || e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <button onClick={handleSync} disabled={busy}
+      style={{ ...primaryBtn, background: '#805ad5' }}>
+      {busy ? '同步中...' : '📣 同步企劃部廣告費'}
+    </button>
+  );
+}
+
 function ChiLensSyncBtn() {
   const [busy, setBusy] = useState(false);
   async function handleSync() {
@@ -2359,7 +2403,10 @@ export default function BillingV2Page() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#2d3748' }}>開帳系統</h2>
         {tab === 'bills' && (
-          <button onClick={() => setShowCreate(true)} style={primaryBtn}>＋ 新增帳單</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <AdBudgetSyncBtn />
+            <button onClick={() => setShowCreate(true)} style={primaryBtn}>＋ 新增帳單</button>
+          </div>
         )}
       </div>
 
