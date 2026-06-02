@@ -105,6 +105,9 @@ export const billingApi = {
     api.get('/billing/ad-orders', { params: { month } }),
   // 環境變數檢查（給 ad budget 用，看 AD_BUDGET_API_URL 是否設定）
   envCheck: () => api.get('/billing/env-check'),
+  // 純測試廣告費 API（不寫 DB）— 看廣告費後端是否能正常回應
+  adApiDebug: (month) =>
+    api.get('/billing/ad-debug', { params: { month }, timeout: 30000 }),
 };
 
 // Billing V2 API（開帳系統 v2）

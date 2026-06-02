@@ -88,8 +88,32 @@ export default function BillingAdPage() {
       const r = await billingApi.envCheck();
       alert('環境變數狀態:\n' + JSON.stringify(r?.data || r, null, 2));
     } catch (e) {
-      const r = e?.response;
-      alert(`Status ${r?.status}\n${r?.data?.message || e?.message}`);
+      alert(`錯誤: ${e?.message || JSON.stringify(e)}`);
+    }
+  }
+
+  async function handleApiTest() {
+    try {
+      const r = await billingApi.adApiDebug(month);
+      alert(['🔍 純測試廣告 API（不寫 DB）',
+        '',
+        `打的 URL: ${r?.called_url || '?'}`,
+        `回應 status: ${r?.api_status ?? '?'}`,
+        `campaigns 筆數: ${r?.campaign_count ?? '?'}`,
+        '',
+        r?.first_campaign ? '第一筆 campaign:\n' + JSON.stringify(r.first_campaign, null, 2).slice(0, 800) : '',
+        r?.raw_keys ? `\nraw response keys: ${JSON.stringify(r.raw_keys)}` : '',
+      ].filter(Boolean).join('\n'));
+    } catch (e) {
+      alert(['❌ 測試失敗（純打 API 也失敗）',
+        '',
+        `Message: ${e?.message || JSON.stringify(e)}`,
+        '',
+        '可能：',
+        '1. AD_BUDGET_API_URL 設錯 / 對方 API 路徑變了',
+        '2. 對方後端冷啟動 / 沒運作',
+        '3. 對方需要 API key 但這邊沒帶',
+      ].join('\n'));
     }
   }
 
@@ -111,6 +135,7 @@ export default function BillingAdPage() {
           </button>
           <div style={{ flex: 1 }} />
           <button onClick={handleEnvCheck} style={btn('ghost')} title="檢查後端環境變數">⚙ 檢查環境</button>
+          <button onClick={handleApiTest} style={btn('ghost')} title="純打廣告費 API，不寫 DB">🔍 純測試 API</button>
           <button onClick={handleSync} disabled={syncing} style={btn('accent')}>
             {syncing ? '同步中…' : '📥 同步本月廣告費'}
           </button>
