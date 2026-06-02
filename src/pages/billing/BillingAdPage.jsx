@@ -52,6 +52,25 @@ export default function BillingAdPage() {
     setSyncing(true);
     try {
       const r = await billingApi.syncAdBudgetDebug(month);
+      if (r?.success === false) {
+        // 後端有回應，但同步失敗 — 顯示完整訊息
+        const failedStep = (r.steps || []).find(s => !s.ok);
+        alert([
+          '❌ 同步失敗',
+          '',
+          `失敗步驟: ${failedStep?.step || '?'}`,
+          `Message: ${r.message}`,
+          r.error_code    ? `Code: ${r.error_code}` : '',
+          r.error_details ? `Details: ${r.error_details}` : '',
+          r.error_hint    ? `Hint: ${r.error_hint}` : '',
+          '',
+          'Steps:',
+          ...((r.steps || []).map(s => `  ${s.ok ? '✓' : '✗'} ${s.step}${s.ok ? '' : ': ' + (s.message || '')}`)),
+          '',
+          r.stack ? `Stack:\n${r.stack.join('\n')}` : '',
+        ].filter(Boolean).join('\n'));
+        return;
+      }
       const samples = r?.samples || [];
       const sampleStr = samples.slice(0, 5).map(s =>
         `  ${s.order_id} / ${s.store_erpid} / ${s.billing_category || '-'} / NT$${(s.amount || 0).toLocaleString()}`
@@ -65,21 +84,10 @@ export default function BillingAdPage() {
           ? `⚠️ 前 5 筆 sample 中有 ${r.fallback_count_in_samples} 筆 store_erpid 是 fallback`
           : '',
         samples.length > 0 ? `Sample (前 ${samples.length} 筆)：\n${sampleStr}` : '無資料寫入',
-        r?.count_err ? `❌ count 查詢錯誤：${r.count_err}` : '',
       ].filter(Boolean).join('\n'));
       load(month);
     } catch (e) {
-      // 顯示完整錯誤資訊
-      const r = e?.response;
-      alert([
-        '❌ 同步失敗',
-        ``,
-        `Status: ${r?.status || '無'}`,
-        `Message: ${r?.data?.message || e?.message || '未知'}`,
-        r?.data?.stack ? `\nStack:\n${(Array.isArray(r.data.stack) ? r.data.stack : [r.data.stack]).join('\n')}` : '',
-        `\n如果是「未設定環境變數 AD_BUDGET_API_URL」→ 請去 Render 後台填這個環境變數`,
-        `如果是「constraint」→ 014 SQL 沒跑（CHECK 限制只接受 maintenance/repair）`,
-      ].filter(Boolean).join('\n'));
+      alert(['❌ 同步失敗（網路/系統錯誤）', '', `Message: ${e?.message || JSON.stringify(e)}`].join('\n'));
     } finally { setSyncing(false); }
   }
 
