@@ -51,6 +51,40 @@ export default function BillingAdPage() {
     if (!window.confirm(`同步企劃部廣告費 ${month}？`)) return;
     setSyncing(true);
     try {
+      const r = await billingApi.syncAdBudgetV2(month);
+      if (r?.success === false || r?.error) {
+        alert([
+          '❌ 同步失敗',
+          '',
+          `Error: ${r?.error?.message || r?.message || '未知'}`,
+          '',
+          'Steps:',
+          ...((r?.steps || []).map(s => `  - ${s.time?.slice(11, 19)} ${s.msg}`)),
+          '',
+          r?.error?.stack ? `Stack:\n${r.error.stack.join('\n')}` : '',
+        ].filter(Boolean).join('\n'));
+        return;
+      }
+      const sm = r?.summary || {};
+      alert([
+        `✅ ${sm.msg || '同步完成'}`,
+        '',
+        `Campaigns: ${sm.campaigns ?? '?'}`,
+        `Expanded rows: ${sm.expanded_rows ?? '?'}`,
+        `Fallback (未對應門市): ${sm.fallback_count ?? 0}`,
+        `Rows in DB: ${sm.rows_in_db ?? '?'}`,
+        '',
+        sm.samples?.length ? 'Samples:\n' + sm.samples.slice(0, 5).map(s =>
+          `  ${s.order_id} / ${s.store_erpid} / NT$${(s.amount || 0).toLocaleString()}`
+        ).join('\n') : '',
+      ].filter(Boolean).join('\n'));
+      load(month);
+    } catch (e) {
+      alert(['❌ 網路錯誤', `Message: ${e?.message || JSON.stringify(e)}`].join('\n'));
+    } finally { setSyncing(false); }
+    return;
+    // ─── 以下為舊版邏輯（保留參考，永遠不會跑到）─────
+    try {
       const r = await billingApi.syncAdBudgetDebug(month);
       if (r?.success === false) {
         // 後端有回應，但同步失敗 — 顯示完整訊息
