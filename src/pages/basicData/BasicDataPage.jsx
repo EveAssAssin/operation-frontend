@@ -133,6 +133,7 @@ export default function BasicDataPage() {
             selStoreErpid={selStoreErpid}
             setSelStoreErpid={setSelStoreErpid}
             onMgrFields={(catId) => setShowFieldsMgr({ categoryId: catId })}
+            onReloadStores={reloadAll}
           />
         )}
       </div>
@@ -317,9 +318,10 @@ function renderValue(v, type) {
 // ════════════════════════════════════════════════════════════
 //             視角 2：依門市（左門市列表 + 右多分類資料）
 // ════════════════════════════════════════════════════════════
-function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrFields }) {
+function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrFields, onReloadStores }) {
   const [allFacts, setAllFacts]       = useState([]);   // 全系統 facts（一次撈完）
   const [fieldsByCat, setFieldsByCat] = useState({});   // {catId: [fields]}
+  const [showAddStore, setShowAddStore] = useState(false);  // 新增門市 dialog
 
   // 一次撈所有 facts + 所有分類欄位
   const loadAll = useCallback(async () => {
@@ -398,11 +400,20 @@ function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrF
   const displayStore     = selStore || selUnmappedStore;
 
   return (
+    <>
     <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 12 }}>
       {/* 左：門市清單 */}
       <div style={{ background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, maxHeight: '75vh', overflow: 'auto' }}>
-        <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.border}`, fontSize: 13, fontWeight: 700, color: C.textDark, position: 'sticky', top: 0, background: C.bg, zIndex: 1 }}>
-          🏬 正式門市 / 部門（{stores.length}）
+        <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.border}`, fontSize: 13, fontWeight: 700, color: C.textDark, position: 'sticky', top: 0, background: C.bg, zIndex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>🏬 正式門市 / 部門（{stores.length}）</span>
+          <div style={{ flex: 1 }} />
+          <button
+            onClick={() => setShowAddStore(true)}
+            title="手動新增門市 / 部門"
+            style={{
+              fontSize: 11, padding: '3px 8px', borderRadius: 6,
+              background: C.dark, color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600,
+            }}>+ 新增</button>
         </div>
         {stores.map(s => {
           const isActive = s.store_erpid === selStoreErpid;
@@ -548,6 +559,100 @@ function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrF
             })}
           </>
         )}
+      </div>
+    </div>
+    {showAddStore && (
+      <AddStoreDialog
+        stores={stores}
+        onClose={() => setShowAddStore(false)}
+        onSaved={() => { setShowAddStore(false); onReloadStores?.(); }}
+      />
+    )}
+    </>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+//                   新增門市 / 部門 dialog
+// ════════════════════════════════════════════════════════════
+function AddStoreDialog({ stores, onClose, onSaved }) {
+  const [erpid, setErpid] = useState('');
+  const [name,  setName ] = useState('');
+  const [busy,  setBusy ] = useState(false);
+  const [err,   setErr  ] = useState('');
+
+  const existingErpids = useMemo(() => new Set(stores.map(s => s.store_erpid)), [stores]);
+
+  async function save() {
+    const e = erpid.trim();
+    const n = name.trim();
+    setErr('');
+    if (!e) return setErr('store_erpid（編號）不能空白');
+    if (!n) return setErr('store_name（名稱）不能空白');
+    if (existingErpids.has(e)) return setErr(`編號「${e}」已被使用，請改一個`);
+    setBusy(true);
+    try {
+      const r = await basicDataApi.createStore({ store_erpid: e, store_name: n });
+      if (r?.success === false) throw new Error(r.message || '新增失敗');
+      onSaved?.();
+    } catch (e) {
+      setErr(e?.message || '新增失敗');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+    }} onClick={onClose}>
+      <div style={{
+        background: '#fff', borderRadius: 10, padding: 20, width: 420, maxWidth: '92vw',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+      }} onClick={ev => ev.stopPropagation()}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.textDark, marginBottom: 4 }}>
+          ＋ 新增門市 / 部門
+        </div>
+        <div style={{ fontSize: 11, color: C.textLight, marginBottom: 14 }}>
+          會新增到 departments 表，全系統下拉立即可用
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: C.textMid, marginBottom: 4 }}>編號（store_erpid）<span style={{ color: '#c53030' }}>*</span></div>
+          <input
+            value={erpid}
+            onChange={e => setErpid(e.target.value)}
+            placeholder="例：00099、120080"
+            disabled={busy}
+            style={inputStyle()}
+          />
+          <div style={{ fontSize: 10, color: C.textLight, marginTop: 3 }}>
+            門市建議 6 位數（120xxx）、部門用 000xx；不能重複
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: C.textMid, marginBottom: 4 }}>名稱（store_name）<span style={{ color: '#c53030' }}>*</span></div>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="例：董事長室、XX店"
+            disabled={busy}
+            style={inputStyle()}
+          />
+        </div>
+
+        {err && (
+          <div style={{ background: '#fff0f0', color: '#c53030', padding: '8px 10px', borderRadius: 6, fontSize: 12, marginBottom: 10 }}>
+            ❗ {err}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+          <button style={btn('ghost')}  onClick={onClose}  disabled={busy}>取消</button>
+          <button style={btn('primary')} onClick={save}    disabled={busy}>{busy ? '儲存中...' : '儲存'}</button>
+        </div>
       </div>
     </div>
   );
