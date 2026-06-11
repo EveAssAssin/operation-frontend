@@ -478,6 +478,7 @@ export const basicDataApi = {
   // 選項
   getStores:        ()            => api.get('/basic-data/options/stores'),
   createStore:      (body)        => api.post('/basic-data/options/stores', body),
+  deleteStore:      (erpid)       => api.delete(`/basic-data/options/stores/${encodeURIComponent(erpid)}`),
   getSystemUsers:   ()            => api.get('/basic-data/options/system-users'),
   // 分類
   listCategories:   ()            => api.get('/basic-data/categories'),

@@ -399,6 +399,20 @@ function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrF
   const isUnmapped       = !selStore && !!selUnmappedStore;
   const displayStore     = selStore || selUnmappedStore;
 
+  // 刪除門市 / 部門
+  async function handleDeleteStore(s, ev) {
+    if (ev) ev.stopPropagation();
+    if (!window.confirm(`確定要刪除「${s.store_name}」(${s.store_erpid}) 嗎？\n\n如果還有資料引用這個門市，會擋下來（請先刪除或移動那些資料）。`)) return;
+    try {
+      const r = await basicDataApi.deleteStore(s.store_erpid);
+      if (r?.success === false) throw new Error(r.message || '刪除失敗');
+      if (selStoreErpid === s.store_erpid) setSelStoreErpid(null);
+      onReloadStores?.();
+    } catch (e) {
+      alert(`刪除失敗：${e?.message || e}`);
+    }
+  }
+
   return (
     <>
     <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 12 }}>
@@ -424,7 +438,7 @@ function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrF
             return n > 0 ? `${c.icon || ''}${n}` : null;
           }).filter(Boolean).join(' ');
           return (
-            <button key={s.store_erpid}
+            <div key={s.store_erpid}
               onClick={() => setSelStoreErpid(s.store_erpid)}
               style={{
                 display: 'block', width: '100%', textAlign: 'left',
@@ -434,11 +448,22 @@ function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrF
                 borderLeft: isActive ? `3px solid ${C.dark}` : '3px solid transparent',
                 cursor: 'pointer', fontSize: 13,
                 borderBottom: `1px solid ${C.border}`,
+                position: 'relative',
+                boxSizing: 'border-box',
               }}>
-              <div style={{ fontWeight: 600 }}>{s.store_name}</div>
+              <div style={{ fontWeight: 600, paddingRight: 22 }}>{s.store_name}</div>
               <div style={{ fontSize: 11, color: C.textLight }}>{s.store_erpid}</div>
               {catSummary && <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>{catSummary}</div>}
-            </button>
+              <button
+                onClick={(ev) => handleDeleteStore(s, ev)}
+                title="刪除此門市 / 部門（有資料引用會擋下來）"
+                style={{
+                  position: 'absolute', top: 6, right: 6,
+                  background: 'transparent', border: 'none',
+                  color: '#c53030', cursor: 'pointer',
+                  fontSize: 13, padding: '2px 5px', borderRadius: 4, lineHeight: 1,
+                }}>🗑</button>
+            </div>
           );
         })}
 
