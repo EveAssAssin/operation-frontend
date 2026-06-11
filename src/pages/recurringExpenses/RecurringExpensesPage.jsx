@@ -37,6 +37,30 @@ const PAYMENT_METHODS = [
   '臨櫃無褶', '現金繳納', '匯款', '自動扣款', '群茂代繳', '信用卡', '支票', '其他',
 ];
 
+/**
+ * 從約期說明文字（含民國日期）抽出「最後一段」的開始/結束年月，轉成西元 YYYY-MM。
+ * 範例輸入：
+ *   "109.08.15 ~ 114.08.14 31500元\n114.08.15 ~ 119.08.14 40000元"
+ *   → { start: '2025-08', end: '2030-08' }（最後一段）
+ * 規則：YY 必須 ≥ 90（民國 90 年 = 西元 2001）才當民國年解析，避免「24期...」這種誤判
+ */
+function parseRocPeriodToWestern(text) {
+  if (!text) return { start: null, end: null };
+  const re = /(\d{2,3})\.\s*(\d{1,2})(?:\.\d{1,2})?\s*~\s*(\d{2,3})\.\s*(\d{1,2})(?:\.\d{1,2})?/g;
+  let lastMatch = null;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const yy = Number(m[1]);
+    if (yy >= 90) lastMatch = m;   // 過濾「24期」這種非民國年
+  }
+  if (!lastMatch) return { start: null, end: null };
+  const sY = Number(lastMatch[1]) + 1911;
+  const sM = String(Number(lastMatch[2])).padStart(2, '0');
+  const eY = Number(lastMatch[3]) + 1911;
+  const eM = String(Number(lastMatch[4])).padStart(2, '0');
+  return { start: `${sY}-${sM}`, end: `${eY}-${eM}` };
+}
+
 // ════════════════════════════════════════════════════════════
 // 主元件
 // ════════════════════════════════════════════════════════════
@@ -658,32 +682,57 @@ function ExpenseFormModal({ editing, onClose, onSaved }) {
           )}
 
           <div style={S.formRow}>
-            <Field label="約期說明（可多行，民國請換算成西元）">
+            <Field label="約期說明（民國年；多段請每段一行）">
               <textarea
                 style={{ ...S.input, minHeight: 60, fontFamily: 'inherit' }}
                 value={form.period_text}
-                onChange={e => update('period_text', e.target.value)}
+                onChange={e => {
+                  const text = e.target.value;
+                  const { start, end } = parseRocPeriodToWestern(text);
+                  setForm(f => ({
+                    ...f,
+                    period_text: text,
+                    // 自動以「最後一段」覆蓋套用期間
+                    ...(start ? { start_year_month: start } : {}),
+                    ...(end   ? { end_year_month:   end   } : {}),
+                  }));
+                }}
                 placeholder="例：109.08.15 ~ 114.08.14 31500元&#10;114.08.15 ~ 119.08.14 40000元"
               />
+              {form.period_text && (
+                <div style={{ fontSize: 11, color: '#8b6f4e', marginTop: 4 }}>
+                  💡 自動抽出最後一段套用到下方「套用期間」(西元)；可手動覆寫
+                </div>
+              )}
             </Field>
           </div>
 
           <div style={S.formRow2}>
-            <Field label="排程從哪一期開始（選填）">
+            <Field label="套用期間 - 開始（西元，選填）">
               <input
                 style={S.input}
                 type="month"
                 value={form.start_year_month}
                 onChange={e => update('start_year_month', e.target.value)}
               />
+              {form.start_year_month && (
+                <div style={{ fontSize: 10, color: '#999', marginTop: 2 }}>
+                  民國 {Number(form.start_year_month.slice(0, 4)) - 1911} 年 {form.start_year_month.slice(5)} 月
+                </div>
+              )}
             </Field>
-            <Field label="排程結束期（選填）">
+            <Field label="套用期間 - 結束（西元，選填）">
               <input
                 style={S.input}
                 type="month"
                 value={form.end_year_month}
                 onChange={e => update('end_year_month', e.target.value)}
               />
+              {form.end_year_month && (
+                <div style={{ fontSize: 10, color: '#999', marginTop: 2 }}>
+                  民國 {Number(form.end_year_month.slice(0, 4)) - 1911} 年 {form.end_year_month.slice(5)} 月
+                </div>
+              )}
             </Field>
           </div>
 
