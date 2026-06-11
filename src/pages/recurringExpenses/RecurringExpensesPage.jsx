@@ -33,6 +33,10 @@ const TARGET_TYPES = [
   { value: 'department', label: '部門' },
 ];
 
+const PAYMENT_METHODS = [
+  '臨櫃無褶', '現金繳納', '匯款', '自動扣款', '群茂代繳', '信用卡', '支票', '其他',
+];
+
 // ════════════════════════════════════════════════════════════
 // 主元件
 // ════════════════════════════════════════════════════════════
@@ -409,7 +413,12 @@ function ExpenseFormModal({ editing, onClose, onSaved }) {
     description:      editing?.description      || '',
     amount:           editing?.amount           ?? '',
     cycle_day:        editing?.cycle_day        ?? 5,
+    cycle_day_text:   editing?.cycle_day_text   || '',
     holiday_rule:     editing?.holiday_rule     || 'previous_workday',
+    payment_method:   editing?.payment_method   || '',
+    payee_name:       editing?.payee_name       || '',
+    needs_billing:    editing?.needs_billing    ?? false,
+    period_text:      editing?.period_text      || '',
     bill_target_type: editing?.bill_target_type || 'store',
     bill_target_id:   editing?.bill_target_id   || '',
     bill_target_name: editing?.bill_target_name || '',
@@ -460,17 +469,33 @@ function ExpenseFormModal({ editing, onClose, onSaved }) {
 
     if (!form.name.trim())             return setError('費用名稱必填');
     if (!form.amount || isNaN(Number(form.amount))) return setError('金額必須是數字');
-    if (!form.cycle_day || form.cycle_day < 1 || form.cycle_day > 31) return setError('支付日期需在 1~31 之間');
-    if (!form.bill_target_id)          return setError('請選擇開帳對象');
+
+    // 「每月幾號支付」: 從 cycle_day_text 解析數字（5號→5、18號前→18），沒有的話用 cycle_day
+    let cycleDayNum = Number(form.cycle_day);
+    if (form.cycle_day_text) {
+      const m = String(form.cycle_day_text).match(/(\d+)/);
+      if (m) cycleDayNum = Number(m[1]);
+    }
+    if (!cycleDayNum || cycleDayNum < 1 || cycleDayNum > 31) {
+      return setError('每月幾號支付：請填數字或包含數字（例：5、5號、18號前）');
+    }
+
+    if (form.needs_billing && !form.bill_target_id) {
+      return setError('「需要開帳」勾選時，必須選擇開帳對象');
+    }
 
     const payload = {
       ...form,
       amount:    Number(form.amount),
-      cycle_day: Number(form.cycle_day),
+      cycle_day: cycleDayNum,
     };
-    // 空字串轉 null
     if (!payload.start_year_month) payload.start_year_month = null;
     if (!payload.end_year_month)   payload.end_year_month   = null;
+    if (!payload.needs_billing) {
+      payload.bill_target_type = null;
+      payload.bill_target_id   = null;
+      payload.bill_target_name = null;
+    }
 
     setSaving(true);
     try {
@@ -525,16 +550,21 @@ function ExpenseFormModal({ editing, onClose, onSaved }) {
             <Field label="每月幾號支付 *">
               <input
                 style={S.input}
-                type="number"
-                min="1" max="31"
-                value={form.cycle_day}
-                onChange={e => update('cycle_day', e.target.value)}
+                type="text"
+                value={form.cycle_day_text || (form.cycle_day ? `${form.cycle_day}號` : '')}
+                onChange={e => {
+                  const t = e.target.value;
+                  update('cycle_day_text', t);
+                  const m = t.match(/(\d+)/);
+                  if (m) update('cycle_day', Number(m[1]));
+                }}
+                placeholder="例：5、5號、18號前"
                 required
               />
             </Field>
           </div>
 
-          <div style={S.formRow}>
+          <div style={S.formRow2}>
             <Field label="假日規則">
               <select
                 style={S.input}
@@ -546,41 +576,100 @@ function ExpenseFormModal({ editing, onClose, onSaved }) {
                 ))}
               </select>
             </Field>
-          </div>
-
-          <div style={S.formRow2}>
-            <Field label="開帳對象類型 *">
+            <Field label="支付方式">
               <select
                 style={S.input}
-                value={form.bill_target_type}
-                onChange={e => {
-                  update('bill_target_type', e.target.value);
-                  update('bill_target_id', '');
-                  update('bill_target_name', '');
-                }}
-              >
-                {TARGET_TYPES.map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="開帳對象 *">
-              <select
-                style={S.input}
-                value={form.bill_target_id}
-                onChange={e => pickTarget(form.bill_target_type, e.target.value)}
-                required
+                value={form.payment_method}
+                onChange={e => update('payment_method', e.target.value)}
               >
                 <option value="">— 請選擇 —</option>
-                {targetList.map(o => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
+                {PAYMENT_METHODS.map(p => (
+                  <option key={p} value={p}>{p}</option>
                 ))}
               </select>
             </Field>
           </div>
 
+          <div style={S.formRow}>
+            <Field label="匯入戶名（受款人）">
+              <input
+                style={S.input}
+                value={form.payee_name}
+                onChange={e => update('payee_name', e.target.value)}
+                placeholder="例：黃博新彰銀 / 資峰興業有限公司"
+              />
+            </Field>
+          </div>
+
+          <div style={S.formRow}>
+            <Field label="是否需要開帳">
+              <div style={{ display: 'flex', gap: 16, padding: '6px 0' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    checked={!form.needs_billing}
+                    onChange={() => update('needs_billing', false)}
+                  />
+                  <span style={{ fontSize: 13 }}>否（純內部支出）</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    checked={form.needs_billing}
+                    onChange={() => update('needs_billing', true)}
+                  />
+                  <span style={{ fontSize: 13 }}>是（產生帳單給門市/部門）</span>
+                </label>
+              </div>
+            </Field>
+          </div>
+
+          {form.needs_billing && (
+            <div style={S.formRow2}>
+              <Field label="開帳對象類型 *">
+                <select
+                  style={S.input}
+                  value={form.bill_target_type}
+                  onChange={e => {
+                    update('bill_target_type', e.target.value);
+                    update('bill_target_id', '');
+                    update('bill_target_name', '');
+                  }}
+                >
+                  {TARGET_TYPES.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="開帳對象 *">
+                <select
+                  style={S.input}
+                  value={form.bill_target_id}
+                  onChange={e => pickTarget(form.bill_target_type, e.target.value)}
+                  required
+                >
+                  <option value="">— 請選擇 —</option>
+                  {targetList.map(o => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          )}
+
+          <div style={S.formRow}>
+            <Field label="約期說明（可多行，民國請換算成西元）">
+              <textarea
+                style={{ ...S.input, minHeight: 60, fontFamily: 'inherit' }}
+                value={form.period_text}
+                onChange={e => update('period_text', e.target.value)}
+                placeholder="例：109.08.15 ~ 114.08.14 31500元&#10;114.08.15 ~ 119.08.14 40000元"
+              />
+            </Field>
+          </div>
+
           <div style={S.formRow2}>
-            <Field label="從哪一期開始（選填）">
+            <Field label="排程從哪一期開始（選填）">
               <input
                 style={S.input}
                 type="month"
@@ -588,7 +677,7 @@ function ExpenseFormModal({ editing, onClose, onSaved }) {
                 onChange={e => update('start_year_month', e.target.value)}
               />
             </Field>
-            <Field label="結束期（選填）">
+            <Field label="排程結束期（選填）">
               <input
                 style={S.input}
                 type="month"
