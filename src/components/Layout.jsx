@@ -27,7 +27,17 @@ const NAV_ITEMS = [
   { path: '/billing-v2',      label: '帳單管理', icon: '🧾', minRole: 'operation_staff', moduleKey: 'billing_v2' },
   { path: '/billing-report',  label: '帳單月報', icon: '📊', minRole: 'operation_staff', moduleKey: 'billing_report' },
   { path: '/checks',          label: '支票紀錄', icon: '🏦', minRole: 'operation_staff', moduleKey: 'checks' },
-  { path: '/recurring-expenses', label: '常態費用', icon: '💴', minRole: 'operation_staff', moduleKey: 'recurring_expenses' },
+  {
+    key:   'payable',
+    label: '應付帳款',
+    icon:  '💴',
+    minRole: 'operation_staff',
+    moduleKey: 'recurring_expenses',
+    children: [
+      { path: '/recurring-expenses', label: '常態費用', icon: '💴', moduleKey: 'recurring_expenses' },
+      // 之後新增的應付帳款子項目（廠商請款 / 匯款批次 等）都加在這裡
+    ],
+  },
   { path: '/recruitment',     label: '人力招募', icon: '🧑‍💼', minRole: 'operation_staff', moduleKey: 'recruitment' },
   { path: '/sales-events',    label: '業績活動', icon: '📣', minRole: 'operation_staff', moduleKey: 'sales_events' },
   { path: '/quests',          label: '任務派發', icon: '📋', minRole: 'operation_staff', moduleKey: 'quests' },
