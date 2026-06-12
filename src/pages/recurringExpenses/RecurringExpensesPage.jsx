@@ -109,6 +109,7 @@ function PaymentsTab() {
   const [loading, setLoading]   = useState(true);
   const [payments, setPayments] = useState([]);
   const [error, setError]       = useState('');
+  const [selected, setSelected] = useState(() => new Set());   // 勾選的 payment id
 
   const today = todayStr();
 
@@ -117,7 +118,10 @@ function PaymentsTab() {
     setError('');
     try {
       const res = await recurringExpensesApi.listPayments(month);
-      setPayments(res.data?.payments || []);
+      const list = res.data?.payments || [];
+      setPayments(list);
+      // 預設全部 pending 都勾起來
+      setSelected(new Set(list.filter(p => p.status === 'pending').map(p => p.id)));
     } catch (e) {
       setError(e.message || '載入失敗');
     } finally {
@@ -126,6 +130,35 @@ function PaymentsTab() {
   }, [month]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 排序：逾期 → 未付（含今日）→ 已付 → 跳過；同層按 due_date 升冪
+  const sortedPayments = useMemo(() => {
+    function rank(p) {
+      if (p.status === 'pending' && p.due_date < today) return 0;
+      if (p.status === 'pending')                       return 1;
+      if (p.status === 'paid')                          return 2;
+      if (p.status === 'skipped')                       return 3;
+      return 4;
+    }
+    return [...payments].sort((a, b) => {
+      const ra = rank(a), rb = rank(b);
+      if (ra !== rb) return ra - rb;
+      return (a.due_date || '').localeCompare(b.due_date || '');
+    });
+  }, [payments, today]);
+
+  // 勾選工具
+  function toggleOne(id) {
+    setSelected(s => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function selectAllPending() {
+    setSelected(new Set(payments.filter(p => p.status === 'pending').map(p => p.id)));
+  }
+  function selectNone() { setSelected(new Set()); }
 
   const summary = useMemo(() => {
     const total   = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
@@ -166,9 +199,11 @@ function PaymentsTab() {
   const [exporting, setExporting] = useState(false);
   async function exportElton() {
     if (!month) return alert('請先選擇月份');
+    const ids = [...selected];
+    if (ids.length === 0) return alert('請至少勾選一筆要匯出的項目');
     setExporting(true);
     try {
-      const blob = await recurringExpensesApi.exportEltonBatch(month);
+      const blob = await recurringExpensesApi.exportEltonBatch(month, ids);
       // blob 可能是 Blob 物件，也可能是 error JSON
       if (blob && blob.size && blob.type !== 'application/json') {
         const url = URL.createObjectURL(blob);
@@ -240,10 +275,25 @@ function PaymentsTab() {
       )}
 
       {payments.length > 0 && (
+        <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 4px', fontSize: 12, color: '#666' }}>
+          <span>已勾選 <strong style={{ color: '#1f8b4c' }}>{selected.size}</strong> 筆</span>
+          <span style={{ color: '#bbb' }}>|</span>
+          <button onClick={selectAllPending} style={{ ...S.btnGhost, padding: '4px 10px', fontSize: 11 }}>全選未付</button>
+          <button onClick={selectNone}        style={{ ...S.btnGhost, padding: '4px 10px', fontSize: 11 }}>全部取消</button>
+        </div>
         <div style={S.tableWrap}>
           <table style={S.table}>
             <thead>
               <tr>
+                <th style={{ ...S.th, width: 36, textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={selected.size > 0 && payments.filter(p => p.status === 'pending').every(p => selected.has(p.id))}
+                    onChange={e => e.target.checked ? selectAllPending() : selectNone()}
+                    title="勾選 = 全選未付 / 取消 = 全部取消"
+                  />
+                </th>
                 <th style={S.th}>狀態</th>
                 <th style={S.th}>應付日</th>
                 <th style={S.th}>費用項目</th>
@@ -254,7 +304,7 @@ function PaymentsTab() {
               </tr>
             </thead>
             <tbody>
-              {payments.map(p => {
+              {sortedPayments.map(p => {
                 const isToday = p.due_date === today && p.status === 'pending';
                 const isOverdue = p.due_date < today && p.status === 'pending';
                 return (
@@ -264,6 +314,13 @@ function PaymentsTab() {
                               : isOverdue ? '#fde8e8'
                               : undefined,
                   }}>
+                    <td style={{ ...S.td, textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(p.id)}
+                        onChange={() => toggleOne(p.id)}
+                      />
+                    </td>
                     <td style={S.td}>
                       {p.status === 'paid' && <span style={S.badgePaid}>✓ 已付</span>}
                       {p.status === 'pending' && (isToday
@@ -312,6 +369,7 @@ function PaymentsTab() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );
