@@ -56,6 +56,7 @@ const NAV_ITEMS = [
   { path:  '/appointed-units',    label: '特約廠商', icon:  '🤝', minRole: 'operation_staff', moduleKey: 'appointed_units' },
   { path:  '/point-redemption',   label: '分數兌換', icon:  '🪙', minRole: 'operation_staff', moduleKey: 'point_redemption' },
   { path:  '/scheduled-notify',   label: '排程推播', icon:  '⏰', minRole: 'operation_staff', moduleKey: 'scheduled_notify' },
+  { path:  '/system-updates',     label: '系統更新', icon:  '🚀', minRole: 'operation_staff', moduleKey: 'system_updates' },
   // 系統設定 — 僅 admin 角色（is_admin=true）能看
   { path:  '/system/permissions', label: '權限管理', icon:  '⚙', adminOnly: true, moduleKey: 'system_settings' },
 ];

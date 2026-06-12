@@ -335,6 +335,14 @@ export const recurringExpensesApi = {
   getDepartments: () => api.get('/recurring-expenses/options/departments'),
 };
 
+// 系統更新模組（展示開發績效）
+export const systemUpdatesApi = {
+  listMembers:    ()                       => api.get('/system-updates/members'),
+  listMonths:     ()                       => api.get('/system-updates/months'),
+  getDaily:       (memberId, days = 14)    => api.get(`/system-updates/members/${memberId}/daily`,   { params: { days } }),
+  getMonthly:     (memberId, yearMonth)    => api.get(`/system-updates/members/${memberId}/monthly`, { params: { ym: yearMonth } }),
+};
+
 // Quests API（任務派發 → 市場部）
 // 對應 market-backend internal API:
 //   POST /api/internal/quest/create   建立任務
