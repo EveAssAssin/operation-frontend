@@ -335,6 +335,19 @@ export const recurringExpensesApi = {
   getDepartments: () => api.get('/recurring-expenses/options/departments'),
 };
 
+// 合約管理模組
+export const contractsApi = {
+  list:        (type, status)   => api.get('/contracts', { params: { type, status } }),
+  get:         (id)             => api.get(`/contracts/${id}`),
+  create:      (body)           => api.post('/contracts', body),
+  update:      (id, body)       => api.patch(`/contracts/${id}`, body),
+  remove:      (id)             => api.delete(`/contracts/${id}`),
+  listExpiring:(days = 60)      => api.get('/contracts/expiring', { params: { days } }),
+  // 提醒
+  listReminders:   (id)              => api.get(`/contracts/${id}/reminders`),
+  upsertReminders: (id, reminders)   => api.put(`/contracts/${id}/reminders`, { reminders }),
+};
+
 // 系統更新模組（展示開發績效）
 export const systemUpdatesApi = {
   listMembers:    ()                       => api.get('/system-updates/members'),

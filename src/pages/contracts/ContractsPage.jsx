@@ -1,0 +1,479 @@
+// pages/contracts/ContractsPage.jsx
+// 「合約管理」三分頁：房租 / 廠商 / 員工
+//   - 列表 + 新增 + 編輯（含 type_data JSONB 動態欄位）
+
+import { useEffect, useState, useMemo } from 'react';
+import { contractsApi } from '../../services/api';
+
+const C = {
+  dark:    '#50422d', gold: '#8b6f4e', sand: '#cdbea2',
+  bg:      '#faf8f5', bgCard:'#ffffff', border:'#e8e3dc',
+  textDark:'#3a2e1e', textMid: '#6b5640', textLight: '#9a8878',
+};
+
+const TYPES = [
+  { value: 'rent',     label: '🏠 房租合約',   accent: '#8b6f4e' },
+  { value: 'vendor',   label: '🤝 廠商合約',   accent: '#1f8b4c' },
+  { value: 'employee', label: '👥 員工合約',   accent: '#3b5bdb' },
+];
+
+const STATUS_LABEL = {
+  active:     { label: '進行中', color: '#2e7d32', bg: '#d8f3dc' },
+  expired:    { label: '已過期', color: '#c53030', bg: '#fde8e8' },
+  terminated: { label: '已終止', color: '#777',    bg: '#eee'    },
+  pending:    { label: '未生效', color: '#d97706', bg: '#fff3cd' },
+  archived:   { label: '已封存', color: '#aaa',    bg: '#f5f5f5' },
+};
+
+const S = {
+  page:     { background: C.bg, minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' },
+  header:   { background: C.dark, padding: '20px 28px' },
+  title:    { color: '#fff', fontSize: 20, fontWeight: 700, marginBottom: 4 },
+  sub:      { color: C.sand, fontSize: 13 },
+
+  body:     { padding: '20px 28px' },
+  tabBar:   { display: 'flex', gap: 6, borderBottom: `2px solid ${C.border}`, marginBottom: 16 },
+  tabBtn:   { padding: '10px 18px', border: 'none', background: 'transparent', borderBottom: '2px solid transparent', marginBottom: -2, cursor: 'pointer', fontSize: 14, fontWeight: 600, color: C.textLight },
+
+  toolbar:  { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' },
+  btnPrimary: { padding: '8px 16px', background: C.dark, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
+  btnGhost:   { padding: '6px 12px', background: '#fff', color: C.dark, border: `1px solid ${C.sand}`, borderRadius: 6, cursor: 'pointer', fontSize: 12 },
+  btnDanger:  { padding: '6px 10px', background: 'transparent', color: '#c53030', border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer', fontSize: 12 },
+
+  tableWrap:{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'auto' },
+  table:    { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
+  th:       { padding: '10px 12px', background: '#faf8f5', color: C.textMid, fontWeight: 600, textAlign: 'left', borderBottom: `1px solid ${C.border}`, whiteSpace: 'nowrap' },
+  td:       { padding: '10px 12px', color: C.textDark, verticalAlign: 'top', borderBottom: `1px solid #f5f5f5` },
+  empty:    { padding: 40, textAlign: 'center', color: C.textLight, fontSize: 13 },
+
+  modalBg:  { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
+  modal:    { background: '#fff', borderRadius: 12, width: '92vw', maxWidth: 720, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' },
+  modalH:   { padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  modalT:   { fontSize: 16, fontWeight: 700, color: C.dark, margin: 0 },
+  modalX:   { background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#888' },
+  formGroup:{ padding: '12px 18px 0' },
+  row2:     { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  row3:     { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 },
+  label:    { fontSize: 12, color: '#666', fontWeight: 600, marginBottom: 4, display: 'block' },
+  input:    { padding: '8px 10px', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, color: C.textDark, width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' },
+  textarea: { padding: '8px 10px', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, color: C.textDark, width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', minHeight: 60, resize: 'vertical' },
+  hint:     { fontSize: 11, color: '#aaa', marginTop: 3 },
+  modalAct: { padding: '14px 18px', display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: `1px solid ${C.border}`, marginTop: 14 },
+  errBanner:{ background: '#fce4ec', color: '#c62828', padding: '8px 12px', borderRadius: 6, margin: '10px 18px 0', fontSize: 12 },
+};
+
+const fmtDate = s => s ? s.slice(0, 10) : '—';
+const fmtAmount = n => n != null ? Number(n).toLocaleString('zh-TW') : '—';
+function daysUntil(date) {
+  if (!date) return null;
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
+  return Math.ceil((new Date(date) - new Date(today)) / 86400000);
+}
+
+
+export default function ContractsPage() {
+  const [type, setType] = useState('rent');
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);  // null | row | {} (new)
+  const [err, setErr] = useState('');
+
+  const load = async () => {
+    setLoading(true); setErr('');
+    try {
+      const r = await contractsApi.list(type, 'active');
+      setItems(r.data || []);
+    } catch (e) { setErr(e?.message || '載入失敗'); }
+    finally     { setLoading(false); }
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [type]);
+
+  async function removeOne(id) {
+    if (!window.confirm('封存此份合約？（會從列表移除但資料保留）')) return;
+    try {
+      await contractsApi.remove(id);
+      await load();
+    } catch (e) { alert(e?.message || '封存失敗'); }
+  }
+
+  return (
+    <div style={S.page}>
+      <div style={S.header}>
+        <div style={S.title}>📜 合約管理</div>
+        <div style={S.sub}>房租 / 廠商 / 員工 三類合約集中管理</div>
+      </div>
+
+      <div style={S.body}>
+        {/* 類型 tab */}
+        <div style={S.tabBar}>
+          {TYPES.map(t => {
+            const active = t.value === type;
+            return (
+              <button key={t.value}
+                onClick={() => setType(t.value)}
+                style={{
+                  ...S.tabBtn,
+                  color: active ? t.accent : C.textLight,
+                  borderBottom: active ? `2px solid ${t.accent}` : '2px solid transparent',
+                }}>
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 工具列 */}
+        <div style={S.toolbar}>
+          <div style={{ flex: 1, fontSize: 13, color: C.textLight }}>共 {items.length} 份</div>
+          <button style={S.btnGhost}   onClick={load}>🔄 重新載入</button>
+          <button style={S.btnPrimary} onClick={() => setEditing({ type })}>＋ 新增合約</button>
+        </div>
+
+        {err && <div style={{ ...S.errBanner, margin: 0, marginBottom: 12 }}>❗ {err}</div>}
+
+        {loading ? (
+          <div style={S.empty}>載入中...</div>
+        ) : items.length === 0 ? (
+          <div style={S.empty}>還沒有任何 {TYPES.find(t => t.value === type)?.label}，點上方「＋ 新增合約」開始</div>
+        ) : (
+          <div style={S.tableWrap}>
+            <table style={S.table}>
+              <thead>
+                <tr>
+                  <th style={S.th}>狀態</th>
+                  <th style={S.th}>名稱</th>
+                  <th style={S.th}>{type === 'rent' ? '門市' : type === 'vendor' ? '廠商' : '員工'}</th>
+                  <th style={S.th}>合約期間</th>
+                  <th style={{ ...S.th, textAlign: 'right' }}>{type === 'rent' ? '月租' : '總額'}</th>
+                  <th style={S.th}>專屬重點</th>
+                  <th style={{ ...S.th, textAlign: 'center' }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(c => {
+                  const days = daysUntil(c.end_date);
+                  const expiring = days !== null && days >= 0 && days <= 60;
+                  const overdue  = days !== null && days < 0;
+                  const stat = STATUS_LABEL[c.status] || STATUS_LABEL.active;
+                  return (
+                    <tr key={c.id} style={{ background: overdue ? '#fde8e8' : expiring ? '#fff7e6' : undefined }}>
+                      <td style={S.td}>
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: stat.bg, color: stat.color, fontWeight: 600 }}>
+                          {stat.label}
+                        </span>
+                      </td>
+                      <td style={S.td}>
+                        <div style={{ fontWeight: 600 }}>{c.name}</div>
+                        {c.note && <div style={{ fontSize: 11, color: C.textLight, marginTop: 2 }}>{c.note.slice(0, 60)}</div>}
+                      </td>
+                      <td style={S.td}>
+                        <div>{c.our_side_name || '—'}</div>
+                        {c.party_name && <div style={{ fontSize: 11, color: C.textLight }}>對方：{c.party_name}</div>}
+                      </td>
+                      <td style={S.td}>
+                        <div>{fmtDate(c.start_date)} ~ {fmtDate(c.end_date)}</div>
+                        {days !== null && (
+                          <div style={{ fontSize: 11, color: overdue ? '#c53030' : expiring ? '#d97706' : C.textLight, marginTop: 2 }}>
+                            {overdue ? `已過期 ${-days} 天` : `剩 ${days} 天`}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ ...S.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        {type === 'rent'
+                          ? (c.monthly_amount != null ? `$ ${fmtAmount(c.monthly_amount)}` : '—')
+                          : (c.total_amount   != null ? `$ ${fmtAmount(c.total_amount)}`   : '—')
+                        }
+                      </td>
+                      <td style={S.td}>
+                        <TypeDataSummary type={c.type} data={c.type_data || {}} />
+                      </td>
+                      <td style={{ ...S.td, textAlign: 'center' }}>
+                        <button style={S.btnGhost}  onClick={() => setEditing(c)}>✏ 編輯</button>
+                        <button style={S.btnDanger} onClick={() => removeOne(c.id)} title="封存">🗑</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {editing && (
+        <ContractEditModal
+          contract={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+
+// ════════════════════════════════════════════════════════════
+// 類型專屬重點顯示
+// ════════════════════════════════════════════════════════════
+function TypeDataSummary({ type, data }) {
+  if (!data) return '—';
+  if (type === 'rent') {
+    const bits = [];
+    if (data.deposit)             bits.push(`押金 $${fmtAmount(data.deposit)}`);
+    if (data.rent_increase_date)  bits.push(`調漲 ${fmtDate(data.rent_increase_date)}`);
+    if (data.landlord_account)    bits.push(`匯款 ${data.landlord_account.slice(-6)}`);
+    return <span style={{ fontSize: 12 }}>{bits.join(' · ') || '—'}</span>;
+  }
+  if (type === 'vendor') {
+    const bits = [];
+    if (data.reward_rate != null) bits.push(`回饋 ${(Number(data.reward_rate) * 100).toFixed(1)}%`);
+    if (data.cost_target)         bits.push(`成本目標 $${fmtAmount(data.cost_target)}`);
+    if (data.payment_terms)       bits.push(data.payment_terms);
+    return <span style={{ fontSize: 12 }}>{bits.join(' · ') || '—'}</span>;
+  }
+  if (type === 'employee') {
+    const bits = [];
+    if (data.position)      bits.push(data.position);
+    if (data.salary_base)   bits.push(`月薪 $${fmtAmount(data.salary_base)}`);
+    if (data.probation_end) bits.push(`試用至 ${fmtDate(data.probation_end)}`);
+    return <span style={{ fontSize: 12 }}>{bits.join(' · ') || '—'}</span>;
+  }
+  return '—';
+}
+
+
+// ════════════════════════════════════════════════════════════
+// 編輯 modal
+// ════════════════════════════════════════════════════════════
+function ContractEditModal({ contract, onClose, onSaved }) {
+  const isNew = !contract?.id;
+  const type  = contract?.type || 'rent';
+
+  const [form, setForm] = useState(() => ({
+    type:           contract?.type           || 'rent',
+    name:           contract?.name           || '',
+    party_name:     contract?.party_name     || '',
+    our_side_name:  contract?.our_side_name  || '',
+    start_date:     contract?.start_date     || '',
+    end_date:       contract?.end_date       || '',
+    signed_date:    contract?.signed_date    || '',
+    total_amount:   contract?.total_amount   ?? '',
+    monthly_amount: contract?.monthly_amount ?? '',
+    status:         contract?.status         || 'active',
+    note:           contract?.note           || '',
+    type_data:      contract?.type_data      || {},
+  }));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  function up(k, v)    { setForm(f => ({ ...f, [k]: v })); }
+  function upTD(k, v)  { setForm(f => ({ ...f, type_data: { ...(f.type_data || {}), [k]: v } })); }
+
+  async function save() {
+    setErr('');
+    if (!form.name.trim()) return setErr('合約名稱必填');
+    setSaving(true);
+    try {
+      const payload = { ...form };
+      // 空字串轉 null
+      ['start_date','end_date','signed_date','party_name','our_side_name','note'].forEach(k => {
+        if (payload[k] === '') payload[k] = null;
+      });
+      ['total_amount','monthly_amount'].forEach(k => {
+        if (payload[k] === '') payload[k] = null;
+        else if (payload[k] != null) payload[k] = Number(payload[k]);
+      });
+      if (isNew) await contractsApi.create(payload);
+      else       await contractsApi.update(contract.id, payload);
+      onSaved();
+    } catch (e) { setErr(e?.message || '儲存失敗'); }
+    finally     { setSaving(false); }
+  }
+
+  const typeLabel = TYPES.find(t => t.value === type)?.label || type;
+
+  return (
+    <div style={S.modalBg} onClick={onClose}>
+      <div style={S.modal} onClick={e => e.stopPropagation()}>
+        <div style={S.modalH}>
+          <h2 style={S.modalT}>{isNew ? '新增' : '編輯'}{typeLabel}</h2>
+          <button style={S.modalX} onClick={onClose}>✕</button>
+        </div>
+
+        {err && <div style={S.errBanner}>❗ {err}</div>}
+
+        <div style={S.formGroup}>
+          <label style={S.label}>合約名稱 *</label>
+          <input style={S.input} value={form.name} onChange={e => up('name', e.target.value)}
+                 placeholder={type === 'rent' ? '例：北屯店房租合約' : type === 'vendor' ? '例：元大物流貨款合約' : '例：王小明 雇用合約'} />
+        </div>
+
+        <div style={S.formGroup}>
+          <div style={S.row2}>
+            <div>
+              <label style={S.label}>{type === 'rent' ? '門市（我方）' : type === 'employee' ? '員工姓名' : '我方部門'}</label>
+              <input style={S.input} value={form.our_side_name} onChange={e => up('our_side_name', e.target.value)}
+                     placeholder={type === 'rent' ? '北屯店' : type === 'employee' ? '王小明' : '營運部'} />
+            </div>
+            <div>
+              <label style={S.label}>{type === 'rent' ? '房東' : type === 'vendor' ? '廠商' : '雇主'}</label>
+              <input style={S.input} value={form.party_name} onChange={e => up('party_name', e.target.value)}
+                     placeholder={type === 'rent' ? '陳南舟 / 成香投資' : type === 'vendor' ? '元大物流' : '樂活光學有限公司'} />
+            </div>
+          </div>
+        </div>
+
+        <div style={S.formGroup}>
+          <div style={S.row3}>
+            <div>
+              <label style={S.label}>簽約日</label>
+              <input type="date" style={S.input} value={form.signed_date} onChange={e => up('signed_date', e.target.value)} />
+            </div>
+            <div>
+              <label style={S.label}>起始日</label>
+              <input type="date" style={S.input} value={form.start_date} onChange={e => up('start_date', e.target.value)} />
+            </div>
+            <div>
+              <label style={S.label}>到期日</label>
+              <input type="date" style={S.input} value={form.end_date} onChange={e => up('end_date', e.target.value)} />
+            </div>
+          </div>
+        </div>
+
+        <div style={S.formGroup}>
+          <div style={S.row2}>
+            <div>
+              <label style={S.label}>{type === 'rent' ? '月租金額' : type === 'employee' ? '月薪' : '合約總額'}</label>
+              <input type="number" style={S.input}
+                     value={type === 'rent' ? form.monthly_amount : form.total_amount}
+                     onChange={e => up(type === 'rent' ? 'monthly_amount' : 'total_amount', e.target.value)}
+                     placeholder="0" />
+            </div>
+            <div>
+              <label style={S.label}>狀態</label>
+              <select style={S.input} value={form.status} onChange={e => up('status', e.target.value)}>
+                {Object.keys(STATUS_LABEL).map(k => <option key={k} value={k}>{STATUS_LABEL[k].label}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 類型專屬欄位 ───────────────────────────────── */}
+        <div style={{ ...S.formGroup, marginTop: 6 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.dark, paddingBottom: 6, borderBottom: `1px solid ${C.border}`, marginBottom: 8 }}>
+            {typeLabel} · 專屬欄位
+          </div>
+          {type === 'rent' && <RentFields data={form.type_data} setOne={upTD} />}
+          {type === 'vendor' && <VendorFields data={form.type_data} setOne={upTD} />}
+          {type === 'employee' && <EmployeeFields data={form.type_data} setOne={upTD} />}
+        </div>
+
+        <div style={S.formGroup}>
+          <label style={S.label}>備註</label>
+          <textarea style={S.textarea} value={form.note || ''} onChange={e => up('note', e.target.value)} placeholder="任何補充說明" />
+        </div>
+
+        <div style={S.modalAct}>
+          <button style={S.btnGhost}   onClick={onClose} disabled={saving}>取消</button>
+          <button style={S.btnPrimary} onClick={save}    disabled={saving}>{saving ? '儲存中...' : (isNew ? '建立' : '更新')}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ── 房租專屬欄位
+function RentFields({ data, setOne }) {
+  return (
+    <>
+      <div style={S.row2}>
+        <div>
+          <label style={S.label}>押金</label>
+          <input type="number" style={S.input} value={data.deposit || ''} onChange={e => setOne('deposit', e.target.value)} placeholder="80000" />
+        </div>
+        <div>
+          <label style={S.label}>調漲日（下次）</label>
+          <input type="date" style={S.input} value={data.rent_increase_date || ''} onChange={e => setOne('rent_increase_date', e.target.value)} />
+        </div>
+      </div>
+      <div style={S.row2}>
+        <div>
+          <label style={S.label}>調漲後金額</label>
+          <input type="number" style={S.input} value={data.rent_increase_amount || ''} onChange={e => setOne('rent_increase_amount', e.target.value)} placeholder="40000" />
+        </div>
+        <div>
+          <label style={S.label}>解約預告期（天）</label>
+          <input type="number" style={S.input} value={data.notice_days || ''} onChange={e => setOne('notice_days', e.target.value)} placeholder="60" />
+        </div>
+      </div>
+      <div style={S.row2}>
+        <div>
+          <label style={S.label}>房東帳號</label>
+          <input style={S.input} value={data.landlord_account || ''} onChange={e => setOne('landlord_account', e.target.value)} placeholder="00812602158300" />
+        </div>
+        <div>
+          <label style={S.label}>房東銀行</label>
+          <input style={S.input} value={data.landlord_bank || ''} onChange={e => setOne('landlord_bank', e.target.value)} placeholder="816 0083" />
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── 廠商專屬欄位
+function VendorFields({ data, setOne }) {
+  return (
+    <>
+      <div style={S.row2}>
+        <div>
+          <label style={S.label}>回饋率（小數）</label>
+          <input type="number" step="0.001" style={S.input} value={data.reward_rate || ''} onChange={e => setOne('reward_rate', e.target.value)} placeholder="0.05 = 5%" />
+        </div>
+        <div>
+          <label style={S.label}>成本比對目標</label>
+          <input type="number" style={S.input} value={data.cost_target || ''} onChange={e => setOne('cost_target', e.target.value)} placeholder="1500000" />
+        </div>
+      </div>
+      <div style={S.row2}>
+        <div>
+          <label style={S.label}>付款條件</label>
+          <input style={S.input} value={data.payment_terms || ''} onChange={e => setOne('payment_terms', e.target.value)} placeholder="月結 60 天" />
+        </div>
+        <div>
+          <label style={S.label}>保固期（月）</label>
+          <input type="number" style={S.input} value={data.warranty_months || ''} onChange={e => setOne('warranty_months', e.target.value)} placeholder="12" />
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── 員工專屬欄位
+function EmployeeFields({ data, setOne }) {
+  return (
+    <>
+      <div style={S.row2}>
+        <div>
+          <label style={S.label}>職位</label>
+          <input style={S.input} value={data.position || ''} onChange={e => setOne('position', e.target.value)} placeholder="營運專員" />
+        </div>
+        <div>
+          <label style={S.label}>試用期結束日</label>
+          <input type="date" style={S.input} value={data.probation_end || ''} onChange={e => setOne('probation_end', e.target.value)} />
+        </div>
+      </div>
+      <div style={S.row2}>
+        <div>
+          <label style={S.label}>底薪</label>
+          <input type="number" style={S.input} value={data.salary_base || ''} onChange={e => setOne('salary_base', e.target.value)} placeholder="38000" />
+        </div>
+        <div>
+          <label style={S.label}>離職預告期（天）</label>
+          <input type="number" style={S.input} value={data.resignation_notice_days || ''} onChange={e => setOne('resignation_notice_days', e.target.value)} placeholder="30" />
+        </div>
+      </div>
+    </>
+  );
+}
