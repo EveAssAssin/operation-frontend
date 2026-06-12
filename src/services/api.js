@@ -323,6 +323,8 @@ export const recurringExpensesApi = {
   getTodayDue:    ()      => api.get('/recurring-expenses/payments/today'),
   markPaid:       (id, paid_note) => api.post(`/recurring-expenses/payments/${id}/pay`,   { paid_note }),
   unmarkPaid:     (id)            => api.post(`/recurring-expenses/payments/${id}/unpay`),
+  // 元大批次匯款 Excel
+  exportEltonBatch: (yearMonth) => api.get(`/recurring-expenses/export-elton/${yearMonth}`, { responseType: 'blob' }),
   // 開帳對象選項
   getStores:      () => api.get('/recurring-expenses/options/stores'),
   getDepartments: () => api.get('/recurring-expenses/options/departments'),

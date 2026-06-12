@@ -17,6 +17,7 @@ import ChecksPage        from './pages/checks/ChecksPage';
 import RecruitmentPage   from './pages/recruitment/RecruitmentPage';
 import SalesEventsPage   from './pages/salesEvents/SalesEventsPage';
 import RecurringExpensesPage from './pages/recurringExpenses/RecurringExpensesPage';
+import CompanyProfilePage    from './pages/companyProfile/CompanyProfilePage';
 import QuestsPage           from './pages/quests/QuestsPage';
 import AppointedUnitsPage   from './pages/appointedUnits/AppointedUnitsPage';
 import AppointedUnitBindLiff from './pages/appointedUnits/AppointedUnitBindLiff';
@@ -97,6 +98,7 @@ function AppRoutes() {
       <Route path="/recruitment"    element={<PrivateRoute><RecruitmentPage /></PrivateRoute>} />
       <Route path="/sales-events"   element={<PrivateRoute><SalesEventsPage /></PrivateRoute>} />
       <Route path="/recurring-expenses" element={<PrivateRoute><RecurringExpensesPage /></PrivateRoute>} />
+      <Route path="/company-profile"    element={<PrivateRoute><CompanyProfilePage /></PrivateRoute>} />
       <Route path="/quests"             element={<PrivateRoute><QuestsPage /></PrivateRoute>} />
       <Route path="/appointed-units"    element={<PrivateRoute><AppointedUnitsPage /></PrivateRoute>} />
       <Route path="/point-redemption"   element={<PrivateRoute><PointRedeemAdminPage /></PrivateRoute>} />

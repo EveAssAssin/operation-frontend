@@ -35,6 +35,7 @@ const NAV_ITEMS = [
     children: [
       { path: '/checks',             label: '支票紀錄', icon: '🏦', moduleKey: 'checks' },
       { path: '/recurring-expenses', label: '常態費用', icon: '💴', moduleKey: 'recurring_expenses' },
+      { path: '/company-profile',    label: '公司資料', icon: '⚙', moduleKey: 'recurring_expenses' },
       // 之後新增的應付帳款子項目（廠商請款 / 匯款批次 等）都加在這裡
     ],
   },

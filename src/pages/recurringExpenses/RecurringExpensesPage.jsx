@@ -163,6 +163,40 @@ function PaymentsTab() {
     }
   }
 
+  const [exporting, setExporting] = useState(false);
+  async function exportElton() {
+    if (!month) return alert('請先選擇月份');
+    setExporting(true);
+    try {
+      const blob = await recurringExpensesApi.exportEltonBatch(month);
+      // blob 可能是 Blob 物件，也可能是 error JSON
+      if (blob && blob.size && blob.type !== 'application/json') {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${month}_元大常態+支票_出款.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } else if (blob && blob.text) {
+        const text = await blob.text();
+        try {
+          const json = JSON.parse(text);
+          alert(`匯出失敗：${json.message || '未知錯誤'}`);
+        } catch {
+          alert(`匯出失敗：${text || '空回應'}`);
+        }
+      } else {
+        alert('匯出失敗：未知錯誤');
+      }
+    } catch (e) {
+      alert(`匯出失敗：${e?.message || e}`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div>
       {/* 篩選列 */}
@@ -176,6 +210,15 @@ function PaymentsTab() {
         />
         <button style={S.btnSecondary} onClick={load} disabled={loading}>
           {loading ? '載入中...' : '重新載入'}
+        </button>
+        <div style={{ flex: 1 }} />
+        <button
+          style={{ ...S.btnPrimary, background: '#1f8b4c' }}
+          onClick={exportElton}
+          disabled={exporting || loading}
+          title="把本月所有 pending 的常態費用整理成元大網銀批次匯款檔下載"
+        >
+          {exporting ? '產生中...' : '📥 產生本月元大匯款 Excel'}
         </button>
       </div>
 
@@ -443,6 +486,9 @@ function ExpenseFormModal({ editing, onClose, onSaved }) {
     payee_name:       editing?.payee_name       || '',
     needs_billing:    editing?.needs_billing    ?? false,
     period_text:      editing?.period_text      || '',
+    bank_code:        editing?.bank_code        || '',
+    bank_branch:      editing?.bank_branch      || '',
+    bank_account:     editing?.bank_account     || '',
     bill_target_type: editing?.bill_target_type || 'store',
     bill_target_id:   editing?.bill_target_id   || '',
     bill_target_name: editing?.bill_target_name || '',
@@ -621,6 +667,40 @@ function ExpenseFormModal({ editing, onClose, onSaved }) {
                 value={form.payee_name}
                 onChange={e => update('payee_name', e.target.value)}
                 placeholder="例：黃博新彰銀 / 資峰興業有限公司"
+              />
+            </Field>
+          </div>
+
+          <div style={{ ...S.formRow, paddingBottom: 4 }}>
+            <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>
+              收款銀行資料（給「產生本月元大匯款 Excel」用，可不填）
+            </div>
+          </div>
+          <div style={{ padding: '0 20px', display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 12 }}>
+            <Field label="總行代號（3 碼）">
+              <input
+                style={S.input}
+                value={form.bank_code}
+                onChange={e => update('bank_code', e.target.value.replace(/\D/g, '').slice(0, 3))}
+                placeholder="806"
+                maxLength={3}
+              />
+            </Field>
+            <Field label="分行代號（4 碼）">
+              <input
+                style={S.input}
+                value={form.bank_branch}
+                onChange={e => update('bank_branch', e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder="1102"
+                maxLength={4}
+              />
+            </Field>
+            <Field label="收款帳號">
+              <input
+                style={S.input}
+                value={form.bank_account}
+                onChange={e => update('bank_account', e.target.value.replace(/\s/g, ''))}
+                placeholder="00812602158300"
               />
             </Field>
           </div>
