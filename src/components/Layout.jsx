@@ -10,8 +10,18 @@ import { useAuth } from '../contexts/AuthContext';
 // moduleKey 對應 DB modules.key，用於分權系統過濾選單
 const NAV_ITEMS = [
   { path: '/dashboard',       label: '首頁',     icon: '🏠', moduleKey: 'dashboard' },
-  { path: '/personnel',       label: '人員管理', icon: '👥', minRole: 'operation_staff', moduleKey: 'personnel' },
-  { path: '/basic-data',      label: '基本資料', icon: '📚', minRole: 'operation_staff', moduleKey: 'basic_data' },
+  {
+    key:   'operation',
+    label: '營運管理',
+    icon:  '📋',
+    minRole: 'operation_staff',
+    moduleKey: 'personnel',
+    children: [
+      { path: '/personnel',  label: '人員管理', icon: '👥', moduleKey: 'personnel' },
+      { path: '/basic-data', label: '基本資料', icon: '📚', moduleKey: 'basic_data' },
+      { path: '/contracts',  label: '合約管理', icon: '📜', moduleKey: 'contracts' },
+    ],
+  },
   {
     key:   'dept-billing',
     label: '部門開帳',
@@ -56,7 +66,6 @@ const NAV_ITEMS = [
   { path:  '/appointed-units',    label: '特約廠商', icon:  '🤝', minRole: 'operation_staff', moduleKey: 'appointed_units' },
   { path:  '/point-redemption',   label: '分數兌換', icon:  '🪙', minRole: 'operation_staff', moduleKey: 'point_redemption' },
   { path:  '/scheduled-notify',   label: '排程推播', icon:  '⏰', minRole: 'operation_staff', moduleKey: 'scheduled_notify' },
-  { path:  '/contracts',          label: '合約管理', icon:  '📜', minRole: 'operation_staff', moduleKey: 'contracts' },
   { path:  '/system-updates',     label: '系統更新', icon:  '🚀', minRole: 'operation_staff', moduleKey: 'system_updates' },
   // 系統設定 — 僅 admin 角色（is_admin=true）能看
   { path:  '/system/permissions', label: '權限管理', icon:  '⚙', adminOnly: true, moduleKey: 'system_settings' },
