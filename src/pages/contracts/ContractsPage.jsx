@@ -572,6 +572,22 @@ function RentFields({ data, setOne }) {
           <input style={S.input} value={data.landlord_bank || ''} onChange={e => setOne('landlord_bank', e.target.value)} placeholder="816 0083" />
         </div>
       </div>
+
+      <div style={{ marginTop: 8 }}>
+        <label style={S.label}>解約要件</label>
+        <textarea style={S.textarea}
+                  value={data.termination_conditions || ''}
+                  onChange={e => setOne('termination_conditions', e.target.value)}
+                  placeholder="例：須於到期前 60 天書面通知；中途解約需賠 1 個月租金；違約金條款..." />
+      </div>
+
+      <div style={{ marginTop: 8 }}>
+        <label style={S.label}>拆除範圍</label>
+        <textarea style={S.textarea}
+                  value={data.demolition_scope || ''}
+                  onChange={e => setOne('demolition_scope', e.target.value)}
+                  placeholder="例：須回復原狀；招牌、隔間、地板裝修需拆除；天花板照明可保留..." />
+      </div>
     </>
   );
 }
