@@ -70,6 +70,25 @@ function daysUntil(date) {
   return Math.ceil((new Date(date) - new Date(today)) / 86400000);
 }
 
+/**
+ * 從房租 schedule 算出「今天屬於哪一段」+「下一段」
+ * schedule = [{ from_date: 'YYYY-MM-DD', monthly_amount: number }, ...]
+ * 自動依 from_date 排序
+ */
+function currentRentFromSchedule(schedule) {
+  if (!Array.isArray(schedule) || schedule.length === 0) return { current: null, next: null };
+  const sorted = [...schedule]
+    .filter(s => s && s.from_date)
+    .sort((a, b) => a.from_date.localeCompare(b.from_date));
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
+  let current = null, next = null;
+  for (const s of sorted) {
+    if (s.from_date <= today) current = s;
+    else { next = s; break; }
+  }
+  return { current, next };
+}
+
 
 export default function ContractsPage() {
   const [type, setType] = useState('rent');
@@ -181,8 +200,12 @@ export default function ContractsPage() {
                       </td>
                       <td style={{ ...S.td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                         {type === 'rent'
-                          ? (c.monthly_amount != null ? `$ ${fmtAmount(c.monthly_amount)}` : '—')
-                          : (c.total_amount   != null ? `$ ${fmtAmount(c.total_amount)}`   : '—')
+                          ? (() => {
+                              const { current } = currentRentFromSchedule(c.type_data?.rent_schedule);
+                              const amt = current?.monthly_amount ?? c.monthly_amount;
+                              return amt != null ? `$ ${fmtAmount(amt)}` : '—';
+                            })()
+                          : (c.total_amount != null ? `$ ${fmtAmount(c.total_amount)}` : '—')
                         }
                       </td>
                       <td style={S.td}>
@@ -220,9 +243,11 @@ function TypeDataSummary({ type, data }) {
   if (!data) return '—';
   if (type === 'rent') {
     const bits = [];
-    if (data.deposit)             bits.push(`押金 $${fmtAmount(data.deposit)}`);
-    if (data.rent_increase_date)  bits.push(`調漲 ${fmtDate(data.rent_increase_date)}`);
-    if (data.landlord_account)    bits.push(`匯款 ${data.landlord_account.slice(-6)}`);
+    const { current, next } = currentRentFromSchedule(data.rent_schedule);
+    if (current) bits.push(`目前 $${fmtAmount(current.monthly_amount)}`);
+    if (next)    bits.push(`${fmtDate(next.from_date)} 起 $${fmtAmount(next.monthly_amount)}`);
+    if (data.deposit)          bits.push(`押金 $${fmtAmount(data.deposit)}`);
+    if (data.landlord_account) bits.push(`帳號 …${String(data.landlord_account).slice(-6)}`);
     return <span style={{ fontSize: 12 }}>{bits.join(' · ') || '—'}</span>;
   }
   if (type === 'vendor') {
@@ -284,6 +309,13 @@ function ContractEditModal({ contract, onClose, onSaved }) {
         if (payload[k] === '') payload[k] = null;
         else if (payload[k] != null) payload[k] = Number(payload[k]);
       });
+      // 房租類：用 rent_schedule 的當下月租覆寫 monthly_amount 主欄
+      if (payload.type === 'rent' && payload.type_data?.rent_schedule) {
+        const { current } = currentRentFromSchedule(payload.type_data.rent_schedule);
+        if (current && current.monthly_amount != null) {
+          payload.monthly_amount = Number(current.monthly_amount);
+        }
+      }
       if (isNew) await contractsApi.create(payload);
       else       await contractsApi.update(contract.id, payload);
       onSaved();
@@ -384,24 +416,72 @@ function ContractEditModal({ contract, onClose, onSaved }) {
 }
 
 
-// ── 房租專屬欄位
+// ── 房租專屬欄位 — 含「租金調漲時程」多段
 function RentFields({ data, setOne }) {
+  const schedule = Array.isArray(data.rent_schedule) ? data.rent_schedule : [];
+
+  function setSchedule(next) { setOne('rent_schedule', next); }
+  function updateSeg(i, k, v) {
+    const next = schedule.map((s, idx) => idx === i ? { ...s, [k]: v } : s);
+    setSchedule(next);
+  }
+  function addSeg() {
+    setSchedule([...schedule, { from_date: '', monthly_amount: '' }]);
+  }
+  function removeSeg(i) {
+    setSchedule(schedule.filter((_, idx) => idx !== i));
+  }
+
+  const { current, next } = currentRentFromSchedule(schedule);
+
   return (
     <>
-      <div style={S.row2}>
+      {/* 租金時程 */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <span style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>租金時程（依年/期間調漲）</span>
+          <div style={{ flex: 1 }} />
+          {current && (
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: '#d8f3dc', color: '#2d6a4f' }}>
+              目前 $ {fmtAmount(current.monthly_amount)}
+            </span>
+          )}
+          {next && (
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: '#fff3cd', color: '#d97706' }}>
+              {fmtDate(next.from_date)} 起 $ {fmtAmount(next.monthly_amount)}
+            </span>
+          )}
+        </div>
+        {schedule.length === 0 && (
+          <div style={{ fontSize: 11, color: '#aaa', padding: '6px 0' }}>
+            還沒設定。點下方「＋ 加一段」開始（例：110.10.01 起 $62,782 / 113.10.01 起 $65,921）
+          </div>
+        )}
+        {schedule.map((seg, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr auto', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 11, color: '#666', minWidth: 24 }}>#{i + 1}</span>
+            <input type="date" style={S.input}
+                   value={seg.from_date || ''}
+                   onChange={e => updateSeg(i, 'from_date', e.target.value)} />
+            <input type="number" style={S.input}
+                   value={seg.monthly_amount || ''}
+                   onChange={e => updateSeg(i, 'monthly_amount', e.target.value === '' ? '' : Number(e.target.value))}
+                   placeholder="月租" />
+            <button type="button"
+                    onClick={() => removeSeg(i)}
+                    style={{ ...S.btnDanger, padding: '4px 8px' }}
+                    title="移除這段">🗑</button>
+          </div>
+        ))}
+        <button type="button" onClick={addSeg} style={{ ...S.btnGhost, marginTop: 4 }}>
+          ＋ 加一段
+        </button>
+      </div>
+
+      <div style={{ ...S.row2, marginTop: 12 }}>
         <div>
           <label style={S.label}>押金</label>
           <input type="number" style={S.input} value={data.deposit || ''} onChange={e => setOne('deposit', e.target.value)} placeholder="80000" />
-        </div>
-        <div>
-          <label style={S.label}>調漲日（下次）</label>
-          <input type="date" style={S.input} value={data.rent_increase_date || ''} onChange={e => setOne('rent_increase_date', e.target.value)} />
-        </div>
-      </div>
-      <div style={S.row2}>
-        <div>
-          <label style={S.label}>調漲後金額</label>
-          <input type="number" style={S.input} value={data.rent_increase_amount || ''} onChange={e => setOne('rent_increase_amount', e.target.value)} placeholder="40000" />
         </div>
         <div>
           <label style={S.label}>解約預告期（天）</label>
