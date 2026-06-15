@@ -3,7 +3,7 @@
 //   - 列表 + 新增 + 編輯（含 type_data JSONB 動態欄位）
 
 import { useEffect, useState, useMemo } from 'react';
-import { contractsApi } from '../../services/api';
+import { contractsApi, filesApi } from '../../services/api';
 
 const C = {
   dark:    '#50422d', gold: '#8b6f4e', sand: '#cdbea2',
@@ -429,7 +429,8 @@ function ContractEditModal({ contract, onClose, onSaved }) {
           <textarea style={S.textarea} value={form.note || ''} onChange={e => up('note', e.target.value)} placeholder="任何補充說明" />
         </div>
 
-        {/* 編輯時顯示歷史紀錄 */}
+        {/* 編輯時顯示附件 + 歷史紀錄 */}
+        {!isNew && <ContractAttachmentsPanel contractId={contract.id} />}
         {!isNew && <ContractHistoryPanel contractId={contract.id} />}
 
         <div style={S.modalAct}>
@@ -749,6 +750,107 @@ function EmployeeFields({ data, setOne }) {
         </div>
       </div>
     </>
+  );
+}
+
+
+// ── 附件區（編輯時才會出現）
+function ContractAttachmentsPanel({ contractId }) {
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function load() {
+    setLoading(true); setErr('');
+    try {
+      const r = await filesApi.list('contract', contractId);
+      setFiles(r.data || []);
+    } catch (e) { setErr(e?.message || '載入失敗'); }
+    finally     { setLoading(false); }
+  }
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [contractId]);
+
+  async function handleUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true); setErr('');
+    try {
+      await filesApi.upload('contract', contractId, file, { category: 'contract_pdf' });
+      await load();
+    } catch (err) {
+      setErr(err?.response?.data?.message || err?.message || '上傳失敗');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('刪除這個附件？')) return;
+    try { await filesApi.remove(id); await load(); }
+    catch (e) { alert(e?.message || '刪除失敗'); }
+  }
+
+  function fmtSize(n) {
+    if (!n) return '—';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  return (
+    <div style={{ padding: '12px 18px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 6, borderBottom: `1px solid ${C.border}`, marginBottom: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: C.dark }}>📎 附件</span>
+        <div style={{ flex: 1 }} />
+        <label style={{
+          ...S.btnGhost, padding: '4px 10px', cursor: uploading ? 'wait' : 'pointer',
+          opacity: uploading ? 0.6 : 1, display: 'inline-flex', alignItems: 'center',
+        }}>
+          {uploading ? '⏳ 上傳中...' : '＋ 上傳檔案'}
+          <input type="file" disabled={uploading} onChange={handleUpload} style={{ display: 'none' }} />
+        </label>
+      </div>
+
+      {err && <div style={{ ...S.errBanner, margin: 0, marginBottom: 8 }}>❗ {err}</div>}
+
+      {loading ? <div style={{ fontSize: 12, color: C.textLight, padding: 8 }}>載入中...</div>
+       : files.length === 0
+       ? <div style={{ fontSize: 12, color: C.textLight, padding: 10 }}>還沒上傳任何附件（例：合約掃描 PDF、補充協議）</div>
+       : (
+         <div style={{ border: `1px solid ${C.border}`, borderRadius: 6, overflow: 'hidden' }}>
+           {files.map((f, i) => (
+             <div key={f.id} style={{
+               display: 'flex', alignItems: 'center', gap: 10,
+               padding: '8px 12px', fontSize: 12,
+               borderTop: i === 0 ? 'none' : `1px solid ${C.border}`,
+             }}>
+               <span style={{ fontSize: 16 }}>
+                 {f.mime_type?.includes('pdf') ? '📄' :
+                  f.mime_type?.startsWith('image') ? '🖼' :
+                  f.mime_type?.includes('sheet') || f.mime_type?.includes('excel') ? '📊' :
+                  '📎'}
+               </span>
+               <div style={{ flex: 1, minWidth: 0 }}>
+                 <div style={{ fontWeight: 600, color: C.textDark, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                   {f.original_name || '(未命名)'}
+                 </div>
+                 <div style={{ fontSize: 10, color: C.textLight }}>
+                   {fmtSize(f.size_bytes)} · {new Date(f.uploaded_at).toLocaleString('zh-TW', { hour12: false })} · {f.uploaded_by || '—'}
+                 </div>
+               </div>
+               <a href={f.public_url} target="_blank" rel="noreferrer"
+                  style={{ ...S.btnGhost, padding: '4px 10px', textDecoration: 'none' }}>
+                 ↓ 下載
+               </a>
+               <button style={S.btnDanger} onClick={() => handleDelete(f.id)} title="刪除附件">🗑</button>
+             </div>
+           ))}
+         </div>
+       )}
+    </div>
   );
 }
 
