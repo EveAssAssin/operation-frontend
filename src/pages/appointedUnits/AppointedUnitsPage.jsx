@@ -756,7 +756,7 @@ function SyncPanel() {
       <Card
         name="units"
         title="同步特約單位列表"
-        desc="呼叫搜點子 API 23 getUnitList，更新本地 appointed_units 表（每天 04:00 自動執行）"
+        desc="呼叫搜點子 API 23 getUnitList，更新本地 appointed_units 表（每小時整點自動執行）"
         label="同步單位"
         onRun={() => trigger('units', () => appointedUnitsApi.syncAllUnits())}
       />
