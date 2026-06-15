@@ -346,6 +346,14 @@ export const contractsApi = {
   // 提醒
   listReminders:   (id)              => api.get(`/contracts/${id}/reminders`),
   upsertReminders: (id, reminders)   => api.put(`/contracts/${id}/reminders`, { reminders }),
+  // PDF 自動讀取（multipart）
+  parsePdf:        (file, type)      => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post(`/contracts/parse-pdf?type=${encodeURIComponent(type)}`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 // 系統更新模組（展示開發績效）

@@ -335,6 +335,24 @@ function ContractEditModal({ contract, onClose, onSaved }) {
 
         {err && <div style={S.errBanner}>❗ {err}</div>}
 
+        {/* PDF 自動讀取 */}
+        <PdfImporter type={type} onParsed={(p) => {
+          // 把解析結果填入 form（不覆寫已有資料）
+          setForm(f => ({
+            ...f,
+            name:           f.name           || p.name           || '',
+            party_name:     f.party_name     || p.party_name     || '',
+            our_side_name:  f.our_side_name  || p.our_side_name  || '',
+            signed_date:    f.signed_date    || p.signed_date    || '',
+            start_date:     f.start_date     || p.start_date     || '',
+            end_date:       f.end_date       || p.end_date       || '',
+            monthly_amount: f.monthly_amount || p.monthly_amount || '',
+            total_amount:   f.total_amount   || p.total_amount   || '',
+            note:           f.note           || p.note           || '',
+            type_data:      { ...(p.type_data || {}), ...(f.type_data || {}) },
+          }));
+        }} />
+
         <div style={S.formGroup}>
           <label style={S.label}>合約名稱 *</label>
           <input style={S.input} value={form.name} onChange={e => up('name', e.target.value)}
@@ -411,6 +429,54 @@ function ContractEditModal({ contract, onClose, onSaved }) {
           <button style={S.btnPrimary} onClick={save}    disabled={saving}>{saving ? '儲存中...' : (isNew ? '建立' : '更新')}</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+// ── PDF 自動讀取上傳區
+function PdfImporter({ type, onParsed }) {
+  const [busy, setBusy] = useState(false);
+  const [msg,  setMsg]  = useState('');
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusy(true); setMsg('');
+    try {
+      const r = await contractsApi.parsePdf(file, type);
+      if (r?.success === false) throw new Error(r.message || '解析失敗');
+      onParsed(r.data || r);
+      setMsg('✅ 解析完成，已填入表單（你可以再校對 / 修改）');
+    } catch (err) {
+      setMsg('❗ ' + (err?.response?.data?.message || err?.message || '解析失敗'));
+    } finally {
+      setBusy(false);
+      e.target.value = '';
+    }
+  }
+
+  return (
+    <div style={{ margin: '12px 18px 0', padding: '10px 12px', background: '#fff8ec', border: `1px dashed ${C.gold}`, borderRadius: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, color: C.dark, fontWeight: 600 }}>📄 從 PDF 自動填</span>
+        <label style={{
+          padding: '6px 12px', background: C.dark, color: '#fff', borderRadius: 6,
+          cursor: busy ? 'wait' : 'pointer', fontSize: 12, fontWeight: 600,
+          opacity: busy ? 0.6 : 1,
+        }}>
+          {busy ? '⏳ 解析中（約 5-15 秒）...' : '選擇合約 PDF'}
+          <input type="file" accept="application/pdf" disabled={busy} onChange={handleFile} style={{ display: 'none' }} />
+        </label>
+        <span style={{ fontSize: 11, color: C.textLight }}>
+          上傳掃描 PDF，Gemini AI 會抽出簽約日 / 起迄日 / 金額 / 房東資料填到下面表單
+        </span>
+      </div>
+      {msg && (
+        <div style={{ marginTop: 8, fontSize: 12, color: msg.startsWith('✅') ? '#2d6a4f' : '#c53030' }}>
+          {msg}
+        </div>
+      )}
     </div>
   );
 }
