@@ -343,6 +343,8 @@ export const contractsApi = {
   update:      (id, body)       => api.patch(`/contracts/${id}`, body),
   remove:      (id)             => api.delete(`/contracts/${id}`),
   listExpiring:(days = 60)      => api.get('/contracts/expiring', { params: { days } }),
+  // 歷史
+  listHistory:     (id, limit = 200) => api.get(`/contracts/${id}/history`, { params: { limit } }),
   // 提醒
   listReminders:   (id)              => api.get(`/contracts/${id}/reminders`),
   upsertReminders: (id, reminders)   => api.put(`/contracts/${id}/reminders`, { reminders }),

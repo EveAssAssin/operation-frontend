@@ -429,6 +429,9 @@ function ContractEditModal({ contract, onClose, onSaved }) {
           <textarea style={S.textarea} value={form.note || ''} onChange={e => up('note', e.target.value)} placeholder="任何補充說明" />
         </div>
 
+        {/* 編輯時顯示歷史紀錄 */}
+        {!isNew && <ContractHistoryPanel contractId={contract.id} />}
+
         <div style={S.modalAct}>
           <button style={S.btnGhost}   onClick={onClose} disabled={saving}>取消</button>
           <button style={S.btnPrimary} onClick={save}    disabled={saving}>{saving ? '儲存中...' : (isNew ? '建立' : '更新')}</button>
@@ -660,6 +663,13 @@ function VendorFields({ data, setOne }) {
 }
 
 // ── 員工專屬欄位
+const ADJ_TYPES = [
+  { value: 'annual',      label: '年度調薪' },
+  { value: 'performance', label: '績效制' },
+  { value: 'both',        label: '年度 + 績效' },
+  { value: 'none',        label: '無固定調薪' },
+];
+
 function EmployeeFields({ data, setOne }) {
   return (
     <>
@@ -675,14 +685,119 @@ function EmployeeFields({ data, setOne }) {
       </div>
       <div style={S.row2}>
         <div>
-          <label style={S.label}>底薪</label>
+          <label style={S.label}>試用期薪資</label>
+          <input type="number" style={S.input} value={data.probation_salary || ''} onChange={e => setOne('probation_salary', e.target.value)} placeholder="32000" />
+        </div>
+        <div>
+          <label style={S.label}>轉正後薪資</label>
+          <input type="number" style={S.input} value={data.formal_salary || ''} onChange={e => setOne('formal_salary', e.target.value)} placeholder="38000" />
+        </div>
+      </div>
+      <div style={S.row2}>
+        <div>
+          <label style={S.label}>底薪（現行）</label>
           <input type="number" style={S.input} value={data.salary_base || ''} onChange={e => setOne('salary_base', e.target.value)} placeholder="38000" />
         </div>
+        <div>
+          <label style={S.label}>勞保投保級距</label>
+          <input type="number" style={S.input} value={data.insurance_grade || ''} onChange={e => setOne('insurance_grade', e.target.value)} placeholder="36300" />
+          <div style={S.hint}>勞保局公告的級距金額（例：36300、38200、40100）</div>
+        </div>
+      </div>
+      <div style={S.row2}>
+        <div>
+          <label style={S.label}>調薪制度</label>
+          <select style={S.input} value={data.adjustment_type || ''} onChange={e => setOne('adjustment_type', e.target.value)}>
+            <option value="">— 請選擇 —</option>
+            {ADJ_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={S.label}>年度調薪月份</label>
+          <select style={S.input} value={data.adjustment_month || ''} onChange={e => setOne('adjustment_month', e.target.value)}>
+            <option value="">— 不固定 —</option>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+              <option key={m} value={m}>{m} 月</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div style={S.row2}>
         <div>
           <label style={S.label}>離職預告期（天）</label>
           <input type="number" style={S.input} value={data.resignation_notice_days || ''} onChange={e => setOne('resignation_notice_days', e.target.value)} placeholder="30" />
         </div>
+        <div>
+          <label style={S.label}>身分證末四碼（人資對碼用）</label>
+          <input style={S.input} value={data.id_last4 || ''} onChange={e => setOne('id_last4', e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="6789" maxLength={4} />
+        </div>
       </div>
     </>
+  );
+}
+
+
+// ── 歷史記錄面板（編輯時才會出現）
+function ContractHistoryPanel({ contractId }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const r = await contractsApi.listHistory(contractId, 100);
+        if (!cancelled) setItems(r.data || []);
+      } catch (e) { if (!cancelled) setErr(e?.message || '載入失敗'); }
+      finally     { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [contractId]);
+
+  function fmtVal(v) {
+    if (!v) return <span style={{ color: '#bbb' }}>—</span>;
+    if (v.length > 80) return <span title={v}>{v.slice(0, 80)}...</span>;
+    return v;
+  }
+
+  return (
+    <div style={{ padding: '12px 18px 0' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.dark, paddingBottom: 6, borderBottom: `1px solid ${C.border}`, marginBottom: 8 }}>
+        📜 變更歷史
+      </div>
+      {loading ? <div style={{ fontSize: 12, color: C.textLight, padding: 10 }}>載入中...</div>
+       : err   ? <div style={{ fontSize: 12, color: '#c53030', padding: 10 }}>{err}</div>
+       : items.length === 0 ? <div style={{ fontSize: 12, color: C.textLight, padding: 10 }}>還沒有任何變更紀錄</div>
+       : (
+        <div style={{ maxHeight: 260, overflow: 'auto', border: `1px solid ${C.border}`, borderRadius: 6 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr>
+                <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>時間</th>
+                <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>欄位</th>
+                <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>原值</th>
+                <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>新值</th>
+                <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>異動人</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map(h => (
+                <tr key={h.id}>
+                  <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', whiteSpace: 'nowrap' }}>
+                    {new Date(h.changed_at).toLocaleString('zh-TW', { hour12: false })}
+                  </td>
+                  <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', fontWeight: 600 }}>{h.field}</td>
+                  <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', color: '#c53030' }}>{fmtVal(h.old_value)}</td>
+                  <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', color: '#2d6a4f' }}>{fmtVal(h.new_value)}</td>
+                  <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', color: C.textLight }}>{h.changed_by || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
