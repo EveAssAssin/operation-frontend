@@ -49,6 +49,7 @@ export default function CompanyProfilePage() {
     payer_account_name: '', payer_account_no: '',
     payer_bank_code: '', payer_branch_code: '',
     default_overdue_code: '1', default_fee_burden: '15', default_notify_method: '0',
+    gemini_api_key: '',
   });
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
@@ -175,6 +176,25 @@ export default function CompanyProfilePage() {
                   onChange={e => update('default_notify_method', e.target.value)}>
             {NOTIFY_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
+        </div>
+      </div>
+
+      <div style={S.card}>
+        <div style={S.section}>外部 API 設定</div>
+
+        <div style={S.formRow}>
+          <label style={S.label}>Gemini API Key（合約 PDF 自動讀取用）</label>
+          <input
+            style={S.input}
+            value={data.gemini_api_key || ''}
+            onChange={e => update('gemini_api_key', e.target.value)}
+            placeholder="AQ.Ab8RN6J... 或 AIza... 開頭"
+            type="password"
+          />
+          <div style={S.hint}>
+            到 https://aistudio.google.com/apikey 申請（免費）。
+            設了之後在「📜 合約管理 → 新增房租合約」可以直接上傳 PDF 自動填表。
+          </div>
         </div>
       </div>
 
