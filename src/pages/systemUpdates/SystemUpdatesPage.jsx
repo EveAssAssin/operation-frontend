@@ -114,17 +114,26 @@ export default function SystemUpdatesPage() {
 // 每日詳細
 // ════════════════════════════════════════════════════════════
 function DailyBlock({ memberId, member }) {
+  const [mode, setMode] = useState('days');   // 'days' | 'range'
   const [days, setDays] = useState(14);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate,   setToDate]   = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+
+  // AI 摘要
+  const [ai, setAi]       = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiErr,    setAiErr]    = useState('');
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true); setErr('');
       try {
-        const r = await systemUpdatesApi.getDaily(memberId, days);
+        const params = mode === 'range' && fromDate && toDate ? { from: fromDate, to: toDate } : { days };
+        const r = await systemUpdatesApi.getDaily(memberId, params);
         if (!cancelled) setData(r.data);
       } catch (e) {
         if (!cancelled) setErr(e?.message || '載入失敗');
@@ -133,20 +142,94 @@ function DailyBlock({ memberId, member }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [memberId, days]);
+  }, [memberId, mode, days, fromDate, toDate]);
+
+  async function runAi() {
+    setAiLoading(true); setAiErr(''); setAi(null);
+    try {
+      const params = mode === 'range' && fromDate && toDate ? { from: fromDate, to: toDate } : { days };
+      const r = await systemUpdatesApi.aiSummarize(memberId, params);
+      setAi(r.data);
+    } catch (e) {
+      setAiErr(e?.response?.data?.message || e?.message || 'AI 摘要失敗');
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  function repoBadge(label) {
+    // 判斷前端/後端（依 repo label）
+    const isBackend  = /後端|backend/i.test(label || '');
+    const isFrontend = /前端|frontend/i.test(label || '');
+    if (isBackend)  return { text: '📦 後端', bg: '#e0e7ff', color: '#3730a3' };
+    if (isFrontend) return { text: '🎨 前端', bg: '#fef3c7', color: '#92400e' };
+    return { text: label || '?', bg: '#eee', color: '#666' };
+  }
 
   return (
     <div style={{ background: '#fff', borderRadius: 10, border: `1px solid ${C.border}`, padding: '14px 18px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: C.dark }}>
-          📅 每日更新詳細（最近 {days} 天）
+          📅 每日更新詳細
         </div>
         <div style={{ flex: 1 }} />
-        <select value={days} onChange={e => setDays(Number(e.target.value))}
-                style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.border}`, fontSize: 12 }}>
-          {[7, 14, 30, 60].map(d => <option key={d} value={d}>{d} 天</option>)}
-        </select>
+
+        {/* 模式切換 */}
+        <div style={{ display: 'inline-flex', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 6, padding: 2 }}>
+          <button onClick={() => setMode('days')}
+                  style={{ padding: '4px 10px', border: 'none', borderRadius: 4, fontSize: 11, cursor: 'pointer',
+                           background: mode === 'days' ? C.dark : 'transparent', color: mode === 'days' ? '#fff' : C.textMid }}>
+            最近 N 天
+          </button>
+          <button onClick={() => setMode('range')}
+                  style={{ padding: '4px 10px', border: 'none', borderRadius: 4, fontSize: 11, cursor: 'pointer',
+                           background: mode === 'range' ? C.dark : 'transparent', color: mode === 'range' ? '#fff' : C.textMid }}>
+            日期區間
+          </button>
+        </div>
+
+        {mode === 'days' && (
+          <select value={days} onChange={e => setDays(Number(e.target.value))}
+                  style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.border}`, fontSize: 12 }}>
+            {[7, 14, 30, 60, 90].map(d => <option key={d} value={d}>{d} 天</option>)}
+          </select>
+        )}
+        {mode === 'range' && (
+          <>
+            <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                   style={{ padding: '4px 8px', borderRadius: 6, border: `1px solid ${C.border}`, fontSize: 12 }} />
+            <span style={{ fontSize: 12, color: C.textLight }}>~</span>
+            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                   style={{ padding: '4px 8px', borderRadius: 6, border: `1px solid ${C.border}`, fontSize: 12 }} />
+          </>
+        )}
+
+        <button onClick={runAi} disabled={aiLoading || loading}
+                style={{ padding: '5px 12px', borderRadius: 6, border: 'none',
+                         background: '#9d4edd', color: '#fff', fontSize: 12, fontWeight: 600,
+                         cursor: aiLoading ? 'wait' : 'pointer', opacity: aiLoading ? 0.6 : 1 }}>
+          {aiLoading ? '⏳ AI 整理中...' : '✨ AI 中文摘要'}
+        </button>
       </div>
+
+      {/* AI 摘要結果 */}
+      {aiErr && <div style={{ padding: 10, background: '#fde8e8', color: '#c53030', borderRadius: 6, fontSize: 12, marginBottom: 10 }}>{aiErr}</div>}
+      {ai && (
+        <div style={{ padding: 12, background: '#f3e8ff', border: `1px solid #d8b4fe`, borderRadius: 8, marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6b21a8', marginBottom: 6 }}>✨ AI 中文摘要</div>
+          <div style={{ fontSize: 13, color: C.textDark, lineHeight: 1.7, marginBottom: 8 }}>{ai.summary}</div>
+          {ai.categories && Object.entries(ai.categories).map(([cat, items]) => (
+            items && items.length > 0 && (
+              <div key={cat} style={{ marginTop: 6 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#6b21a8' }}>{cat}（{items.length}）</div>
+                <ul style={{ margin: '2px 0 0 18px', padding: 0, fontSize: 12, color: C.textDark, lineHeight: 1.7 }}>
+                  {items.slice(0, 20).map((it, i) => <li key={i}>{it}</li>)}
+                </ul>
+              </div>
+            )
+          ))}
+        </div>
+      )}
 
       {(member?.repos || []).length === 0 ? (
         <div style={{ padding: 24, textAlign: 'center', color: C.textLight, background: '#faf8f5', borderRadius: 8 }}>
@@ -170,16 +253,26 @@ function DailyBlock({ memberId, member }) {
               </div>
               {day.commits.map(c => {
                 const t = TYPE_LABEL[c.type] || TYPE_LABEL.other;
+                const rb = repoBadge(c.repo_label);
+                const zh = ai?.items?.find(x => x.sha === c.sha)?.zh;
                 return (
                   <div key={c.sha} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 0' }}>
                     <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: t.bg, color: t.color, fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {t.label}
                     </span>
+                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: rb.bg, color: rb.color, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      {rb.text}
+                    </span>
                     <div style={{ flex: 1, fontSize: 12, color: C.textDark, lineHeight: 1.6 }}>
                       {c.subject}
                       {c.scope && <span style={{ color: C.textLight, marginLeft: 4 }}>({c.scope})</span>}
+                      {zh && (
+                        <div style={{ fontSize: 12, color: '#6b21a8', marginTop: 2, fontWeight: 500 }}>
+                          ✨ {zh}
+                        </div>
+                      )}
                       <div style={{ fontSize: 10, color: C.textLight, marginTop: 2 }}>
-                        {c.repo_label} · {fmtDateTime(c.date)} · {c.sha.slice(0, 7)}
+                        {fmtDateTime(c.date)} · {c.sha.slice(0, 7)}
                       </div>
                     </div>
                   </div>

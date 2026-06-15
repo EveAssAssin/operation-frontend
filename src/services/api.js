@@ -378,8 +378,9 @@ export const contractsApi = {
 export const systemUpdatesApi = {
   listMembers:    ()                       => api.get('/system-updates/members'),
   listMonths:     ()                       => api.get('/system-updates/months'),
-  getDaily:       (memberId, days = 14)    => api.get(`/system-updates/members/${memberId}/daily`,   { params: { days } }),
+  getDaily:       (memberId, params)       => api.get(`/system-updates/members/${memberId}/daily`,   { params }),
   getMonthly:     (memberId, yearMonth)    => api.get(`/system-updates/members/${memberId}/monthly`, { params: { ym: yearMonth } }),
+  aiSummarize:    (memberId, params)       => api.get(`/system-updates/members/${memberId}/ai-summarize`, { params }),
 };
 
 // Quests API（任務派發 → 市場部）
