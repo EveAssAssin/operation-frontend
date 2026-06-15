@@ -252,9 +252,14 @@ function TypeDataSummary({ type, data }) {
   }
   if (type === 'vendor') {
     const bits = [];
-    if (data.reward_rate != null) bits.push(`回饋 ${(Number(data.reward_rate) * 100).toFixed(1)}%`);
-    if (data.cost_target)         bits.push(`成本目標 $${fmtAmount(data.cost_target)}`);
+    const benefits = Array.isArray(data.benefits) ? data.benefits : [];
+    if (benefits.length > 0) {
+      const byType = {};
+      benefits.forEach(b => { byType[b.type] = (byType[b.type] || 0) + 1; });
+      bits.push(Object.entries(byType).map(([t, n]) => `${t}×${n}`).join(' '));
+    }
     if (data.payment_terms)       bits.push(data.payment_terms);
+    if (data.cost_target)         bits.push(`成本目標 $${fmtAmount(data.cost_target)}`);
     return <span style={{ fontSize: 12 }}>{bits.join(' · ') || '—'}</span>;
   }
   if (type === 'employee') {
@@ -568,14 +573,72 @@ function RentFields({ data, setOne }) {
   );
 }
 
-// ── 廠商專屬欄位
+// ── 廠商專屬欄位 — 含「優惠/獎勵條款」動態陣列
+const BENEFIT_TYPES = ['階梯回饋', '回饋', '現金折讓', '獎金', '折扣', '抵用', '其他'];
+const VALUE_TYPES   = ['percent', 'amount'];
+const VALUE_LABEL   = { percent: '%', amount: '$' };
+
 function VendorFields({ data, setOne }) {
+  const benefits = Array.isArray(data.benefits) ? data.benefits : [];
+  function setBenefits(next) { setOne('benefits', next); }
+  function update(i, k, v) { setBenefits(benefits.map((b, idx) => idx === i ? { ...b, [k]: v } : b)); }
+  function addOne() { setBenefits([...benefits, { type: '階梯回饋', condition: '', value_type: 'percent', value: '', note: '' }]); }
+  function removeOne(i) { setBenefits(benefits.filter((_, idx) => idx !== i)); }
+
   return (
     <>
+      {/* 優惠/獎勵條款 */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 12, color: '#666', fontWeight: 600, marginBottom: 6 }}>
+          優惠 / 獎勵條款（可加多筆 — 階梯回饋、現金折讓、達標獎金等）
+        </div>
+        {benefits.length === 0 && (
+          <div style={{ fontSize: 11, color: '#aaa', padding: '6px 0' }}>
+            還沒設定。例：階梯回饋 0~50萬 → 3%；50萬~200萬 → 5%；現金折讓 提早7天 → 2%；達標獎金 年銷售500萬 → $100,000
+          </div>
+        )}
+        {benefits.map((b, i) => (
+          <div key={i} style={{
+            display: 'grid', gridTemplateColumns: '90px 1fr 80px 110px auto',
+            gap: 6, alignItems: 'center', marginBottom: 6,
+          }}>
+            <select style={{ ...S.input, padding: '6px 8px' }}
+                    value={b.type || '階梯回饋'}
+                    onChange={e => update(i, 'type', e.target.value)}>
+              {BENEFIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <input style={{ ...S.input, padding: '6px 8px' }}
+                   value={b.condition || ''}
+                   onChange={e => update(i, 'condition', e.target.value)}
+                   placeholder={b.type === '階梯回饋' ? '0~50萬' : b.type === '現金折讓' ? '提早 7 天' : b.type === '獎金' ? '年銷售達 500 萬' : '條件描述'} />
+            <select style={{ ...S.input, padding: '6px 8px' }}
+                    value={b.value_type || 'percent'}
+                    onChange={e => update(i, 'value_type', e.target.value)}>
+              {VALUE_TYPES.map(t => <option key={t} value={t}>{t === 'percent' ? '%' : '金額 $'}</option>)}
+            </select>
+            <input type="number" step="0.01" style={{ ...S.input, padding: '6px 8px' }}
+                   value={b.value || ''}
+                   onChange={e => update(i, 'value', e.target.value === '' ? '' : Number(e.target.value))}
+                   placeholder={b.value_type === 'percent' ? '5' : '100000'} />
+            <button type="button" onClick={() => removeOne(i)}
+                    style={{ ...S.btnDanger, padding: '4px 8px' }} title="移除">🗑</button>
+            {b.note !== undefined && (
+              <input style={{ ...S.input, padding: '6px 8px', gridColumn: '1 / -1', fontSize: 11 }}
+                     value={b.note || ''}
+                     onChange={e => update(i, 'note', e.target.value)}
+                     placeholder="備註（選填）" />
+            )}
+          </div>
+        ))}
+        <button type="button" onClick={addOne} style={{ ...S.btnGhost, marginTop: 4 }}>
+          ＋ 加一條
+        </button>
+      </div>
+
       <div style={S.row2}>
         <div>
-          <label style={S.label}>回饋率（小數）</label>
-          <input type="number" step="0.001" style={S.input} value={data.reward_rate || ''} onChange={e => setOne('reward_rate', e.target.value)} placeholder="0.05 = 5%" />
+          <label style={S.label}>付款條件</label>
+          <input style={S.input} value={data.payment_terms || ''} onChange={e => setOne('payment_terms', e.target.value)} placeholder="月結 60 天" />
         </div>
         <div>
           <label style={S.label}>成本比對目標</label>
@@ -584,12 +647,12 @@ function VendorFields({ data, setOne }) {
       </div>
       <div style={S.row2}>
         <div>
-          <label style={S.label}>付款條件</label>
-          <input style={S.input} value={data.payment_terms || ''} onChange={e => setOne('payment_terms', e.target.value)} placeholder="月結 60 天" />
-        </div>
-        <div>
           <label style={S.label}>保固期（月）</label>
           <input type="number" style={S.input} value={data.warranty_months || ''} onChange={e => setOne('warranty_months', e.target.value)} placeholder="12" />
+        </div>
+        <div>
+          <label style={S.label}>結帳週期</label>
+          <input style={S.input} value={data.billing_cycle || ''} onChange={e => setOne('billing_cycle', e.target.value)} placeholder="每月 / 每季" />
         </div>
       </div>
     </>
