@@ -380,7 +380,7 @@ export const systemUpdatesApi = {
   listMonths:     ()                       => api.get('/system-updates/months'),
   getDaily:       (memberId, params)       => api.get(`/system-updates/members/${memberId}/daily`,   { params }),
   getMonthly:     (memberId, yearMonth)    => api.get(`/system-updates/members/${memberId}/monthly`, { params: { ym: yearMonth } }),
-  aiSummarize:    (memberId, params)       => api.get(`/system-updates/members/${memberId}/ai-summarize`, { params }),
+  aiSummarize:    (memberId, params)       => api.get(`/system-updates/members/${memberId}/ai-summarize`, { params, timeout: 120000 }),  // 2 分鐘超時
 };
 
 // Quests API（任務派發 → 市場部）
