@@ -50,6 +50,7 @@ export default function CompanyProfilePage() {
     payer_bank_code: '', payer_branch_code: '',
     default_overdue_code: '1', default_fee_burden: '15', default_notify_method: '0',
     gemini_api_key: '',
+    binding_report_api_key: '',
   });
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
@@ -194,6 +195,21 @@ export default function CompanyProfilePage() {
           <div style={S.hint}>
             到 https://aistudio.google.com/apikey 申請（免費）。
             設了之後在「📜 合約管理 → 新增房租合約」可以直接上傳 PDF 自動填表。
+          </div>
+        </div>
+
+        <div style={S.formRow}>
+          <label style={S.label}>特約廠商綁定報表 API Key（給其他部門對接用）</label>
+          <input
+            style={S.input}
+            value={data.binding_report_api_key || ''}
+            onChange={e => update('binding_report_api_key', e.target.value)}
+            placeholder="自訂任意長字串（建議 32 字以上）"
+            type="password"
+          />
+          <div style={S.hint}>
+            其他部門呼叫綁定報表 API 時要帶這把 key。
+            把 key 給對方並附上 API 文件，他們就能透過 https://operation-backend.onrender.com/api/external/appointed-units/binding-report 查資料。
           </div>
         </div>
       </div>
