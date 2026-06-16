@@ -370,6 +370,7 @@ export const contractsApi = {
     fd.append('file', file);
     return api.post(`/contracts/parse-pdf?type=${encodeURIComponent(type)}`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,   // 2 分鐘超時，Render 冷啟動 + Gemini 處理大 PDF 需要時間
     });
   },
 };
