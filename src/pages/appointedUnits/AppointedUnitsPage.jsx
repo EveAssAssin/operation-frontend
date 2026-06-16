@@ -23,6 +23,7 @@ const C = {
 
 const TABS = [
   { key: 'units',      label: '廠商列表', icon: '🏢' },
+  { key: 'report',     label: '綁定報表', icon: '📊' },
   { key: 'bindings',   label: 'LINE 綁定', icon: '🔗' },
   { key: 'broadcasts', label: '推播',     icon: '📢' },
   { key: 'sync',       label: '同步',     icon: '🔄' },
@@ -96,6 +97,7 @@ export default function AppointedUnitsPage() {
 
       <div style={{ padding: '24px 28px' }}>
         {tab === 'units'      && <UnitsPanel />}
+        {tab === 'report'     && <BindingReportPanel />}
         {tab === 'bindings'   && <BindingsPanel />}
         {tab === 'broadcasts' && <BroadcastsPanel />}
         {tab === 'sync'       && <SyncPanel />}
@@ -111,32 +113,39 @@ function UnitsPanel() {
   const [list, setList]       = useState([]);
   const [pagi, setPagi]       = useState({ page: 1, size: 20, total: 0 });
   const [keyword, setKeyword] = useState('');
+  const [sort, setSort]       = useState('binding_desc');   // 預設綁定數降冪
   const [loading, setLoading] = useState(true);
-  const [detail, setDetail]   = useState(null);   // {unit_code} 開啟詳情 modal
+  const [detail, setDetail]   = useState(null);
 
   const load = useCallback(async (page = 1) => {
     setLoading(true);
     try {
-      const res = await appointedUnitsApi.listUnits({ page, size: pagi.size, keyword });
+      const res = await appointedUnitsApi.listUnits({ page, size: pagi.size, keyword, sort });
       setList(Array.isArray(res?.data) ? res.data : []);
       setPagi(res?.pagination || { page, size: pagi.size, total: 0 });
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [keyword, pagi.size]);
+  }, [keyword, pagi.size, sort]);
 
-  useEffect(() => { load(1); }, []); // eslint-disable-line
+  useEffect(() => { load(1); }, [sort]); // eslint-disable-line
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <input
           value={keyword}
           onChange={e => setKeyword(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && load(1)}
           placeholder="搜尋廠商代碼或名稱..."
-          style={{ flex: 1, padding: '8px 12px', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: '#fff' }}
+          style={{ flex: 1, minWidth: 220, padding: '8px 12px', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: '#fff' }}
         />
         <button style={btn('primary')} onClick={() => load(1)}>搜尋</button>
+        <select value={sort} onChange={e => setSort(e.target.value)}
+                style={{ padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: '#fff' }}>
+          <option value="binding_desc">綁定數 高→低</option>
+          <option value="binding_asc">綁定數 低→高</option>
+          <option value="default">預設（同步權重）</option>
+        </select>
       </div>
 
       <div style={{ background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
@@ -146,19 +155,23 @@ function UnitsPanel() {
               <th style={th()}>廠商代碼</th>
               <th style={th()}>廠商名稱</th>
               <th style={th()}>類別</th>
+              <th style={{ ...th(), textAlign: 'center' }}>綁定數</th>
               <th style={th()}>合約日期</th>
               <th style={th()}>同步時間</th>
               <th style={th()}>操作</th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={6} style={td('center')}>載入中...</td></tr>}
-            {!loading && list.length === 0 && <tr><td colSpan={6} style={td('center')}>無資料</td></tr>}
+            {loading && <tr><td colSpan={7} style={td('center')}>載入中...</td></tr>}
+            {!loading && list.length === 0 && <tr><td colSpan={7} style={td('center')}>無資料</td></tr>}
             {!loading && list.map(u => (
               <tr key={u.id} style={{ borderTop: `1px solid ${C.border}` }}>
                 <td style={td()}><b>{u.unit_code}</b></td>
                 <td style={td()}>{u.unit_name}</td>
                 <td style={td()}>{u.category_name || <span style={{ color: C.textLight }}>—</span>}</td>
+                <td style={{ ...td('center'), fontWeight: 700, color: (u.binding_count || 0) > 0 ? C.primary : C.textLight }}>
+                  {u.binding_count || 0}
+                </td>
                 <td style={td()}>{u.contract_time ? fmtDateTime(u.contract_time).split(' ')[0] : '—'}</td>
                 <td style={td()}><span style={{ color: C.textLight, fontSize: 11 }}>{fmtDateTime(u.last_synced_at)}</span></td>
                 <td style={td()}>
@@ -344,7 +357,185 @@ function UnitDetailModal({ unit, onClose }) {
 }
 
 // ════════════════════════════════════════════════════════════
-//                     Tab 2：LINE 綁定
+//                  Tab 2：綁定報表
+// ════════════════════════════════════════════════════════════
+function BindingReportPanel() {
+  const todayStr = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
+  const firstDay = () => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString('sv-SE');
+  };
+
+  const [mode, setMode]   = useState('month');                // month | range
+  const [yearMonth, setYearMonth] = useState(todayStr().slice(0, 7));
+  const [from, setFrom]   = useState(firstDay());
+  const [to,   setTo]     = useState(todayStr());
+  const [stores, setStores] = useState([]);
+  const [storeErpid, setStoreErpid] = useState('');           // 空 = 全部
+  const [status, setStatus] = useState('all');                // all | active
+
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr]   = useState('');
+
+  // 載入門市清單（用 introducer 門市 endpoint 已存在）
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await appointedUnitsApi.getIntroducerStores();
+        setStores(Array.isArray(r?.data) ? r.data : []);
+      } catch (e) { console.warn('stores load fail', e); }
+    })();
+  }, []);
+
+  const run = useCallback(async () => {
+    setLoading(true); setErr(''); setData(null);
+    try {
+      let params = { status };
+      if (mode === 'month') {
+        const [y, m] = yearMonth.split('-').map(Number);
+        const f = `${y}-${String(m).padStart(2,'0')}-01`;
+        const lastDay = new Date(y, m, 0).getDate();
+        const t = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+        params.from = f; params.to = t;
+      } else {
+        params.from = from; params.to = to;
+      }
+      if (storeErpid) params.store_erpid = storeErpid;
+      const r = await appointedUnitsApi.bindingReport(params);
+      setData(r?.data || null);
+    } catch (e) {
+      setErr(e?.response?.data?.message || e?.message || '查詢失敗');
+    } finally { setLoading(false); }
+  }, [mode, yearMonth, from, to, storeErpid, status]);
+
+  useEffect(() => { run(); /* eslint-disable-next-line */ }, []);
+
+  const inputStyle = { padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: '#fff' };
+
+  return (
+    <>
+      <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 8, padding: 14, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'inline-flex', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 6, padding: 2 }}>
+            <button onClick={() => setMode('month')}
+                    style={{ padding: '5px 12px', border: 'none', borderRadius: 4, fontSize: 12, cursor: 'pointer',
+                             background: mode === 'month' ? C.primary : 'transparent', color: mode === 'month' ? '#fff' : C.textMid }}>
+              月份
+            </button>
+            <button onClick={() => setMode('range')}
+                    style={{ padding: '5px 12px', border: 'none', borderRadius: 4, fontSize: 12, cursor: 'pointer',
+                             background: mode === 'range' ? C.primary : 'transparent', color: mode === 'range' ? '#fff' : C.textMid }}>
+              日期區間
+            </button>
+          </div>
+          {mode === 'month' ? (
+            <input type="month" value={yearMonth} onChange={e => setYearMonth(e.target.value)} style={inputStyle} />
+          ) : (
+            <>
+              <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={inputStyle} />
+              <span style={{ color: C.textLight }}>~</span>
+              <input type="date" value={to} onChange={e => setTo(e.target.value)} style={inputStyle} />
+            </>
+          )}
+          <select value={storeErpid} onChange={e => setStoreErpid(e.target.value)} style={inputStyle}>
+            <option value="">所有門市</option>
+            {stores.map(s => <option key={s.store_erpid} value={s.store_erpid}>{s.store_name || s.store_erpid}</option>)}
+          </select>
+          <select value={status} onChange={e => setStatus(e.target.value)} style={inputStyle}>
+            <option value="all">全部</option>
+            <option value="active">綁定中</option>
+          </select>
+          <button style={btn('primary')} onClick={run} disabled={loading}>
+            {loading ? '查詢中...' : '🔍 查詢'}
+          </button>
+        </div>
+      </div>
+
+      {err && <div style={{ padding: 12, background: '#fde8e8', color: '#c53030', borderRadius: 6, marginBottom: 12 }}>❗ {err}</div>}
+
+      {data && (
+        <>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 160px', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 8, padding: '12px 14px' }}>
+              <div style={{ fontSize: 11, color: C.textLight, marginBottom: 4 }}>總綁定數</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: C.primary }}>{data.total || 0}</div>
+            </div>
+            <div style={{ flex: '1 1 160px', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 8, padding: '12px 14px' }}>
+              <div style={{ fontSize: 11, color: C.textLight, marginBottom: 4 }}>廠商數</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: C.primary }}>{(data.units || []).length}</div>
+            </div>
+            <div style={{ flex: '1 1 160px', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 8, padding: '12px 14px' }}>
+              <div style={{ fontSize: 11, color: C.textLight, marginBottom: 4 }}>涵蓋門市</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: C.primary }}>{(data.by_store || []).length}</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {/* 廠商排行 */}
+            <div style={{ background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+              <div style={{ padding: '10px 14px', background: C.bg, fontWeight: 700, fontSize: 13, color: C.primary }}>
+                🏢 廠商被綁定次數
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead style={{ background: '#faf8f5' }}>
+                  <tr>
+                    <th style={th()}>排名</th>
+                    <th style={th()}>廠商</th>
+                    <th style={{ ...th(), textAlign: 'right' }}>綁定數</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data.units || []).length === 0 && <tr><td colSpan={3} style={td('center')}>無資料</td></tr>}
+                  {(data.units || []).map((u, i) => (
+                    <tr key={u.unit_code} style={{ borderTop: `1px solid ${C.border}` }}>
+                      <td style={td()}>#{i + 1}</td>
+                      <td style={td()}>
+                        <div style={{ fontWeight: 600 }}>{u.unit_name || '—'}</div>
+                        <div style={{ fontSize: 11, color: C.textLight }}>{u.unit_code}</div>
+                      </td>
+                      <td style={{ ...td(), textAlign: 'right', fontWeight: 700, color: C.primary }}>{u.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* 門市排行 */}
+            <div style={{ background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+              <div style={{ padding: '10px 14px', background: C.bg, fontWeight: 700, fontSize: 13, color: C.primary }}>
+                🏬 介紹門市排行
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead style={{ background: '#faf8f5' }}>
+                  <tr>
+                    <th style={th()}>排名</th>
+                    <th style={th()}>門市</th>
+                    <th style={{ ...th(), textAlign: 'right' }}>綁定數</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data.by_store || []).length === 0 && <tr><td colSpan={3} style={td('center')}>無資料</td></tr>}
+                  {(data.by_store || []).map((s, i) => (
+                    <tr key={s.store_erpid || `_${i}`} style={{ borderTop: `1px solid ${C.border}` }}>
+                      <td style={td()}>#{i + 1}</td>
+                      <td style={td()}>{s.store_name || '—'} {s.store_erpid && <span style={{ fontSize: 11, color: C.textLight }}>({s.store_erpid})</span>}</td>
+                      <td style={{ ...td(), textAlign: 'right', fontWeight: 700, color: C.primary }}>{s.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+
+// ════════════════════════════════════════════════════════════
+//                     Tab 3：LINE 綁定
 // ════════════════════════════════════════════════════════════
 function BindingsPanel() {
   const [list, setList]       = useState([]);

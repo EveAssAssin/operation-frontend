@@ -481,6 +481,9 @@ export const appointedUnitsApi = {
   listBindings:     (params = {}) => api.get('/appointed-units/bindings', { params }),
   forceUnbind:      (id)          => api.delete(`/appointed-units/bindings/${id}`),
 
+  // 綁定報表
+  bindingReport:    (params = {}) => api.get('/appointed-units/binding-report', { params }),
+
   createBroadcast:  (body)        => api.post('/appointed-units/broadcasts', body),
   listBroadcasts:   (params = {}) => api.get('/appointed-units/broadcasts', { params }),
   getBroadcast:     (id)          => api.get(`/appointed-units/broadcasts/${id}`),
