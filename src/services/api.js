@@ -335,6 +335,24 @@ export const recurringExpensesApi = {
   getDepartments: () => api.get('/recurring-expenses/options/departments'),
 };
 
+// 文件庫
+export const docLibraryApi = {
+  // type: 'vendor' / 'rent' / 'employee'
+  listCategories: (type)                       => api.get(`/doc-library/${type}/categories`),
+  listDocs:       (type, category)             => api.get(`/doc-library/${type}/docs`, { params: { category } }),
+  upload:         (type, file, params)         => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post(`/doc-library/${type}/upload`, fd, {
+      params,
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+  },
+  update:         (id, body)                   => api.patch(`/doc-library/${id}`, body),
+  remove:         (id)                         => api.delete(`/doc-library/${id}`),
+};
+
 // 通用附件
 export const filesApi = {
   // entity_type 例：'contract' / 'medical_doc'

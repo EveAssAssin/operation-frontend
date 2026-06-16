@@ -3,7 +3,7 @@
 //   - 列表 + 新增 + 編輯（含 type_data JSONB 動態欄位）
 
 import { useEffect, useState, useMemo } from 'react';
-import { contractsApi, filesApi } from '../../services/api';
+import { contractsApi, filesApi, docLibraryApi } from '../../services/api';
 
 const C = {
   dark:    '#50422d', gold: '#8b6f4e', sand: '#cdbea2',
@@ -15,6 +15,7 @@ const TYPES = [
   { value: 'rent',     label: '🏠 房租合約',   accent: '#8b6f4e' },
   { value: 'vendor',   label: '🤝 廠商合約',   accent: '#1f8b4c' },
   { value: 'employee', label: '👥 員工合約',   accent: '#3b5bdb' },
+  { value: 'library',  label: '📁 文件庫',     accent: '#9d4edd' },
 ];
 
 const STATUS_LABEL = {
@@ -142,6 +143,10 @@ export default function ContractsPage() {
           })}
         </div>
 
+        {type === 'library' ? (
+          <DocumentLibraryPanel />
+        ) : (
+        <>
         {/* 工具列 */}
         <div style={S.toolbar}>
           <div style={{ flex: 1, fontSize: 13, color: C.textLight }}>共 {items.length} 份</div>
@@ -222,6 +227,8 @@ export default function ContractsPage() {
             </table>
           </div>
         )}
+        </>
+        )}
       </div>
 
       {editing && (
@@ -270,6 +277,246 @@ function TypeDataSummary({ type, data }) {
     return <span style={{ fontSize: 12 }}>{bits.join(' · ') || '—'}</span>;
   }
   return '—';
+}
+
+
+// ════════════════════════════════════════════════════════════
+// 文件庫 panel
+// ════════════════════════════════════════════════════════════
+function DocumentLibraryPanel() {
+  const [subType, setSubType] = useState('vendor');   // vendor / rent / employee
+  const [categories, setCategories] = useState([]);
+  const [selCat,     setSelCat]     = useState(null);
+  const [docs,       setDocs]       = useState([]);
+  const [loadingCat, setLoadingCat] = useState(true);
+  const [loadingDoc, setLoadingDoc] = useState(false);
+  const [err,        setErr]        = useState('');
+  const [showAddCat, setShowAddCat] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [uploading,  setUploading]  = useState(false);
+
+  const SUB_TABS = [
+    { value: 'vendor',   label: '🤝 廠商文件庫',  placeholder: '帝康 / 萬豐 / ...', autoStore: false },
+    { value: 'rent',     label: '🏬 門市文件庫',  placeholder: '北屯店 / 大墩店 / ...', autoStore: true },
+    { value: 'employee', label: '👥 員工文件庫',  placeholder: '王小明 / 林小花 / ...', autoStore: false },
+  ];
+  const subCfg = SUB_TABS.find(s => s.value === subType);
+
+  async function loadCategories() {
+    setLoadingCat(true); setErr('');
+    try {
+      const r = await docLibraryApi.listCategories(subType);
+      const cats = r?.data || [];
+      setCategories(cats);
+      if (cats.length > 0 && !cats.find(c => c.category === selCat)) {
+        setSelCat(cats[0].category);
+      }
+    } catch (e) { setErr(e?.message || '載入分類失敗'); }
+    finally { setLoadingCat(false); }
+  }
+
+  async function loadDocs() {
+    if (!selCat) { setDocs([]); return; }
+    setLoadingDoc(true);
+    try {
+      const r = await docLibraryApi.listDocs(subType, selCat);
+      setDocs(r?.data || []);
+    } catch (e) { setErr(e?.message || '載入文件失敗'); }
+    finally { setLoadingDoc(false); }
+  }
+
+  useEffect(() => { setSelCat(null); loadCategories(); /* eslint-disable-next-line */ }, [subType]);
+  useEffect(() => { loadDocs(); /* eslint-disable-next-line */ }, [subType, selCat]);
+
+  function addCategory() {
+    const name = (newCatName || '').trim();
+    if (!name) return;
+    // 直接設成選中（檔案上傳時會自動建立）
+    setCategories(prev => prev.find(c => c.category === name) ? prev : [...prev, { category: name, count: 0 }]);
+    setSelCat(name);
+    setNewCatName('');
+    setShowAddCat(false);
+  }
+
+  async function handleUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!selCat) { alert('請先選或新增一個分類'); return; }
+    setUploading(true); setErr('');
+    try {
+      await docLibraryApi.upload(subType, file, {
+        category: selCat,
+        auto_create_store: subCfg.autoStore ? 'true' : 'false',
+      });
+      await loadCategories();
+      await loadDocs();
+    } catch (e2) { setErr(e2?.response?.data?.message || e2?.message || '上傳失敗'); }
+    finally { setUploading(false); e.target.value = ''; }
+  }
+
+  async function deleteDoc(id) {
+    if (!window.confirm('刪除這個文件？')) return;
+    try { await docLibraryApi.remove(id); await loadCategories(); await loadDocs(); }
+    catch (e) { alert(e?.message || '刪除失敗'); }
+  }
+
+  async function editTags(d) {
+    const cur = (d.tags || []).join(',');
+    const tg = window.prompt('輸入 tag（用逗號分隔，例：寄賣,2024,主合約）：', cur);
+    if (tg === null) return;
+    try {
+      await docLibraryApi.update(d.id, { tags: tg });
+      await loadDocs();
+    } catch (e) { alert(e?.message || '更新失敗'); }
+  }
+
+  function fmtSize(n) {
+    if (!n) return '—';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  return (
+    <div>
+      {/* sub-tab */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 12, borderBottom: `1px solid ${C.border}` }}>
+        {SUB_TABS.map(s => (
+          <button key={s.value} onClick={() => setSubType(s.value)}
+                  style={{
+                    padding: '8px 14px', border: 'none', background: 'transparent',
+                    fontSize: 13, fontWeight: 600,
+                    color: subType === s.value ? '#9d4edd' : C.textLight,
+                    borderBottom: subType === s.value ? `2px solid #9d4edd` : '2px solid transparent',
+                    cursor: 'pointer', marginBottom: -1,
+                  }}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {err && <div style={{ ...S.errBanner, margin: 0, marginBottom: 12 }}>❗ {err}</div>}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 12 }}>
+        {/* 左：分類清單 */}
+        <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 0', maxHeight: '70vh', overflow: 'auto' }}>
+          <div style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, color: C.textLight, borderBottom: `1px solid ${C.border}` }}>
+            分類（{categories.length}）
+          </div>
+          {loadingCat ? <div style={{ padding: 12, color: C.textLight, fontSize: 12 }}>載入中...</div> :
+            categories.map(c => {
+              const active = c.category === selCat;
+              return (
+                <button key={c.category} onClick={() => setSelCat(c.category)}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left',
+                          padding: '8px 12px', border: 'none',
+                          background: active ? '#f3e8ff' : 'transparent',
+                          color: active ? '#6b21a8' : C.textDark,
+                          borderLeft: active ? `3px solid #9d4edd` : '3px solid transparent',
+                          cursor: 'pointer', fontSize: 13,
+                          borderBottom: `1px solid #f5f5f5`,
+                        }}>
+                  <div style={{ fontWeight: 600 }}>{c.category}</div>
+                  <div style={{ fontSize: 11, color: C.textLight }}>{c.count} 份文件</div>
+                </button>
+              );
+            })}
+          {showAddCat ? (
+            <div style={{ padding: 10 }}>
+              <input value={newCatName} onChange={e => setNewCatName(e.target.value)}
+                     placeholder={subCfg.placeholder}
+                     onKeyDown={e => e.key === 'Enter' && addCategory()}
+                     style={{ width: '100%', padding: '6px 8px', border: `1px solid ${C.border}`, borderRadius: 4, fontSize: 12, marginBottom: 6, boxSizing: 'border-box' }} />
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button onClick={addCategory} style={{ ...S.btnPrimary, padding: '5px 10px', fontSize: 11, flex: 1 }}>確認</button>
+                <button onClick={() => { setShowAddCat(false); setNewCatName(''); }}
+                        style={{ ...S.btnGhost, padding: '5px 10px', fontSize: 11 }}>取消</button>
+              </div>
+              {subCfg.autoStore && (
+                <div style={{ fontSize: 10, color: C.textLight, marginTop: 4 }}>
+                  💡 若為新門市，會自動加到「基本資料」departments
+                </div>
+              )}
+            </div>
+          ) : (
+            <button onClick={() => setShowAddCat(true)}
+                    style={{ display: 'block', width: '100%', padding: '10px', border: 'none',
+                             background: 'transparent', color: '#9d4edd', cursor: 'pointer',
+                             fontSize: 12, fontWeight: 600 }}>
+              ＋ 新增{subType === 'vendor' ? '廠商' : subType === 'rent' ? '門市' : '員工'}
+            </button>
+          )}
+        </div>
+
+        {/* 右：文件列表 */}
+        <div>
+          {selCat ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.dark }}>{selCat}</div>
+                <span style={{ fontSize: 11, color: C.textLight }}>{docs.length} 份文件</span>
+                <div style={{ flex: 1 }} />
+                <label style={{
+                  padding: '6px 12px', background: '#9d4edd', color: '#fff', borderRadius: 6,
+                  cursor: uploading ? 'wait' : 'pointer', fontSize: 12, fontWeight: 600,
+                  opacity: uploading ? 0.6 : 1,
+                }}>
+                  {uploading ? '⏳ 上傳中...' : '📤 上傳文件'}
+                  <input type="file" disabled={uploading} onChange={handleUpload} style={{ display: 'none' }} />
+                </label>
+              </div>
+
+              {loadingDoc ? <div style={S.empty}>載入中...</div>
+               : docs.length === 0 ? <div style={S.empty}>還沒上傳任何文件</div>
+               : (
+                <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
+                  {docs.map((d, i) => (
+                    <div key={d.id} style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 10,
+                      padding: '10px 14px', fontSize: 13,
+                      borderTop: i === 0 ? 'none' : `1px solid ${C.border}`,
+                    }}>
+                      <span style={{ fontSize: 22 }}>
+                        {d.mime_type?.includes('pdf') ? '📄' :
+                         d.mime_type?.startsWith('image') ? '🖼' :
+                         d.mime_type?.includes('sheet') || d.mime_type?.includes('excel') ? '📊' : '📎'}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, color: C.textDark, marginBottom: 2 }}>
+                          {d.original_name || '(未命名)'}
+                        </div>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
+                          {(d.tags || []).map(t => (
+                            <span key={t} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10,
+                                                   background: '#f3e8ff', color: '#6b21a8', fontWeight: 600 }}>
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 10, color: C.textLight }}>
+                          {fmtSize(d.size_bytes)} · {new Date(d.uploaded_at).toLocaleString('zh-TW', { hour12: false })} · {d.uploaded_by || '—'}
+                        </div>
+                      </div>
+                      <button onClick={() => editTags(d)} title="編輯 tag"
+                              style={{ ...S.btnGhost, padding: '4px 8px', fontSize: 11 }}>🏷</button>
+                      <a href={d.public_url} target="_blank" rel="noreferrer"
+                         style={{ ...S.btnGhost, padding: '4px 10px', textDecoration: 'none', fontSize: 11 }}>↓ 下載</a>
+                      <button style={S.btnDanger} onClick={() => deleteDoc(d.id)}>🗑</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={S.empty}>
+              👈 點左側分類或【＋ 新增】開始
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 
