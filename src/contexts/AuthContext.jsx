@@ -76,14 +76,16 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   const isAdmin = useCallback(() => {
-    return ['super_admin', 'dept_head', 'operation_lead'].includes(user?.role);
+    // 「全權」角色：super_admin + operation_lead 一律放行
+    // dept_head / accounting / hr / staff 都走權限管理勾選
+    return ['super_admin', 'operation_lead'].includes(user?.role);
   }, [user]);
 
   // 分權檢查 helper
-  //   admin 角色一律放行（不論 myModules 狀況）
-  //   一般角色：myModules 未載入 → 暫時放行；載入後依清單
+  //   全權角色（super_admin, operation_lead）一律放行
+  //   其他角色：myModules 未載入 → 暫時放行；載入後依清單
   const hasModule = useCallback((moduleKey, action = 'view') => {
-    if (['super_admin', 'dept_head', 'operation_lead'].includes(user?.role)) return true;
+    if (['super_admin', 'operation_lead'].includes(user?.role)) return true;
     if (!myModules) return true;
     const m = myModules.find(x => x.key === moduleKey);
     if (!m) return false;
