@@ -352,6 +352,7 @@ export default function BillingDeptSummaryPage() {
   const [expandedOrderId, setExpandedOrderId] = useState(null); // 展開 items 的訂單
   const [detailModal, setDetailModal]       = useState(null);   // Method B 完整明細
   const [detailLoading, setDetailLoading]   = useState(null);   // 哪個訂單的 loading
+  const [deptFilter, setDeptFilter]         = useState('');     // 部門篩選（''=全部）
 
   useEffect(() => {
     personnelApi.getDepartments().then((res) => {
@@ -443,7 +444,11 @@ export default function BillingDeptSummaryPage() {
     }
   }
 
-  const totals = summary.reduce((acc, s) => ({
+  // 部門篩選：deptFilter='' → 全部；否則只留 billing_category === deptFilter
+  const deptOptions = Array.from(new Set(summary.map(s => s.billing_category).filter(Boolean))).sort();
+  const filteredSummary = deptFilter ? summary.filter(s => s.billing_category === deptFilter) : summary;
+
+  const totals = filteredSummary.reduce((acc, s) => ({
     mc: acc.mc + s.maintenance_count,   ma: acc.ma + s.maintenance_amount,
     rc: acc.rc + s.repair_count,        ra: acc.ra + s.repair_amount,
     ec: acc.ec + (s.education_count  || 0),
@@ -474,14 +479,18 @@ export default function BillingDeptSummaryPage() {
           <select style={S.select} value={month} onChange={(e) => setMonth(e.target.value)}>
             {months.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
+          <select style={S.select} value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
+            <option value="">全部部門</option>
+            {deptOptions.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
           <button style={S.btnPrimary} onClick={() => handleSync(month)} disabled={syncing}>
             {syncing ? '同步中...' : `同步 ${month}`}
           </button>
           <button style={S.btnSecondary} onClick={() => handleSync(null)} disabled={syncing}>
             增量同步
           </button>
-          {summary.length > 0 && (
-            <button style={S.btnSecondary} onClick={() => exportSummaryCSV(summary, storeMap, month)}>
+          {filteredSummary.length > 0 && (
+            <button style={S.btnSecondary} onClick={() => exportSummaryCSV(filteredSummary, storeMap, month)}>
               匯出彙總 CSV
             </button>
           )}
@@ -499,8 +508,8 @@ export default function BillingDeptSummaryPage() {
 
         {loading ? (
           <div style={S.spinner}>載入中...</div>
-        ) : summary.length === 0 ? (
-          <div style={S.empty}>本月尚無帳單資料，請先執行同步</div>
+        ) : filteredSummary.length === 0 ? (
+          <div style={S.empty}>{summary.length === 0 ? '本月尚無帳單資料，請先執行同步' : `本月「${deptFilter || '全部'}」沒有資料`}</div>
         ) : (
           <table style={S.table}>
             <thead>
@@ -518,7 +527,7 @@ export default function BillingDeptSummaryPage() {
               </tr>
             </thead>
             <tbody>
-              {summary.map((s) => {
+              {filteredSummary.map((s) => {
                 const isSelected = selectedStore?.store_erpid === s.store_erpid;
                 return (
                   <tr
@@ -688,7 +697,7 @@ export default function BillingDeptSummaryPage() {
                                   </tr>
                                 ))}
                               </tbody>
-                            </table>
+                                           </table>
                           </td>
                         </tr>
                       )}
@@ -696,7 +705,7 @@ export default function BillingDeptSummaryPage() {
                   );
                 })}
                 <tr>
-                                   <td colSpan={3} style={{ ...S.tdTotal, color: '#4a5568' }}>合計</td>
+                  <td colSpan={3} style={{ ...S.tdTotal, color: '#4a5568' }}>合計</td>
                   <td style={S.tdTotalR}>$ {formatAmount(orders.reduce((s, o) => s + Number(o.amount), 0))}</td>
                   <td colSpan={3} style={S.tdTotal}></td>
                 </tr>
@@ -710,6 +719,10 @@ export default function BillingDeptSummaryPage() {
       {detailModal && (
         <OrderDetailModal detail={detailModal} onClose={() => setDetailModal(null)} />
       )}
+    </div>
+  );
+}
+  )}
     </div>
   );
 }

@@ -342,7 +342,6 @@ export default function BillingPage() {
   const [expandedOrderId, setExpandedOrderId] = useState(null); // 展開 items 的訂單
   const [detailModal, setDetailModal]       = useState(null);   // Method B 完整明細
   const [detailLoading, setDetailLoading]   = useState(null);   // 哪個訂單的 loading
-  const [deptFilter, setDeptFilter]         = useState('工程部'); // 部門篩選（''=全部）
 
   useEffect(() => {
     personnelApi.getDepartments().then((res) => {
@@ -434,9 +433,8 @@ export default function BillingPage() {
     }
   }
 
-  // 部門篩選：deptFilter='' → 全部；否則只留 billing_category === deptFilter
-  const deptOptions = Array.from(new Set(summary.map(s => s.billing_category).filter(Boolean))).sort();
-  const filteredSummary = deptFilter ? summary.filter(s => s.billing_category === deptFilter) : summary;
+  // 工程開帳：固定只顯示「工程部」
+  const filteredSummary = summary.filter(s => s.billing_category === '工程部');
 
   const totals = filteredSummary.reduce((acc, s) => ({
     mc: acc.mc + s.maintenance_count,   ma: acc.ma + s.maintenance_amount,
@@ -469,10 +467,6 @@ export default function BillingPage() {
           <select style={S.select} value={month} onChange={(e) => setMonth(e.target.value)}>
             {months.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
-          <select style={S.select} value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
-            <option value="">全部部門</option>
-            {deptOptions.map((d) => <option key={d} value={d}>{d}</option>)}
-          </select>
           <button style={S.btnPrimary} onClick={() => handleSync(month)} disabled={syncing}>
             {syncing ? '同步中...' : `同步 ${month}`}
           </button>
@@ -499,7 +493,7 @@ export default function BillingPage() {
         {loading ? (
           <div style={S.spinner}>載入中...</div>
         ) : filteredSummary.length === 0 ? (
-          <div style={S.empty}>{summary.length === 0 ? '本月尚無帳單資料，請先執行同步' : `本月「${deptFilter || '全部'}」沒有資料`}</div>
+          <div style={S.empty}>{summary.length === 0 ? '本月尚無帳單資料，請先執行同步' : '本月「工程部」沒有資料'}</div>
         ) : (
           <table style={S.table}>
             <thead>
