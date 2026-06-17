@@ -339,19 +339,29 @@ function DocumentLibraryPanel() {
   }
 
   async function handleUpload(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!selCat) { alert('請先選或新增一個分類'); return; }
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    if (!selCat) { alert('請先選或新增一個分類'); e.target.value = ''; return; }
     setUploading(true); setErr('');
-    try {
-      await docLibraryApi.upload(subType, file, {
-        category: selCat,
-        auto_create_store: subCfg.autoStore ? 'true' : 'false',
-      });
-      await loadCategories();
-      await loadDocs();
-    } catch (e2) { setErr(e2?.response?.data?.message || e2?.message || '上傳失敗'); }
-    finally { setUploading(false); e.target.value = ''; }
+    let okCount = 0, failNames = [];
+    for (const file of files) {
+      try {
+        await docLibraryApi.upload(subType, file, {
+          category: selCat,
+          auto_create_store: subCfg.autoStore ? 'true' : 'false',
+        });
+        okCount++;
+      } catch (e2) {
+        failNames.push(`${file.name}: ${e2?.response?.data?.message || e2?.message || '失敗'}`);
+      }
+    }
+    await loadCategories();
+    await loadDocs();
+    setUploading(false);
+    e.target.value = '';
+    if (failNames.length > 0) {
+      setErr(`成功 ${okCount} / 失敗 ${failNames.length}：\n` + failNames.join('\n'));
+    }
   }
 
   async function deleteDoc(id) {
@@ -474,8 +484,8 @@ function DocumentLibraryPanel() {
                   cursor: uploading ? 'wait' : 'pointer', fontSize: 12, fontWeight: 600,
                   opacity: uploading ? 0.6 : 1,
                 }}>
-                  {uploading ? '⏳ 上傳中...' : '📤 上傳文件'}
-                  <input type="file" disabled={uploading} onChange={handleUpload} style={{ display: 'none' }} />
+                  {uploading ? '⏳ 上傳中...' : '📤 上傳文件（可多選）'}
+                  <input type="file" multiple disabled={uploading} onChange={handleUpload} style={{ display: 'none' }} />
                 </label>
               </div>
 
@@ -511,9 +521,9 @@ function DocumentLibraryPanel() {
                         </div>
                       </div>
                       <button onClick={() => editName(d)} title="改檔名"
-                              style={{ ...S.btnGhost, padding: '4px 8px', fontSize: 11 }}>✏</button>
+                              style={{ ...S.btnGhost, padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap' }}>✏ 改名</button>
                       <button onClick={() => editTags(d)} title="編輯 tag"
-                              style={{ ...S.btnGhost, padding: '4px 8px', fontSize: 11 }}>🏷</button>
+                              style={{ ...S.btnGhost, padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap' }}>🏷 標籤</button>
                       <a href={d.public_url} target="_blank" rel="noreferrer"
                          style={{ ...S.btnGhost, padding: '4px 10px', textDecoration: 'none', fontSize: 11 }}>↓ 下載</a>
                       <button style={S.btnDanger} onClick={() => deleteDoc(d.id)}>🗑</button>
