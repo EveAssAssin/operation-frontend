@@ -57,37 +57,27 @@ function AmountCell({ amount, count, hideCount, isTotal }) {
 }
 
 function exportSummaryCSV(summary, storeMap, month) {
-  const headers = ['門市代號', '門市名稱', '部門分類', '養護筆數', '養護金額', '報修筆數', '報修金額', '開帳合計', '教育訓練筆數', '教育訓練金額', '廣告費筆數', '廣告費金額', '材料費合計', '工資合計', '合計筆數', '合計金額'];
+  const headers = ['門市代號', '門市名稱', '養護筆數', '養護金額', '報修筆數', '報修金額', '開帳合計', '材料費合計', '工資合計', '合計金額'];
   const rows = summary.map((s) => [
     s.store_erpid,
     storeMap[s.store_erpid] || s.store_erpid,
-    s.billing_category || '-',
     s.maintenance_count,
     s.maintenance_amount,
     s.repair_count,
     s.repair_amount,
     (Number(s.maintenance_amount) || 0) + (Number(s.repair_amount) || 0),
-    s.education_count  || 0,
-    s.education_amount || 0,
-    s.ad_count  || 0,
-    s.ad_amount || 0,
     s.material_cost_total || 0,
     s.labor_cost_total    || 0,
-    s.total_count,
     s.total_amount,
   ]);
   const totals = summary.reduce((acc, s) => ({
     mc: acc.mc + s.maintenance_count,   ma: acc.ma + s.maintenance_amount,
     rc: acc.rc + s.repair_count,        ra: acc.ra + s.repair_amount,
-    ec: acc.ec + (s.education_count  || 0),
-    ea: acc.ea + (s.education_amount || 0),
-    adc: acc.adc + (s.ad_count  || 0),
-    ada: acc.ada + (s.ad_amount || 0),
     mt:  acc.mt  + (s.material_cost_total || 0),
     lt:  acc.lt  + (s.labor_cost_total    || 0),
-    tc: acc.tc + s.total_count,         ta: acc.ta + s.total_amount,
-  }), { mc: 0, ma: 0, rc: 0, ra: 0, ec: 0, ea: 0, adc: 0, ada: 0, mt: 0, lt: 0, tc: 0, ta: 0 });
-  rows.push(['', '合計', '', totals.mc, totals.ma, totals.rc, totals.ra, (Number(totals.ma) || 0) + (Number(totals.ra) || 0), totals.ec, totals.ea, totals.adc, totals.ada, totals.mt, totals.lt, totals.tc, totals.ta]);
+    ta: acc.ta + s.total_amount,
+  }), { mc: 0, ma: 0, rc: 0, ra: 0, mt: 0, lt: 0, ta: 0 });
+  rows.push(['', '合計', totals.mc, totals.ma, totals.rc, totals.ra, (Number(totals.ma) || 0) + (Number(totals.ra) || 0), totals.mt, totals.lt, totals.ta]);
 
   const csv  = [headers, ...rows].map((r) => r.join(',')).join('\n');
   const bom  = '\uFEFF';
@@ -352,6 +342,7 @@ export default function BillingPage() {
   const [expandedOrderId, setExpandedOrderId] = useState(null); // 展開 items 的訂單
   const [detailModal, setDetailModal]       = useState(null);   // Method B 完整明細
   const [detailLoading, setDetailLoading]   = useState(null);   // 哪個訂單的 loading
+  const [deptFilter, setDeptFilter]         = useState('工程部'); // 部門篩選（''=全部）
 
   useEffect(() => {
     personnelApi.getDepartments().then((res) => {
@@ -443,7 +434,11 @@ export default function BillingPage() {
     }
   }
 
-  const totals = summary.reduce((acc, s) => ({
+  // 部門篩選：deptFilter='' → 全部；否則只留 billing_category === deptFilter
+  const deptOptions = Array.from(new Set(summary.map(s => s.billing_category).filter(Boolean))).sort();
+  const filteredSummary = deptFilter ? summary.filter(s => s.billing_category === deptFilter) : summary;
+
+  const totals = filteredSummary.reduce((acc, s) => ({
     mc: acc.mc + s.maintenance_count,   ma: acc.ma + s.maintenance_amount,
     rc: acc.rc + s.repair_count,        ra: acc.ra + s.repair_amount,
     ec: acc.ec + (s.education_count  || 0),
@@ -474,14 +469,18 @@ export default function BillingPage() {
           <select style={S.select} value={month} onChange={(e) => setMonth(e.target.value)}>
             {months.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
+          <select style={S.select} value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
+            <option value="">全部部門</option>
+            {deptOptions.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
           <button style={S.btnPrimary} onClick={() => handleSync(month)} disabled={syncing}>
             {syncing ? '同步中...' : `同步 ${month}`}
           </button>
           <button style={S.btnSecondary} onClick={() => handleSync(null)} disabled={syncing}>
             增量同步
           </button>
-          {summary.length > 0 && (
-            <button style={S.btnSecondary} onClick={() => exportSummaryCSV(summary, storeMap, month)}>
+          {filteredSummary.length > 0 && (
+            <button style={S.btnSecondary} onClick={() => exportSummaryCSV(filteredSummary, storeMap, month)}>
               匯出彙總 CSV
             </button>
           )}
@@ -499,26 +498,23 @@ export default function BillingPage() {
 
         {loading ? (
           <div style={S.spinner}>載入中...</div>
-        ) : summary.length === 0 ? (
-          <div style={S.empty}>本月尚無帳單資料，請先執行同步</div>
+        ) : filteredSummary.length === 0 ? (
+          <div style={S.empty}>{summary.length === 0 ? '本月尚無帳單資料，請先執行同步' : `本月「${deptFilter || '全部'}」沒有資料`}</div>
         ) : (
           <table style={S.table}>
             <thead>
               <tr>
                 <th style={S.th}>門市</th>
-                <th style={S.th}>部門分類</th>
                 <th style={S.thR}>養護</th>
                 <th style={S.thR}>報修</th>
                 <th style={S.thR}>開帳合計</th>
-                <th style={S.thR}>教育訓練</th>
-                <th style={S.thR}>廣告費</th>
                 <th style={S.thR}>材料費合計</th>
                 <th style={S.thR}>工資合計</th>
                 <th style={S.thR}>合計金額</th>
               </tr>
             </thead>
             <tbody>
-              {summary.map((s) => {
+              {filteredSummary.map((s) => {
                 const isSelected = selectedStore?.store_erpid === s.store_erpid;
                 return (
                   <tr
@@ -531,18 +527,11 @@ export default function BillingPage() {
                       <span style={{ color: '#a0aec0', fontSize: '12px', marginLeft: '6px' }}>{s.store_erpid}</span>
                       {isSelected && <span style={{ marginLeft: '6px', color: '#50422d' }}>▸</span>}
                     </td>
-                    <td style={S.td}>
-                      {s.billing_category
-                        ? <span style={S.categoryBadge}>{s.billing_category}</span>
-                        : <span style={{ color: '#a0aec0', fontSize: '12px' }}>—</span>}
-                    </td>
                     <AmountCell amount={s.maintenance_amount} count={s.maintenance_count} />
                     <AmountCell amount={s.repair_amount}      count={s.repair_count} />
                     <td style={{ ...S.tdR, fontWeight: '600', color: '#1f8b4c' }}>
                       $ {formatAmount((Number(s.maintenance_amount) || 0) + (Number(s.repair_amount) || 0))}
                     </td>
-                    <AmountCell amount={s.education_amount}   count={s.education_count} />
-                    <AmountCell amount={s.ad_amount}          count={s.ad_count} />
                     <AmountCell amount={s.material_cost_total} hideCount />
                     <AmountCell amount={s.labor_cost_total}    hideCount />
                     <td style={{ ...S.tdR, fontWeight: '600', color: '#50422d' }}>$ {formatAmount(s.total_amount)}</td>
@@ -551,12 +540,9 @@ export default function BillingPage() {
               })}
               <tr>
                 <td style={{ ...S.tdTotal, color: '#4a5568' }}>合計</td>
-                <td style={S.tdTotal}></td>
                 <AmountCell amount={totals.ma} count={totals.mc} isTotal />
                 <AmountCell amount={totals.ra} count={totals.rc} isTotal />
                 <td style={{ ...S.tdTotalR, color: '#1f8b4c' }}>$ {formatAmount((Number(totals.ma) || 0) + (Number(totals.ra) || 0))}</td>
-                <AmountCell amount={totals.ea} count={totals.ec} isTotal />
-                <AmountCell amount={totals.ada} count={totals.adc} isTotal />
                 <AmountCell amount={totals.mt} hideCount isTotal />
                 <AmountCell amount={totals.lt} hideCount isTotal />
                 <td style={{ ...S.tdTotalR, color: '#50422d' }}>$ {formatAmount(totals.ta)}</td>

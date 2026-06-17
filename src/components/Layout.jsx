@@ -29,8 +29,9 @@ const NAV_ITEMS = [
     minRole: 'operation_staff',
     moduleKey: 'billing',
     children: [
-      { path: '/billing',    label: '工程開帳', icon: '🔧', moduleKey: 'billing' },
-      { path: '/billing-ad', label: '企劃開帳', icon: '📣', moduleKey: 'billing' },
+      { path: '/billing-dept-summary', label: '部門開帳總表', icon: '📊', moduleKey: 'billing' },
+      { path: '/billing',              label: '工程開帳',     icon: '🔧', moduleKey: 'billing' },
+      { path: '/billing-ad',           label: '企劃開帳',     icon: '📣', moduleKey: 'billing' },
       // 之後新增的部門開帳（美睫部 等）都加在這裡
     ],
   },
@@ -332,6 +333,10 @@ const styles = {
   },
   logoutBtn: {
     margin: '0 12px',
+    width: 'calc(100% - 24px)',
+    padding: '8px',
+    background: 'transparent',
+    border: '1px solid rgba(255,255,255,0.2)',
     width: 'calc(100% - 24px)',
     padding: '8px',
     background: 'transparent',
