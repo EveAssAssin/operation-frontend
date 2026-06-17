@@ -696,4 +696,20 @@ export default function BillingPage() {
                   );
                 })}
                 <tr>
-                 
+                                   <td colSpan={3} style={{ ...S.tdTotal, color: '#4a5568' }}>合計</td>
+                  <td style={S.tdTotalR}>$ {formatAmount(orders.reduce((s, o) => s + Number(o.amount), 0))}</td>
+                  <td colSpan={3} style={S.tdTotal}></td>
+                </tr>
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* ── Method B 完整明細 Modal ── */}
+      {detailModal && (
+        <OrderDetailModal detail={detailModal} onClose={() => setDetailModal(null)} />
+      )}
+    </div>
+  );
+}

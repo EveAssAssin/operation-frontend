@@ -370,6 +370,18 @@ function DocumentLibraryPanel() {
     } catch (e) { alert(e?.message || '更新失敗'); }
   }
 
+  async function editName(d) {
+    const cur = d.original_name || '';
+    const newName = window.prompt('改檔名（含副檔名，例：寄賣合約_2024.pdf）：', cur);
+    if (newName === null) return;
+    const trimmed = newName.trim();
+    if (!trimmed) return alert('檔名不能空白');
+    try {
+      await docLibraryApi.update(d.id, { original_name: trimmed });
+      await loadDocs();
+    } catch (e) { alert(e?.message || '更新失敗'); }
+  }
+
   function fmtSize(n) {
     if (!n) return '—';
     if (n < 1024) return n + ' B';
@@ -498,6 +510,8 @@ function DocumentLibraryPanel() {
                           {fmtSize(d.size_bytes)} · {new Date(d.uploaded_at).toLocaleString('zh-TW', { hour12: false })} · {d.uploaded_by || '—'}
                         </div>
                       </div>
+                      <button onClick={() => editName(d)} title="改檔名"
+                              style={{ ...S.btnGhost, padding: '4px 8px', fontSize: 11 }}>✏</button>
                       <button onClick={() => editTags(d)} title="編輯 tag"
                               style={{ ...S.btnGhost, padding: '4px 8px', fontSize: 11 }}>🏷</button>
                       <a href={d.public_url} target="_blank" rel="noreferrer"
