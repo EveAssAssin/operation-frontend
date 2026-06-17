@@ -57,7 +57,7 @@ function AmountCell({ amount, count, hideCount, isTotal }) {
 }
 
 function exportSummaryCSV(summary, storeMap, month) {
-  const headers = ['門市代號', '門市名稱', '部門分類', '養護筆數', '養護金額', '報修筆數', '報修金額', '教育訓練筆數', '教育訓練金額', '廣告費筆數', '廣告費金額', '材料費合計', '工資合計', '合計筆數', '合計金額'];
+  const headers = ['門市代號', '門市名稱', '部門分類', '養護筆數', '養護金額', '報修筆數', '報修金額', '開帳合計', '教育訓練筆數', '教育訓練金額', '廣告費筆數', '廣告費金額', '材料費合計', '工資合計', '合計筆數', '合計金額'];
   const rows = summary.map((s) => [
     s.store_erpid,
     storeMap[s.store_erpid] || s.store_erpid,
@@ -66,6 +66,7 @@ function exportSummaryCSV(summary, storeMap, month) {
     s.maintenance_amount,
     s.repair_count,
     s.repair_amount,
+    (Number(s.maintenance_amount) || 0) + (Number(s.repair_amount) || 0),
     s.education_count  || 0,
     s.education_amount || 0,
     s.ad_count  || 0,
@@ -86,7 +87,7 @@ function exportSummaryCSV(summary, storeMap, month) {
     lt:  acc.lt  + (s.labor_cost_total    || 0),
     tc: acc.tc + s.total_count,         ta: acc.ta + s.total_amount,
   }), { mc: 0, ma: 0, rc: 0, ra: 0, ec: 0, ea: 0, adc: 0, ada: 0, mt: 0, lt: 0, tc: 0, ta: 0 });
-  rows.push(['', '合計', '', totals.mc, totals.ma, totals.rc, totals.ra, totals.ec, totals.ea, totals.adc, totals.ada, totals.mt, totals.lt, totals.tc, totals.ta]);
+  rows.push(['', '合計', '', totals.mc, totals.ma, totals.rc, totals.ra, (Number(totals.ma) || 0) + (Number(totals.ra) || 0), totals.ec, totals.ea, totals.adc, totals.ada, totals.mt, totals.lt, totals.tc, totals.ta]);
 
   const csv  = [headers, ...rows].map((r) => r.join(',')).join('\n');
   const bom  = '\uFEFF';
@@ -508,6 +509,7 @@ export default function BillingPage() {
                 <th style={S.th}>部門分類</th>
                 <th style={S.thR}>養護</th>
                 <th style={S.thR}>報修</th>
+                <th style={S.thR}>開帳合計</th>
                 <th style={S.thR}>教育訓練</th>
                 <th style={S.thR}>廣告費</th>
                 <th style={S.thR}>材料費合計</th>
@@ -536,6 +538,9 @@ export default function BillingPage() {
                     </td>
                     <AmountCell amount={s.maintenance_amount} count={s.maintenance_count} />
                     <AmountCell amount={s.repair_amount}      count={s.repair_count} />
+                    <td style={{ ...S.tdR, fontWeight: '600', color: '#1f8b4c' }}>
+                      $ {formatAmount((Number(s.maintenance_amount) || 0) + (Number(s.repair_amount) || 0))}
+                    </td>
                     <AmountCell amount={s.education_amount}   count={s.education_count} />
                     <AmountCell amount={s.ad_amount}          count={s.ad_count} />
                     <AmountCell amount={s.material_cost_total} hideCount />
@@ -549,6 +554,7 @@ export default function BillingPage() {
                 <td style={S.tdTotal}></td>
                 <AmountCell amount={totals.ma} count={totals.mc} isTotal />
                 <AmountCell amount={totals.ra} count={totals.rc} isTotal />
+                <td style={{ ...S.tdTotalR, color: '#1f8b4c' }}>$ {formatAmount((Number(totals.ma) || 0) + (Number(totals.ra) || 0))}</td>
                 <AmountCell amount={totals.ea} count={totals.ec} isTotal />
                 <AmountCell amount={totals.ada} count={totals.adc} isTotal />
                 <AmountCell amount={totals.mt} hideCount isTotal />
@@ -690,20 +696,4 @@ export default function BillingPage() {
                   );
                 })}
                 <tr>
-                  <td colSpan={3} style={{ ...S.tdTotal, color: '#4a5568' }}>合計</td>
-                  <td style={S.tdTotalR}>$ {formatAmount(orders.reduce((s, o) => s + Number(o.amount), 0))}</td>
-                  <td colSpan={3} style={S.tdTotal}></td>
-                </tr>
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
-
-      {/* ── Method B 完整明細 Modal ── */}
-      {detailModal && (
-        <OrderDetailModal detail={detailModal} onClose={() => setDetailModal(null)} />
-      )}
-    </div>
-  );
-}
+                 
