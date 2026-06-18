@@ -444,9 +444,13 @@ export default function BillingDeptSummaryPage() {
     }
   }
 
-  // 部門篩選：deptFilter='' → 全部；否則只留 billing_category === deptFilter
-  const deptOptions = Array.from(new Set(summary.map(s => s.billing_category).filter(Boolean))).sort();
-  const filteredSummary = deptFilter ? summary.filter(s => s.billing_category === deptFilter) : summary;
+  // 部門篩選：deptFilter='' → 全部；否則只留 billing_category 拆開後包含 deptFilter
+  // 後端有時會回「工程部、企劃部」合併字串，所以要拆開
+  const splitDepts = (s) => String(s || '').split(/[、,]/).map(x => x.trim()).filter(Boolean);
+  const deptOptions = Array.from(new Set(summary.flatMap(s => splitDepts(s.billing_category)))).sort();
+  const filteredSummary = deptFilter
+    ? summary.filter(s => splitDepts(s.billing_category).includes(deptFilter))
+    : summary;
 
   const totals = filteredSummary.reduce((acc, s) => ({
     mc: acc.mc + s.maintenance_count,   ma: acc.ma + s.maintenance_amount,

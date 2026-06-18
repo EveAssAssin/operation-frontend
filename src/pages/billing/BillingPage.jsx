@@ -433,8 +433,11 @@ export default function BillingPage() {
     }
   }
 
-  // 工程開帳：固定只顯示「工程部」
-  const filteredSummary = summary.filter(s => s.billing_category === '工程部');
+  // 工程開帳：固定只顯示有「工程部」資料的門市
+  // 後端有時會回「工程部、企劃部」合併字串，所以要拆開判斷
+  const filteredSummary = summary.filter(s =>
+    String(s.billing_category || '').split(/[、,]/).map(x => x.trim()).includes('工程部')
+  );
 
   const totals = filteredSummary.reduce((acc, s) => ({
     mc: acc.mc + s.maintenance_count,   ma: acc.ma + s.maintenance_amount,
