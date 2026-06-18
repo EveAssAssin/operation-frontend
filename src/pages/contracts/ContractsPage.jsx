@@ -284,7 +284,7 @@ function TypeDataSummary({ type, data }) {
 // 文件庫 panel
 // ════════════════════════════════════════════════════════════
 function DocumentLibraryPanel() {
-  const [subType, setSubType] = useState('vendor');   // vendor / rent / employee
+  const [subType, setSubType] = useState('rent');   // rent / vendor / employee
   const [categories, setCategories] = useState([]);
   const [selCat,     setSelCat]     = useState(null);
   const [docs,       setDocs]       = useState([]);
@@ -296,8 +296,8 @@ function DocumentLibraryPanel() {
   const [uploading,  setUploading]  = useState(false);
 
   const SUB_TABS = [
-    { value: 'vendor',   label: '🤝 廠商文件庫',  placeholder: '帝康 / 萬豐 / ...', autoStore: false },
     { value: 'rent',     label: '🏬 門市文件庫',  placeholder: '北屯店 / 大墩店 / ...', autoStore: true },
+    { value: 'vendor',   label: '🤝 廠商文件庫',  placeholder: '帝康 / 萬豐 / ...', autoStore: false },
     { value: 'employee', label: '👥 員工文件庫',  placeholder: '王小明 / 林小花 / ...', autoStore: false },
   ];
   const subCfg = SUB_TABS.find(s => s.value === subType);
@@ -327,6 +327,36 @@ function DocumentLibraryPanel() {
 
   useEffect(() => { setSelCat(null); loadCategories(); /* eslint-disable-next-line */ }, [subType]);
   useEffect(() => { loadDocs(); /* eslint-disable-next-line */ }, [subType, selCat]);
+
+  // 分類自訂排序（存 localStorage，每個瀏覽器各自）
+  const orderKey = `doclib_cat_order_${subType}`;
+  function loadOrder() {
+    try { return JSON.parse(localStorage.getItem(orderKey) || '[]'); } catch { return []; }
+  }
+  function saveOrder(arr) {
+    try { localStorage.setItem(orderKey, JSON.stringify(arr)); } catch {}
+  }
+  // 依使用者偏好排序：有存的依存的順序，沒在偏好裡的接在後面（按中文 locale 排）
+  const sortedCategories = (() => {
+    const order = loadOrder();
+    const indexed = Object.fromEntries(order.map((c, i) => [c, i]));
+    return [...categories].sort((a, b) => {
+      const ai = indexed[a.category] ?? Infinity;
+      const bi = indexed[b.category] ?? Infinity;
+      if (ai !== bi) return ai - bi;
+      return a.category.localeCompare(b.category, 'zh-TW');
+    });
+  })();
+  function moveCategory(catName, dir) {
+    const arr = sortedCategories.map(c => c.category);
+    const idx = arr.indexOf(catName);
+    const target = idx + dir;
+    if (idx < 0 || target < 0 || target >= arr.length) return;
+    [arr[idx], arr[target]] = [arr[target], arr[idx]];
+    saveOrder(arr);
+    // 觸發 re-render
+    setCategories(cs => [...cs]);
+  }
 
   function addCategory() {
     const name = (newCatName || '').trim();
@@ -426,22 +456,41 @@ function DocumentLibraryPanel() {
             分類（{categories.length}）
           </div>
           {loadingCat ? <div style={{ padding: 12, color: C.textLight, fontSize: 12 }}>載入中...</div> :
-            categories.map(c => {
+            sortedCategories.map((c, i) => {
               const active = c.category === selCat;
               return (
-                <button key={c.category} onClick={() => setSelCat(c.category)}
-                        style={{
-                          display: 'block', width: '100%', textAlign: 'left',
-                          padding: '8px 12px', border: 'none',
-                          background: active ? '#f3e8ff' : 'transparent',
-                          color: active ? '#6b21a8' : C.textDark,
-                          borderLeft: active ? `3px solid #9d4edd` : '3px solid transparent',
-                          cursor: 'pointer', fontSize: 13,
-                          borderBottom: `1px solid #f5f5f5`,
-                        }}>
-                  <div style={{ fontWeight: 600 }}>{c.category}</div>
-                  <div style={{ fontSize: 11, color: C.textLight }}>{c.count} 份文件</div>
-                </button>
+                <div key={c.category}
+                     style={{
+                       display: 'flex', alignItems: 'stretch',
+                       background: active ? '#f3e8ff' : 'transparent',
+                       borderLeft: active ? `3px solid #9d4edd` : '3px solid transparent',
+                       borderBottom: `1px solid #f5f5f5`,
+                     }}>
+                  <button onClick={() => setSelCat(c.category)}
+                          style={{
+                            flex: 1, textAlign: 'left',
+                            padding: '8px 12px', border: 'none', background: 'transparent',
+                            color: active ? '#6b21a8' : C.textDark,
+                            cursor: 'pointer', fontSize: 13,
+                          }}>
+                    <div style={{ fontWeight: 600 }}>{c.category}</div>
+                    <div style={{ fontSize: 11, color: C.textLight }}>{c.count} 份文件</div>
+                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', borderLeft: `1px solid #eee` }}>
+                    <button onClick={(e) => { e.stopPropagation(); moveCategory(c.category, -1); }}
+                            disabled={i === 0}
+                            title="上移"
+                            style={{ flex: 1, padding: '0 6px', border: 'none', background: 'transparent',
+                                     cursor: i === 0 ? 'not-allowed' : 'pointer',
+                                     opacity: i === 0 ? 0.3 : 0.7, fontSize: 10 }}>▲</button>
+                    <button onClick={(e) => { e.stopPropagation(); moveCategory(c.category, 1); }}
+                            disabled={i === sortedCategories.length - 1}
+                            title="下移"
+                            style={{ flex: 1, padding: '0 6px', border: 'none', background: 'transparent',
+                                     cursor: i === sortedCategories.length - 1 ? 'not-allowed' : 'pointer',
+                                     opacity: i === sortedCategories.length - 1 ? 0.3 : 0.7, fontSize: 10 }}>▼</button>
+                  </div>
+                </div>
               );
             })}
           {showAddCat ? (
@@ -1137,56 +1186,57 @@ function ContractHistoryPanel({ contractId }) {
     (async () => {
       setLoading(true);
       try {
-        const r = await contractsApi.listHistory(contractId, 100);
-        if (!cancelled) setItems(r.data || []);
-      } catch (e) { if (!cancelled) setErr(e?.message || '載入失敗'); }
-      finally     { if (!cancelled) setLoading(false); }
+        const r = await contractsApi.listHistory(contractId, 100);if (!cancelled) setItems(r?.data || []);
+      } catch (e) {
+        if (!cancelled) setErr(e?.message || '載入失敗');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => { cancelled = true; };
   }, [contractId]);
 
   function fmtVal(v) {
-    if (!v) return <span style={{ color: '#bbb' }}>—</span>;
-    if (v.length > 80) return <span title={v}>{v.slice(0, 80)}...</span>;
-    return v;
+    if (v === null || v === undefined || v === '') return '—';
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
   }
 
+  if (loading) return <div style={{ padding: 12, color: C.textLight, fontSize: 12 }}>載入歷史中...</div>;
+  if (err) return <div style={S.errBanner}>❗ {err}</div>;
+  if (items.length === 0) return <div style={{ padding: 12, color: C.textLight, fontSize: 12 }}>尚無異動紀錄</div>;
+
   return (
-    <div style={{ padding: '12px 18px 0' }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: C.dark, paddingBottom: 6, borderBottom: `1px solid ${C.border}`, marginBottom: 8 }}>
-        📜 變更歷史
+    <div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: C.textDark, marginBottom: 6 }}>
+        異動紀錄（{items.length} 筆）
       </div>
-      {loading ? <div style={{ fontSize: 12, color: C.textLight, padding: 10 }}>載入中...</div>
-       : err   ? <div style={{ fontSize: 12, color: '#c53030', padding: 10 }}>{err}</div>
-       : items.length === 0 ? <div style={{ fontSize: 12, color: C.textLight, padding: 10 }}>還沒有任何變更紀錄</div>
-       : (
-        <div style={{ maxHeight: 260, overflow: 'auto', border: `1px solid ${C.border}`, borderRadius: 6 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-            <thead>
-              <tr>
-                <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>時間</th>
-                <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>欄位</th>
-                <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>原值</th>
-                <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>新值</th>
-                <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>異動人</th>
+      <div style={{ maxHeight: 260, overflow: 'auto', border: `1px solid ${C.border}`, borderRadius: 6 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+          <thead>
+            <tr>
+              <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>時間</th>
+              <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>欄位</th>
+              <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>原值</th>
+              <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>新值</th>
+              <th style={{ ...S.th, fontSize: 11, padding: '6px 8px' }}>異動人</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(h => (
+              <tr key={h.id}>
+                <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', whiteSpace: 'nowrap' }}>
+                  {new Date(h.changed_at).toLocaleString('zh-TW', { hour12: false })}
+                </td>
+                <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', fontWeight: 600 }}>{h.field}</td>
+                <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', color: '#c53030' }}>{fmtVal(h.old_value)}</td>
+                <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', color: '#2d6a4f' }}>{fmtVal(h.new_value)}</td>
+                <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', color: C.textLight }}>{h.changed_by || '—'}</td>
               </tr>
-            </thead>
-            <tbody>
-              {items.map(h => (
-                <tr key={h.id}>
-                  <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', whiteSpace: 'nowrap' }}>
-                    {new Date(h.changed_at).toLocaleString('zh-TW', { hour12: false })}
-                  </td>
-                  <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', fontWeight: 600 }}>{h.field}</td>
-                  <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', color: '#c53030' }}>{fmtVal(h.old_value)}</td>
-                  <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', color: '#2d6a4f' }}>{fmtVal(h.new_value)}</td>
-                  <td style={{ ...S.td, fontSize: 11, padding: '6px 8px', color: C.textLight }}>{h.changed_by || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
