@@ -658,37 +658,3 @@ function fmtTime(t) {
     });
   } catch { return t; }
 }
-
-// 通用 modal — 不靠 window.confirm，LINE 內嵌瀏覽器 / iOS 也能用
-function SimpleModal({ title, message, okLabel = '確定', cancelLabel, tone, onOk, onCancel }) {
-  const accent = tone === 'error' ? '#c53030' : tone === 'success' ? '#2d6a4f' : '#c8860d';
-  return (
-    <div onClick={onCancel}
-         style={{
-           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-           display: 'flex', alignItems: 'center', justifyContent: 'center',
-           zIndex: 2000, padding: 24,
-         }}>
-      <div onClick={e => e.stopPropagation()}
-           style={{
-             background: '#fff', borderRadius: 14, maxWidth: 360, width: '100%',
-             padding: '20px 22px', boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
-           }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: accent, marginBottom: 10 }}>{title}</div>
-        <div style={{ fontSize: 14, color: '#4a5568', whiteSpace: 'pre-wrap', lineHeight: 1.6, marginBottom: 16 }}>{message}</div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          {cancelLabel && (
-            <button onClick={onCancel}
-                    style={{ padding: '9px 18px', border: '1px solid #cbd5e0', background: '#fff', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
-              {cancelLabel}
-            </button>
-          )}
-          <button onClick={onOk}
-                  style={{ padding: '9px 18px', border: 'none', background: accent, color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-            {okLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
