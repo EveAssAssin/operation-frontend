@@ -722,7 +722,3 @@ export default function BillingDeptSummaryPage() {
     </div>
   );
 }
-  )}
-    </div>
-  );
-}
