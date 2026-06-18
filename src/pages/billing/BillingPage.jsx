@@ -458,7 +458,7 @@ export default function BillingPage() {
       {/* 頁首 */}
       <div style={S.header}>
         <div>
-          <h1 style={S.title}>開帳系統</h1>
+          <h1 style={S.title}>工程開帳</h1>
           {lastSync && (
             <div style={S.syncInfo}>
               上次同步：{formatDateTime(lastSync.synced_at)}
@@ -696,3 +696,4 @@ export default function BillingPage() {
     </div>
   );
 }
+
