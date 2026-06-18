@@ -49,6 +49,9 @@ export default function PointRedeemPage() {
   const [redeeming, setRedeeming] = useState(null);   // 正在兌換的 item id
   const [tab, setTab]             = useState('catalog'); // catalog | history
   const [qtyMap, setQtyMap]       = useState({});       // { [itemId]: quantity }，現金型選用
+  // 自製 confirm/info modal（LINE 內嵌瀏覽器常擋 window.confirm/alert）
+  const [confirmModal, setConfirmModal] = useState(null); // { title, message, onOk }
+  const [infoModal,    setInfoModal]    = useState(null); // { title, message, type }
   const [refreshing, setRefreshing] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail]         = useState(null);   // { records, totalScore, ... }
@@ -157,29 +160,39 @@ export default function PointRedeemPage() {
     const qty   = item.item_type === 'cash' ? getQty(item) : 1;
     const cost  = unit * qty;
     if (balance && balance.totalScore < cost) {
-      alert(`分數不足：目前 ${balance.totalScore} 分，需要 ${cost} 分`);
+      setInfoModal({ title: '分數不足', message: `目前 ${balance.totalScore} 分，需要 ${cost} 分`, type: 'error' });
       return;
     }
     const after = balance ? balance.totalScore - cost : null;
     const isCash = item.item_type === 'cash';
-    const cashHint = isCash ? `\n換算：扣 ${cost} 分 → NT$${cost * CASH_RATIO} 獎金。` : '';
+    const cashHint = isCash ? `換算：扣 ${cost} 分 → NT$${cost * CASH_RATIO} 獎金。` : '';
     const reserveHint = item.min_balance_after > 0
-      ? `\n（兌換後必須保留 ≥ ${item.min_balance_after} 分，預估剩 ${after}）`
+      ? `兌換後必須保留 ≥ ${item.min_balance_after} 分，預估剩 ${after}`
       : '';
     const label = isCash && qty > 1 ? `「${item.name}」×${qty}（${cost} 分）` : `「${item.name}」（${cost} 分）`;
-    if (!window.confirm(`確定申請兌換${label} 嗎？${cashHint}${reserveHint}\n送出後需營運部主管審核通過才會扣分。`)) return;
-    setRedeeming(item.id);
-    try {
-      const r = await pointRedemptionPublicApi.redeem(appNumber, item.id, qty);
-      if (!r.success) throw new Error(r.message || '兌換失敗');
-      await loadAll(appNumber);
-      setTab('history');
-      alert(`已送出兌換申請！\n${label} 正在等待營運部審核，通過後會扣分並以 LINE 通知你。`);
-    } catch (e) {
-      alert('兌換失敗：' + (e?.message || e));
-    } finally {
-      setRedeeming(null);
-    }
+    const lines = [`確定申請兌換${label} 嗎？`, cashHint, reserveHint, '送出後需營運部主管審核通過才會扣分。']
+      .filter(Boolean).join('\n');
+
+    // 顯示自製 confirm modal
+    setConfirmModal({
+      title: '確認兌換',
+      message: lines,
+      onOk: async () => {
+        setConfirmModal(null);
+        setRedeeming(item.id);
+        try {
+          const r = await pointRedemptionPublicApi.redeem(appNumber, item.id, qty);
+          if (!r.success) throw new Error(r.message || '兌換失敗');
+          await loadAll(appNumber);
+          setTab('history');
+          setInfoModal({ title: '已送出申請！', message: `${label} 正在等待營運部審核，通過後會扣分並以 LINE 通知你。`, type: 'success' });
+        } catch (e) {
+          setInfoModal({ title: '兌換失敗', message: e?.message || String(e), type: 'error' });
+        } finally {
+          setRedeeming(null);
+        }
+      },
+    });
   }
 
   if (phase === 'init')  return <FullScreen>載入中...</FullScreen>;
@@ -456,6 +469,62 @@ export default function PointRedeemPage() {
           onClose={() => setDetailOpen(false)}
         />
       )}
+
+      {confirmModal && (
+        <SimpleModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          okLabel="確定送出"
+          cancelLabel="取消"
+          onOk={confirmModal.onOk}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
+
+      {infoModal && (
+        <SimpleModal
+          title={infoModal.title}
+          message={infoModal.message}
+          okLabel="確定"
+          tone={infoModal.type}
+          onOk={() => setInfoModal(null)}
+          onCancel={() => setInfoModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// 通用 modal — 不靠 window.confirm，LINE 內嵌瀏覽器 / iOS 也能用
+function SimpleModal({ title, message, okLabel = '確定', cancelLabel, tone, onOk, onCancel }) {
+  const accent = tone === 'error' ? '#c53030' : tone === 'success' ? '#2d6a4f' : '#c8860d';
+  return (
+    <div onClick={onCancel}
+         style={{
+           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+           display: 'flex', alignItems: 'center', justifyContent: 'center',
+           zIndex: 2000, padding: 24,
+         }}>
+      <div onClick={e => e.stopPropagation()}
+           style={{
+             background: '#fff', borderRadius: 14, maxWidth: 360, width: '100%',
+             padding: '20px 22px', boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+           }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: accent, marginBottom: 10 }}>{title}</div>
+        <div style={{ fontSize: 14, color: '#4a5568', whiteSpace: 'pre-wrap', lineHeight: 1.6, marginBottom: 16 }}>{message}</div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          {cancelLabel && (
+            <button onClick={onCancel}
+                    style={{ padding: '9px 18px', border: '1px solid #cbd5e0', background: '#fff', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
+              {cancelLabel}
+            </button>
+          )}
+          <button onClick={onOk}
+                  style={{ padding: '9px 18px', border: 'none', background: accent, color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+            {okLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -588,4 +657,38 @@ function fmtTime(t) {
       month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
     });
   } catch { return t; }
+}
+
+// 通用 modal — 不靠 window.confirm，LINE 內嵌瀏覽器 / iOS 也能用
+function SimpleModal({ title, message, okLabel = '確定', cancelLabel, tone, onOk, onCancel }) {
+  const accent = tone === 'error' ? '#c53030' : tone === 'success' ? '#2d6a4f' : '#c8860d';
+  return (
+    <div onClick={onCancel}
+         style={{
+           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+           display: 'flex', alignItems: 'center', justifyContent: 'center',
+           zIndex: 2000, padding: 24,
+         }}>
+      <div onClick={e => e.stopPropagation()}
+           style={{
+             background: '#fff', borderRadius: 14, maxWidth: 360, width: '100%',
+             padding: '20px 22px', boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+           }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: accent, marginBottom: 10 }}>{title}</div>
+        <div style={{ fontSize: 14, color: '#4a5568', whiteSpace: 'pre-wrap', lineHeight: 1.6, marginBottom: 16 }}>{message}</div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          {cancelLabel && (
+            <button onClick={onCancel}
+                    style={{ padding: '9px 18px', border: '1px solid #cbd5e0', background: '#fff', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>
+              {cancelLabel}
+            </button>
+          )}
+          <button onClick={onOk}
+                  style={{ padding: '9px 18px', border: 'none', background: accent, color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+            {okLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
