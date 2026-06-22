@@ -4,7 +4,7 @@
 //   兌換紀錄：檢視全部兌換、實體獎品標記已發放
 
 import { useState, useEffect, useCallback } from 'react';
-import { pointRedemptionApi } from '../../services/api';
+import { pointRedemptionApi, scoreApplicationApi } from '../../services/api';
 
 const C = {
   dark:   '#50422d',
@@ -21,8 +21,10 @@ const C = {
 };
 
 const TABS = [
-  { key: 'items',       label: '兌換品項', icon: '🎁' },
-  { key: 'redemptions', label: '兌換紀錄', icon: '📜' },
+  { key: 'items',         label: '兌換品項',     icon: '🎁' },
+  { key: 'redemptions',   label: '兌換紀錄',     icon: '📜' },
+  { key: 'app-types',     label: '加分申請類型', icon: '🏷️' },
+  { key: 'app-review',    label: '加分審核',     icon: '📥' },
 ];
 
 const ITEM_TYPES = [
@@ -62,6 +64,8 @@ export default function PointRedeemAdminPage() {
       </div>
       {tab === 'items'       && <ItemsTab />}
       {tab === 'redemptions' && <RedemptionsTab />}
+      {tab === 'app-types'   && <AppTypesTab />}
+      {tab === 'app-review'  && <AppReviewTab />}
     </div>
   );
 }
@@ -403,6 +407,322 @@ function RedemptionsTab() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// 加分申請類型管理
+// ═══════════════════════════════════════════════════════════
+function AppTypesTab() {
+  const [list, setList]     = useState([]);
+  const [loading, setLoad]  = useState(true);
+  const [editing, setEdit]  = useState(null);  // null | {} | type 物件
+
+  const reload = useCallback(async () => {
+    setLoad(true);
+    try {
+      const r = await scoreApplicationApi.listTypes();
+      setList(Array.isArray(r.data) ? r.data : []);
+    } catch (e) { alert('讀取失敗：' + (e?.message || e)); }
+    finally { setLoad(false); }
+  }, []);
+  useEffect(() => { reload(); }, [reload]);
+
+  async function toggleActive(t) {
+    try {
+      await scoreApplicationApi.updateType(t.id, { is_active: !t.is_active });
+      reload();
+    } catch (e) { alert('切換失敗：' + (e?.message || e)); }
+  }
+  async function remove(t) {
+    if (!window.confirm(`確認刪除類型「${t.name}」？\n已建立的申請紀錄不會被刪除。`)) return;
+    try {
+      await scoreApplicationApi.deleteType(t.id);
+      reload();
+    } catch (e) { alert('刪除失敗：' + (e?.message || e)); }
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 13, color: C.textMid }}>{loading ? '…' : `共 ${list.length} 個類型`}</div>
+        <button onClick={() => setEdit({})} style={primaryBtn}>＋ 新增類型</button>
+      </div>
+      {loading ? <Loading /> : (
+        <div style={{ overflowX: 'auto', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: C.bg, color: C.textMid, textAlign: 'left' }}>
+                <Th>狀態</Th><Th>名稱</Th><Th>描述</Th><Th>預設分數</Th><Th>排序</Th><Th>建立者</Th><Th>操作</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', color: C.textLight, padding: 30 }}>尚未建立任何類型</td></tr>}
+              {list.map(t => (
+                <tr key={t.id} style={{ borderTop: `1px solid ${C.border}` }}>
+                  <Td>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: t.is_active ? C.ok : C.textLight }}>
+                      {t.is_active ? '上架中' : '已停用'}
+                    </span>
+                  </Td>
+                  <Td><b>{t.name}</b></Td>
+                  <Td style={{ maxWidth: 320, whiteSpace: 'normal' }}>{t.description || '—'}</Td>
+                  <Td><b style={{ color: C.ok }}>+{t.default_score}</b></Td>
+                  <Td>{t.sort_order}</Td>
+                  <Td>{t.created_by_name || '—'}</Td>
+                  <Td>
+                    <button onClick={() => setEdit(t)} style={miniBtn}>編輯</button>
+                    <button onClick={() => toggleActive(t)} style={{ ...miniBtn, marginLeft: 6 }}>{t.is_active ? '停用' : '上架'}</button>
+                    <button onClick={() => remove(t)} style={{ ...miniBtn, marginLeft: 6, color: C.danger, borderColor: C.danger }}>刪除</button>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {editing && <AppTypeModal type={editing} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} />}
+    </div>
+  );
+}
+
+function AppTypeModal({ type, onClose, onSaved }) {
+  const isNew = !type.id;
+  const [form, setForm] = useState({
+    name:          type.name          || '',
+    description:   type.description   || '',
+    default_score: type.default_score ?? 1,
+    is_active:     type.is_active ?? true,
+    sort_order:    type.sort_order ?? 0,
+  });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr]   = useState('');
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  async function save() {
+    setErr('');
+    if (!form.name.trim()) return setErr('類型名稱必填');
+    if (Number(form.default_score) < 0) return setErr('預設分數需 ≥ 0');
+    setBusy(true);
+    try {
+      const payload = {
+        name:          form.name.trim(),
+        description:   form.description.trim() || null,
+        default_score: Math.trunc(Number(form.default_score) || 0),
+        is_active:     !!form.is_active,
+        sort_order:    Math.trunc(Number(form.sort_order) || 0),
+      };
+      if (isNew) await scoreApplicationApi.createType(payload);
+      else       await scoreApplicationApi.updateType(type.id, payload);
+      onSaved();
+    } catch (e) {
+      setErr(e?.message || '儲存失敗');
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <Modal title={isNew ? '新增申請類型' : '編輯申請類型'} onClose={onClose}>
+      <Field label="名稱 *">
+        <input value={form.name} onChange={e => set('name', e.target.value)} style={input} placeholder="例：拍照打卡、KPI 達標" />
+      </Field>
+      <Field label="描述">
+        <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3}
+          style={{ ...input, resize: 'vertical', fontFamily: 'inherit' }}
+          placeholder="員工選類型時看到的說明" />
+      </Field>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Field label="預設加分 *" style={{ flex: 1 }}>
+          <input type="number" min={0} value={form.default_score}
+            onChange={e => set('default_score', e.target.value)} style={input} />
+        </Field>
+        <Field label="排序（小的在前）" style={{ flex: 1 }}>
+          <input type="number" value={form.sort_order}
+            onChange={e => set('sort_order', e.target.value)} style={input} />
+        </Field>
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.textMid, marginTop: 4 }}>
+        <input type="checkbox" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} />
+        立即上架（員工看得到並可申請）
+      </label>
+      <div style={{ fontSize: 12, color: C.textLight, marginTop: 8 }}>
+        ℹ️ 員工申請時帶入「預設加分」；主管審核通過時可手動調整實際加幾分。
+      </div>
+      {err && <div style={{ color: C.danger, fontSize: 13, marginTop: 10 }}>{err}</div>}
+      <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+        <button onClick={onClose} style={{ ...ghostBtn, flex: 1 }}>取消</button>
+        <button onClick={save} disabled={busy} style={{ ...primaryBtn, flex: 2, marginTop: 0 }}>
+          {busy ? '儲存中…' : '儲存'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// 加分審核
+// ═══════════════════════════════════════════════════════════
+function AppReviewTab() {
+  const [rows, setRows]    = useState([]);
+  const [loading, setLoad] = useState(true);
+  const [status, setStatus] = useState('pending');
+  const [busyId, setBusyId] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+
+  const reload = useCallback(async () => {
+    setLoad(true);
+    try {
+      const r = await scoreApplicationApi.listApplications(status ? { status } : {});
+      setRows(Array.isArray(r.data) ? r.data : []);
+    } catch (e) { alert('讀取失敗：' + (e?.message || e)); }
+    finally { setLoad(false); }
+  }, [status]);
+  useEffect(() => { reload(); }, [reload]);
+
+  async function approve(row) {
+    const input = window.prompt(
+      `通過 ${row.employee_name} 的「${row.type_name}」加分申請。\n` +
+      `預設加分：${row.default_score} 分。\n\n` +
+      `請輸入實際要加的分數（整數，> 0）：`,
+      String(row.default_score)
+    );
+    if (input == null) return;
+    const score = Math.trunc(Number(input));
+    if (!Number.isFinite(score) || score <= 0) { alert('加分數值必須是 > 0 的整數'); return; }
+    if (!window.confirm(`確認通過並加 ${score} 分？\n通過後會立即寫入 MAP，無法撤銷。`)) return;
+    setBusyId(row.id);
+    try {
+      await scoreApplicationApi.approve(row.id, score);
+      await reload();
+    } catch (e) { alert('審核失敗：' + (e?.message || e)); }
+    finally { setBusyId(null); }
+  }
+
+  async function reject(row) {
+    const reason = window.prompt(`駁回 ${row.employee_name} 的「${row.type_name}」申請。\n請填寫駁回原因：`);
+    if (reason == null) return;
+    if (!reason.trim()) { alert('請填寫駁回原因'); return; }
+    setBusyId(row.id);
+    try {
+      await scoreApplicationApi.reject(row.id, reason.trim());
+      await reload();
+    } catch (e) { alert('駁回失敗：' + (e?.message || e)); }
+    finally { setBusyId(null); }
+  }
+
+  const pendingCount = rows.filter(r => r.status === 'pending').length;
+  const APP_STATUS_META = {
+    pending:  { label: '送審中',  color: '#b7791f' },
+    approved: { label: '已通過', color: C.ok },
+    rejected: { label: '已駁回', color: C.danger },
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+        <span style={{ fontSize: 13, color: C.textMid }}>狀態：</span>
+        <select value={status} onChange={e => setStatus(e.target.value)} style={{ ...input, width: 170 }}>
+          <option value="pending">送審中（待審核）</option>
+          <option value="approved">已通過</option>
+          <option value="rejected">已駁回</option>
+          <option value="">全部</option>
+        </select>
+        <button onClick={reload} style={{ ...miniBtn, padding: '6px 12px' }}>🔄 重新整理</button>
+        {status === 'pending' && pendingCount > 0 && (
+          <span style={{ fontSize: 12, color: '#b7791f', fontWeight: 700 }}>
+            {pendingCount} 筆待審核
+          </span>
+        )}
+      </div>
+
+      {loading ? <Loading /> : (
+        <div style={{ overflowX: 'auto', background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: C.bg, color: C.textMid, textAlign: 'left' }}>
+                <Th>申請時間</Th><Th>員工</Th><Th>門市</Th><Th>類型</Th><Th>預設/實際</Th>
+                <Th>說明</Th><Th>附件</Th><Th>狀態</Th><Th>審核</Th><Th>操作</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 && <tr><td colSpan={10} style={{ textAlign: 'center', color: C.textLight, padding: 30 }}>沒有申請紀錄</td></tr>}
+              {rows.map(r => {
+                const st = APP_STATUS_META[r.status] || { label: r.status, color: C.textMid };
+                const isPending = r.status === 'pending';
+                const busy = busyId === r.id;
+                const atts = Array.isArray(r.attachments) ? r.attachments : [];
+                return (
+                  <tr key={r.id} style={{ borderTop: `1px solid ${C.border}` }}>
+                    <Td>{fmtTime(r.applied_at)}</Td>
+                    <Td>{r.employee_name || r.employee_erpid}</Td>
+                    <Td>{r.store_name || '—'}</Td>
+                    <Td>{r.type_name}</Td>
+                    <Td>
+                      預設 <b>{r.default_score}</b>
+                      {r.approved_score != null && (
+                        <div style={{ fontSize: 12, color: C.ok, fontWeight: 700 }}>實際 +{r.approved_score}</div>
+                      )}
+                    </Td>
+                    <Td style={{ maxWidth: 240, whiteSpace: 'normal' }}>{r.apply_reason || '—'}</Td>
+                    <Td>
+                      {atts.length === 0 ? '—' : (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {atts.map((a, i) => {
+                            const isImg = (a.mime || '').startsWith('image/');
+                            return isImg ? (
+                              <img key={i} src={a.url} alt=""
+                                onClick={() => setPreviewUrl(a.url)}
+                                style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4, cursor: 'pointer', border: `1px solid ${C.border}` }} />
+                            ) : (
+                              <a key={i} href={a.url} target="_blank" rel="noreferrer"
+                                style={{ fontSize: 11, padding: '2px 8px', background: '#f1f5f9', borderRadius: 4, color: '#3b82f6' }}>
+                                📄 {a.name || `檔${i+1}`}
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </Td>
+                    <Td>
+                      <span style={{ color: st.color, fontWeight: 700 }}>{st.label}</span>
+                      {r.status === 'rejected' && r.reject_reason && (
+                        <div style={{ fontSize: 11, color: C.danger, marginTop: 2 }}>{r.reject_reason}</div>
+                      )}
+                    </Td>
+                    <Td>{r.approved_by ? (
+                      <span style={{ fontSize: 11, color: C.textLight }}>{r.approved_by}<br />{fmtTime(r.approved_at)}</span>
+                    ) : '—'}</Td>
+                    <Td>
+                      {isPending ? (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => approve(r)} disabled={busy}
+                            style={{ ...miniBtn, background: C.ok, color: '#fff', borderColor: C.ok }}>
+                            {busy ? '…' : '通過'}
+                          </button>
+                          <button onClick={() => reject(r)} disabled={busy}
+                            style={{ ...miniBtn, background: '#fff', color: C.danger, borderColor: C.danger }}>
+                            駁回
+                          </button>
+                        </div>
+                      ) : '—'}
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {previewUrl && (
+        <div onClick={() => setPreviewUrl(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2000, padding: 24, cursor: 'zoom-out',
+        }}>
+          <img src={previewUrl} alt="" style={{ maxWidth: '95%', maxHeight: '95%', borderRadius: 8 }} />
         </div>
       )}
     </div>

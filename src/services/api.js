@@ -540,6 +540,51 @@ export const pointRedemptionApi = {
   getBalance:      (erpid)       => api.get(`/point-redemption/balance/${erpid}`),
 };
 
+// 分數加分申請（與兌換相對的方向）— 管理端 + 公開端
+export const scoreApplicationApi = {
+  // 類型 CRUD
+  listTypes:      ()             => api.get('/score-application/types'),
+  createType:     (body)         => api.post('/score-application/types', body),
+  updateType:     (id, body)     => api.put(`/score-application/types/${id}`, body),
+  deleteType:     (id)           => api.delete(`/score-application/types/${id}`),
+  // 審核
+  listApplications: (params = {}) => api.get('/score-application/applications', { params }),
+  approve:        (id, score)    => api.post(`/score-application/applications/${id}/approve`, { score }),
+  reject:         (id, reason)   => api.post(`/score-application/applications/${id}/reject`, { reason }),
+};
+
+// 分數加分申請 — 員工自助（公開，用 app_number 驗證）
+// 走 fetch 避開 axios 401 攔截器自動 logout
+const scoreApplyPublicBase = (typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+  ? '/api/score-application/public'
+  : (import.meta.env.VITE_API_URL || 'https://operation-backend.onrender.com/api') + '/score-application/public';
+
+async function scoreApplyPublicReq(method, path, body, isMultipart) {
+  const opts = { method, headers: {} };
+  if (body && !isMultipart) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  } else if (isMultipart) {
+    opts.body = body;
+  }
+  const res  = await fetch(`${scoreApplyPublicBase}${path}`, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+  return data;
+}
+
+export const scoreApplicationPublicApi = {
+  listTypes:   ()                    => scoreApplyPublicReq('GET',  '/types'),
+  myList:      (app_number)          => scoreApplyPublicReq('GET',  `/applications?app_number=${encodeURIComponent(app_number)}`),
+  submit:      (body)                => scoreApplyPublicReq('POST', '/applications', body),
+  uploadAttachment: (fileBlob, fileName) => {
+    const fd = new FormData();
+    fd.append('file', fileBlob, fileName || 'file');
+    return scoreApplyPublicReq('POST', '/applications/upload-attachment', fd, true);
+  },
+};
+
 // 分數兌換模組（員工自助公開入口 — 不需登入，用 app_number 驗證）
 export const pointRedemptionPublicApi = {
   verify:        (app_number)          => api.get('/point-redemption/public/verify', { params: { app_number } }),

@@ -7,7 +7,7 @@
 //   4. 顯示我的兌換紀錄
 
 import { useEffect, useState, useCallback } from 'react';
-import { pointRedemptionPublicApi } from '../../services/api';
+import { pointRedemptionPublicApi, scoreApplicationPublicApi } from '../../services/api';
 
 const C = {
   primary:   '#c8860d',   // 金棕（分數主題）
@@ -47,7 +47,10 @@ export default function PointRedeemPage() {
   const [items, setItems]         = useState([]);
   const [redemptions, setRedemptions] = useState([]);
   const [redeeming, setRedeeming] = useState(null);   // 正在兌換的 item id
-  const [tab, setTab]             = useState('catalog'); // catalog | history
+  const [tab, setTab]             = useState('catalog'); // catalog | history | apply
+  const [appTypes, setAppTypes]   = useState([]);
+  const [myApps, setMyApps]       = useState([]);
+  const [applyModal, setApplyModal] = useState(null); // null | type 物件
   const [qtyMap, setQtyMap]       = useState({});       // { [itemId]: quantity }，現金型選用
   // 自製 confirm/info modal（LINE 內嵌瀏覽器常擋 window.confirm/alert）
   const [confirmModal, setConfirmModal] = useState(null); // { title, message, onOk }
@@ -58,16 +61,20 @@ export default function PointRedeemPage() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   const loadAll = useCallback(async (app) => {
-    const [balRes, catRes, hisRes] = await Promise.all([
+    const [balRes, catRes, hisRes, typeRes, myAppRes] = await Promise.all([
       pointRedemptionPublicApi.balance(app),
       pointRedemptionPublicApi.catalog(),
       pointRedemptionPublicApi.myRedemptions(app),
+      scoreApplicationPublicApi.listTypes().catch(() => ({ data: [] })),
+      scoreApplicationPublicApi.myList(app).catch(() => ({ data: [] })),
     ]);
     if (!balRes.success) throw new Error(balRes.message || '查詢失敗');
     setEmployee(balRes.data.employee);
     setBalance(balRes.data.balance);
     setItems(Array.isArray(catRes.data) ? catRes.data : []);
     setRedemptions(Array.isArray(hisRes.data) ? hisRes.data : []);
+    setAppTypes(Array.isArray(typeRes.data) ? typeRes.data : []);
+    setMyApps(Array.isArray(myAppRes.data) ? myAppRes.data : []);
   }, []);
 
   useEffect(() => {
@@ -248,6 +255,9 @@ export default function PointRedeemPage() {
           </TabBtn>
           <TabBtn active={tab === 'history'} onClick={() => setTab('history')}>
             我的紀錄{redemptions.length ? `（${redemptions.length}）` : ''}
+          </TabBtn>
+          <TabBtn active={tab === 'apply'} onClick={() => setTab('apply')}>
+            申請加分
           </TabBtn>
         </div>
 
@@ -457,11 +467,100 @@ export default function PointRedeemPage() {
           </div>
         )}
 
+        {/* 申請加分 */}
+        {tab === 'apply' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 6 }}>📝 申請加分</div>
+              <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.6 }}>
+                選擇下方的申請類型 → 填說明 + 上傳照片/PDF 佐證 → 送出後等待營運主管審核。<br/>
+                通過後分數會直接寫入 MAP，並以 LINE 通知你。
+              </div>
+            </div>
+            {appTypes.length === 0 && <Empty>目前沒有可申請的類型</Empty>}
+            {appTypes.map(t => (
+              <div key={t.id} style={{
+                background: C.card, border: `1px solid ${C.border}`,
+                borderRadius: 12, padding: 12, display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{t.name}</div>
+                  {t.description && (
+                    <div style={{ fontSize: 12, color: C.textMid, marginTop: 4, lineHeight: 1.5 }}>{t.description}</div>
+                  )}
+                  <div style={{ fontSize: 12, color: C.ok, fontWeight: 700, marginTop: 4 }}>
+                    預設 +{t.default_score} 分（主管可調整）
+                  </div>
+                </div>
+                <button onClick={() => setApplyModal(t)}
+                  style={{ padding: '9px 14px', border: 'none', background: C.primary, color: '#fff',
+                    borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  申請
+                </button>
+              </div>
+            ))}
+
+            {/* 我的申請紀錄 */}
+            <div style={{ fontSize: 12, color: C.textMid, fontWeight: 700, marginTop: 12 }}>
+              我的申請紀錄（{myApps.length}）
+            </div>
+            {myApps.length === 0 && <Empty>還沒有送出過申請</Empty>}
+            {myApps.map(a => {
+              const st = a.status === 'approved' ? { label: '✅ 已通過', color: C.ok }
+                       : a.status === 'rejected' ? { label: '❌ 已駁回', color: C.danger }
+                       :                            { label: '⏳ 審核中', color: '#b7791f' };
+              return (
+                <div key={a.id} style={{
+                  background: C.card, border: `1px solid ${C.border}`,
+                  borderRadius: 12, padding: '12px 14px',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{a.type_name}</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: a.status === 'approved' ? C.ok : C.textLight }}>
+                      {a.status === 'approved' ? `+${a.approved_score} 分` : `預設 ${a.default_score} 分`}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                    <span style={{ fontSize: 11, color: C.textLight }}>{fmtTime(a.applied_at)}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: st.color,
+                      background: st.color + '15', padding: '2px 8px', borderRadius: 4 }}>
+                      {st.label}
+                    </span>
+                  </div>
+                  {a.apply_reason && (
+                    <div style={{ fontSize: 12, color: C.textMid, marginTop: 6, whiteSpace: 'pre-wrap' }}>
+                      {a.apply_reason}
+                    </div>
+                  )}
+                  {Array.isArray(a.attachments) && a.attachments.length > 0 && (
+                    <div style={{ fontSize: 11, color: C.textLight, marginTop: 4 }}>
+                      📎 {a.attachments.length} 份附件
+                    </div>
+                  )}
+                  {a.status === 'rejected' && a.reject_reason && (
+                    <div style={{ fontSize: 11, color: C.danger, marginTop: 6 }}>
+                      駁回原因：{a.reject_reason}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         <div style={{ textAlign: 'center', fontSize: 11, color: C.textLight, margin: '24px 0 8px' }}>
           樂活眼鏡 · 分數兌換
         </div>
       </div>
 
+      {applyModal && (
+        <ApplyModal
+          type={applyModal}
+          appNumber={appNumber}
+          onClose={() => setApplyModal(null)}
+          onSubmitted={async () => { setApplyModal(null); await loadAll(appNumber); }}
+        />
+      )}
       {detailOpen && (
         <DetailModal
           loading={detailLoading}
@@ -522,6 +621,146 @@ function SimpleModal({ title, message, okLabel = '確定', cancelLabel, tone, on
           <button onClick={onOk}
                   style={{ padding: '9px 18px', border: 'none', background: accent, color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
             {okLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// 申請加分 Modal
+// ════════════════════════════════════════════════════════════
+function ApplyModal({ type, appNumber, onClose, onSubmitted }) {
+  const [reason, setReason]       = useState('');
+  const [files, setFiles]         = useState([]);     // [{ url, name, mime, size }]
+  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmit]   = useState(false);
+  const [err, setErr]             = useState('');
+
+  async function pickFiles(e) {
+    const list = Array.from(e.target.files || []);
+    if (list.length === 0) return;
+    if (files.length + list.length > 10) {
+      setErr('最多 10 份附件');
+      e.target.value = '';
+      return;
+    }
+    setErr('');
+    setUploading(true);
+    try {
+      const uploaded = [];
+      for (const f of list) {
+        if (f.size > 20 * 1024 * 1024) throw new Error(`${f.name} 超過 20 MB`);
+        const r = await scoreApplicationPublicApi.uploadAttachment(f, f.name);
+        if (!r.success) throw new Error(r.message || '上傳失敗');
+        uploaded.push(r.data);
+      }
+      setFiles(prev => [...prev, ...uploaded]);
+    } catch (e2) {
+      setErr(e2.message || '上傳失敗');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  function removeFile(idx) {
+    setFiles(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  async function submit() {
+    setErr('');
+    if (uploading) { setErr('附件還在上傳，請稍候'); return; }
+    setSubmit(true);
+    try {
+      const r = await scoreApplicationPublicApi.submit({
+        app_number:   appNumber,
+        type_id:      type.id,
+        apply_reason: reason.trim(),
+        attachments:  files,
+      });
+      if (!r.success) throw new Error(r.message || '送出失敗');
+      alert('✅ 已送出申請！等待營運主管審核，通過後會以 LINE 通知你。');
+      onSubmitted();
+    } catch (e) {
+      setErr(e.message || '送出失敗');
+    } finally { setSubmit(false); }
+  }
+
+  const C2 = { dark:'#50422d', textMid:'#6b6b6b', textLight:'#9a9a9a', border:'#e3e0d8', danger:'#c53030', primary:'#c8860d' };
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      padding: '40px 16px', overflowY: 'auto', zIndex: 1500,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: 14, padding: 20, width: '100%', maxWidth: 480,
+        boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: C2.dark }}>申請加分</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: C2.textLight }}>×</button>
+        </div>
+        <div style={{ fontSize: 13, color: C2.textMid, marginBottom: 4 }}>{type.name}</div>
+        <div style={{ fontSize: 12, color: C2.primary, fontWeight: 700, marginBottom: 14 }}>
+          預設加 {type.default_score} 分（主管審核時可調整）
+        </div>
+
+        <div style={{ fontSize: 12, color: C2.textMid, fontWeight: 600, marginBottom: 6 }}>說明 / 事由</div>
+        <textarea value={reason} onChange={e => setReason(e.target.value)} rows={4}
+          placeholder="簡述申請事由（選填）"
+          style={{ width: '100%', padding: '10px 12px', fontSize: 14, border: `1px solid ${C2.border}`,
+            borderRadius: 8, boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical', marginBottom: 12 }} />
+
+        <div style={{ fontSize: 12, color: C2.textMid, fontWeight: 600, marginBottom: 6 }}>
+          附件（圖片 / PDF，最多 10 份，單檔 ≤ 20 MB）
+        </div>
+        {files.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {files.map((f, i) => {
+              const isImg = (f.mime || '').startsWith('image/');
+              return (
+                <div key={i} style={{ position: 'relative' }}>
+                  {isImg ? (
+                    <img src={f.url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 6, border: `1px solid ${C2.border}` }} />
+                  ) : (
+                    <div style={{ width: 64, height: 64, background: '#f5f0ea', borderRadius: 6, border: `1px solid ${C2.border}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>📄</div>
+                  )}
+                  <button onClick={() => removeFile(i)}
+                    style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%',
+                      border: 'none', background: C2.danger, color: '#fff', cursor: 'pointer', fontSize: 12 }}>×</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <label style={{
+          display: 'inline-block', padding: '8px 14px', fontSize: 13,
+          border: `1px dashed ${C2.border}`, borderRadius: 8, cursor: 'pointer',
+          color: C2.textMid, background: '#fafaf7',
+        }}>
+          📎 加附件
+          <input type="file" multiple accept="image/*,application/pdf,.heic,.heif"
+            style={{ display: 'none' }} onChange={pickFiles} disabled={uploading} />
+        </label>
+        {uploading && <span style={{ marginLeft: 8, fontSize: 12, color: C2.textLight }}>上傳中…</span>}
+
+        {err && <div style={{ color: C2.danger, fontSize: 13, marginTop: 10 }}>{err}</div>}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+          <button onClick={onClose} style={{
+            flex: 1, padding: '12px', border: `1px solid ${C2.border}`, background: '#fff',
+            borderRadius: 8, fontSize: 14, cursor: 'pointer',
+          }} disabled={submitting}>取消</button>
+          <button onClick={submit} disabled={submitting || uploading} style={{
+            flex: 2, padding: '12px', border: 'none', background: C2.primary, color: '#fff',
+            borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+          }}>
+            {submitting ? '送出中…' : '送出申請'}
           </button>
         </div>
       </div>
