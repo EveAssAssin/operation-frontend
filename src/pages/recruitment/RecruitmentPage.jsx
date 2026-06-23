@@ -432,8 +432,8 @@ function ResumesTab({ storeMap }) {
         <button style={S.btnP} onClick={()=>setShowAdd(v=>!v)}>+ 新增投遞者</button>
       </div>
 
-      {/* 依月份模式：狀態統計列 */}
-      {viewMode === 'month' && applicants.length > 0 && (
+      {/* 狀態統計列（三種瀏覽模式都顯示） */}
+      {applicants.length > 0 && (
         <StatusCountsStrip counts={statusCounts} badges={STATUS_BADGE} />
       )}
 
