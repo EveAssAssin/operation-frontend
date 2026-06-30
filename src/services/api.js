@@ -225,6 +225,13 @@ export const checksApi = {
   // 出款清單
   getToday:        ()              => api.get('/checks/today'),
   getUpcoming:     (days = 7)      => api.get('/checks/upcoming', { params: { days } }),
+  // 元大批次匯款 Excel
+  exportEltonBatch: (yearMonth, checkIds = []) =>
+    api.post(
+      `/checks/export-elton/${yearMonth}`,
+      { checkIds },
+      { responseType: 'blob' }
+    ),
   // 台灣假日
   refreshHolidays: (year)          => api.post('/checks/holidays/refresh', null, { params: { year } }),
   // 通知名單

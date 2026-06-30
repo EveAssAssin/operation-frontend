@@ -99,6 +99,40 @@ function TodayPanel() {
   const [upcoming, setUpcoming]       = useState([]);
   const [renewals, setRenewals]       = useState([]);
   const [loading, setLoading]         = useState(true);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [exporting, setExporting]     = useState(false);
+  const [exportMonth, setExportMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function exportElton() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const res = await checksApi.exportEltonBatch(exportMonth, ids);
+      const blob = new Blob([res.data || res], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${exportMonth}_元大支票_出款.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('匯出失敗：' + (e?.response?.data?.message || e.message || e));
+    } finally { setExporting(false); }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -142,13 +176,16 @@ function TodayPanel() {
 
   // 渲染單一支票列
   function CheckRow({ c, i }) {
+    const isChecked = selectedIds.has(c.id);
     return (
       <div style={{
         display: 'flex', alignItems: 'center',
         padding: '12px 18px',
         borderTop: i > 0 ? `1px solid ${C.border}` : 'none',
-        background: c.is_overdue ? '#fff8f0' : (i % 2 === 0 ? '#fff' : '#faf7f4'),
+        background: isChecked ? '#f0fff4' : (c.is_overdue ? '#fff8f0' : (i % 2 === 0 ? '#fff' : '#faf7f4')),
       }}>
+        <input type="checkbox" checked={isChecked} onChange={() => toggleSelect(c.id)}
+               style={{ marginRight: 12, width: 18, height: 18, cursor: 'pointer', accentColor: '#2d6a4f' }} />
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600, color: C.textDark, fontSize: 14 }}>
             {c.batch?.subject?.name || '—'}
@@ -209,6 +246,36 @@ function TodayPanel() {
             {data?.total > 0 ? `⚠ ${data.total} 張待出款` : '✓ 今日無應付票據'}
           </div>
         </div>
+      </div>
+
+      {/* 元大匯款 Excel 匯出工具列 */}
+      <div style={{
+        background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10,
+        padding: '12px 18px', marginBottom: 16,
+        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+      }}>
+        <div style={{ fontSize: 13, color: C.textMid, fontWeight: 600 }}>📥 元大批次匯款</div>
+        <input type="month" value={exportMonth} onChange={e => setExportMonth(e.target.value)}
+               style={{ padding: '5px 10px', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }} />
+        <div style={{ flex: 1, fontSize: 12, color: C.textLight }}>
+          {selectedIds.size > 0
+            ? `已勾選 ${selectedIds.size} 張，將只匯出勾選的`
+            : '未勾選 = 匯出該月所有 pending 支票'}
+        </div>
+        {selectedIds.size > 0 && (
+          <button onClick={() => setSelectedIds(new Set())}
+                  style={{ padding: '6px 12px', border: `1px solid ${C.border}`, borderRadius: 6, background: '#fff', color: C.textMid, fontSize: 12, cursor: 'pointer' }}>
+            清除勾選
+          </button>
+        )}
+        <button onClick={exportElton} disabled={exporting}
+                style={{
+                  padding: '7px 16px', border: 'none', borderRadius: 6,
+                  background: exporting ? '#a0aec0' : '#2d6a4f', color: '#fff',
+                  fontSize: 13, fontWeight: 600, cursor: exporting ? 'wait' : 'pointer',
+                }}>
+          {exporting ? '產生中...' : '📥 產生元大匯款 Excel'}
+        </button>
       </div>
 
       {/* 出款清單（依出款人分群）*/}
