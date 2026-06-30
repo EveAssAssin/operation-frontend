@@ -1923,10 +1923,23 @@ function EmptyBox({ text }) {
 }
 
 // ── 樣式常數 ────────────────────────────────────────────────
+const selectStyle = {
+  padding: '8px 12px', border: '1px solid #e0d5c8', borderRadius: 7,
+  background: '#fff', color: '#3a2e1e', fontSize: 13,
+  cursor: 'pointer', minWidth: 110,
+};
 const btnStyle = {
   background: '#50422d', color: '#fff', border: 'none',
   borderRadius: 6, padding: '7px 14px', cursor: 'pointer',
   fontSize: 13, fontWeight: 600,
+};
+const smallBtnStyle = {
+  padding: '4px 10px', border: 'none', borderRadius: 5,
+  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+};
+const badgeStyle = {
+  display: 'inline-block', fontSize: 11, fontWeight: 600,
+  padding: '2px 8px', borderRadius: 999,
 };
 const labelStyle = {
   display: 'block', fontSize: 12, color: '#6b5640',
