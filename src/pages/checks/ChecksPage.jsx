@@ -1938,19 +1938,3 @@ const inputStyle = {
   fontSize: 13, color: '#3a2e1e', boxSizing: 'border-box',
   marginBottom: 0,
 };
- solid #e0d5c8', borderRadius: 6,
-  fontSize: 13, color: '#3a2e1e', boxSizing: 'border-box',
-  marginBottom: 0,
-};
-Radius: 999,
-};
-const labelStyle = {
-  display: 'block', fontSize: 12, color: C.textMid,
-  fontWeight: 600, marginBottom: 4,
-};
-const inputStyle = {
-  width: '100%', padding: '8px 10px',
-  border: `1px solid ${C.border}`, borderRadius: 6,
-  fontSize: 13, color: C.textDark, boxSizing: 'border-box',
-  marginBottom: 0,
-};
