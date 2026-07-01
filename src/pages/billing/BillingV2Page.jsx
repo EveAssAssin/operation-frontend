@@ -2529,8 +2529,9 @@ export default function BillingV2Page() {
                 </tbody>
               </table>
               {pagination.total > 0 && (
-                <div style={{ marginTop: 8, color: '#718096', fontSize: 12 }}>
-                  共 {pagination.total} 筆
+                <div style={{ marginTop: 8, color: '#718096', fontSize: 12, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  <span>共 <b style={{ color: '#2d3748' }}>{pagination.total}</b> 筆</span>
+                  <span>總金額 <b style={{ color: '#50422d' }}>{fmtMoney(bills.reduce((s, b) => s + Number(b.total_amount || 0), 0))}</b></span>
                 </div>
               )}
             </>
