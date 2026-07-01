@@ -746,7 +746,7 @@ function BatchesPanel({ user }) {
               🔀 合併科目
             </button>
             <button onClick={() => setShowCreate(true)} style={{ ...btnStyle, background: C.dark }}>
-              ＋ 新增批次
+              ＋ 新增支票
             </button>
           </>
         )}
