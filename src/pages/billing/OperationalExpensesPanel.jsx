@@ -140,16 +140,28 @@ export default function OperationalExpensesPanel() {
   );
 }
 
-// 從 entity_facts.data 中把所有欄位值依序 concat 顯示（電號 / 戶名 / 地址 等）
-// data 是 JSONB { field_key: value }，這邊直接把所有非空 value 串起來，再接門市名
+// 從 entity_facts.data 顯示：先號碼、再地址、然後其他、最後門市
 function getFactDisplay(fact) {
   if (!fact) return '';
   const d = fact.data || {};
-  const values = Object.entries(d)
+  const raw = Object.entries(d)
     .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
-    .map(([, v]) => String(v).trim());
+    .map(([k, v]) => ({ key: String(k), val: String(v).trim() }));
+
+  const numbers  = [];  // 一串主要都是數字（電號 / 帳號 / 用戶號碼）
+  const addrs    = [];  // 地址（含 市 / 縣 / 路 / 街 / 段 / 號 之類的字）
+  const others   = [];  // 其他
+
+  for (const { key, val } of raw) {
+    const isNumber = /^[\d\-\s()]{6,}$/.test(val);
+    const isAddr   = /(縣|市|區|鄉|鎮|里|路|街|巷|弄|段|號|樓|地址)/.test(val) && !isNumber;
+    if (isNumber)      numbers.push(val);
+    else if (isAddr)   addrs.push(val);
+    else               others.push(val);
+  }
+
   const store = fact.store_name || fact.store_erpid || '';
-  return [...values, store].filter(Boolean).join(' · ');
+  return [...numbers, ...addrs, ...others, store].filter(Boolean).join(' · ');
 }
 
 // ═══════════════════════════════════════════════════════════════
