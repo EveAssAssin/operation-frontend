@@ -1581,7 +1581,26 @@ function CreateBillModal({ sources, departments, onClose, onCreated }) {
               </select>
             </div>
             <div style={formField}>
-              <label style={labelStyle}>會計科目</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <label style={{ ...labelStyle, marginBottom: 0, flex: 1 }}>會計科目</label>
+                <button type="button" disabled={!form.source_id}
+                  onClick={async () => {
+                    if (!form.source_id) { alert('請先選來源單位'); return; }
+                    const name = window.prompt('新增會計科目名稱：');
+                    if (!name || !name.trim()) return;
+                    const code = window.prompt('會計科目代碼（可留空）：', '') || '';
+                    try {
+                      const r = await billingV2Api.createCategory(form.source_id, { name: name.trim(), code: code.trim() || null });
+                      if (!r.success) throw new Error(r.message);
+                      const listRes = await billingV2Api.getCategories(form.source_id);
+                      if (listRes.success) setCategories(listRes.data);
+                      set('accounting_category_id', r.data?.id || '');
+                    } catch (e) { alert('新增失敗：' + (e?.message || e)); }
+                  }}
+                  style={{ fontSize: 11, color: !form.source_id ? '#a0aec0' : '#50422d', background: 'none', border: 'none', cursor: !form.source_id ? 'not-allowed' : 'pointer', padding: 0 }}>
+                  ＋ 新增科目
+                </button>
+              </div>
               <select style={selectStyle} value={form.accounting_category_id}
                 onChange={e => set('accounting_category_id', e.target.value)}
                 disabled={categories.length === 0}>
