@@ -789,6 +789,10 @@ const primaryBtn = {
   padding: '10px 18px', background: '#c8860d', color: '#fff', border: 'none',
   borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer',
 };
+const miniBtn = {
+  padding: '5px 10px', background: '#fff', color: C.textMid,
+  border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+};
 
 function fmtTime(t) {
   if (!t) return '';
