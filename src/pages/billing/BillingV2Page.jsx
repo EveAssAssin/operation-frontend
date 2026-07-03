@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { billingV2Api, personnelApi, billingApi, vendorPaymentApi, paymentBatchApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import OperationalExpensesPanel from './OperationalExpensesPanel';
 
 // ── 廠商帳號管理面板 ──────────────────────────────────────────
 function VendorAccountsPanel({ sources, onSourceUpdate }) {
@@ -2737,12 +2738,7 @@ export default function BillingV2Page() {
       )}
 
       {/* 營運費用（電費 / 水費 / 電話 ...） */}
-      {tab === 'operational' && (
-        <div style={{ padding: 40, textAlign: 'center', color: '#718096', border: '2px dashed #cbd5e0', borderRadius: 8, background: '#fff' }}>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>營運費用模組建置中</div>
-          <div style={{ fontSize: 13 }}>電費 / 水費 / 電話與網路 等營運費用會在這裡管理。</div>
-        </div>
-      )}
+      {tab === 'operational' && <OperationalExpensesPanel />}
 
       {/* 廠商帳號管理 */}
       {tab === 'vendors' && (

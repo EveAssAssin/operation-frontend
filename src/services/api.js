@@ -318,6 +318,16 @@ export const pushGroupsApi = {
 };
 
 // Recurring Expenses API（常態費用模組）
+export const operationalExpensesApi = {
+  list:   (params = {})            => api.get('/operational-expenses', { params }),
+  get:    (id)                     => api.get(`/operational-expenses/${id}`),
+  create: (body)                   => api.post('/operational-expenses', body),
+  update: (id, body)               => api.patch(`/operational-expenses/${id}`, body),
+  remove: (id)                     => api.delete(`/operational-expenses/${id}`),
+  replaceAllocations: (id, allocations) => api.put(`/operational-expenses/${id}/allocations`, { allocations }),
+  listFactsByCategory: (categoryId) => api.get(`/operational-expenses/facts/${categoryId}`),
+};
+
 export const recurringExpensesApi = {
   // 主檔
   list:    (active)    => api.get('/recurring-expenses', active != null ? { params: { active } } : {}),
@@ -701,13 +711,10 @@ export const paymentBatchApi = {
 
 // 分權系統（角色 / 模組 / 權限設定）
 export const permissionsApi = {
-  // 任何人可呼叫
   getMyModules:    () => api.get('/permissions/my-modules'),
-  // 讀
   listRoles:       () => api.get('/permissions/roles'),
   listModules:     () => api.get('/permissions/modules'),
   listPermissions: () => api.get('/permissions/permissions'),
-  // 寫（只有 admin 等級角色可呼叫）
   setPermission:   (body)  => api.put('/permissions/permission', body),
   setBulk:         (items) => api.put('/permissions/permissions/bulk', { items }),
 };
