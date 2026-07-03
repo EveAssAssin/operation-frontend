@@ -140,14 +140,16 @@ export default function OperationalExpensesPanel() {
   );
 }
 
-// 從 entity_facts.data 中挑出「電號/帳號」等識別欄位顯示
+// 從 entity_facts.data 中把所有欄位值依序 concat 顯示（電號 / 戶名 / 地址 等）
+// data 是 JSONB { field_key: value }，這邊直接把所有非空 value 串起來，再接門市名
 function getFactDisplay(fact) {
   if (!fact) return '';
   const d = fact.data || {};
-  const primary = d.electricity_no || d.customer_no || d.account_no || d.number || d.電號 || d.帳號 || '';
-  const owner   = d.holder_name || d.name || d.戶名 || '';
-  const store   = fact.store_name || fact.store_erpid || '';
-  return [primary, owner, store].filter(Boolean).join(' · ');
+  const values = Object.entries(d)
+    .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+    .map(([, v]) => String(v).trim());
+  const store = fact.store_name || fact.store_erpid || '';
+  return [...values, store].filter(Boolean).join(' · ');
 }
 
 // ═══════════════════════════════════════════════════════════════
