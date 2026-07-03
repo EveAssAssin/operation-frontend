@@ -322,6 +322,24 @@ function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrF
   const [allFacts, setAllFacts]       = useState([]);   // 全系統 facts（一次撈完）
   const [fieldsByCat, setFieldsByCat] = useState({});   // {catId: [fields]}
   const [showAddStore, setShowAddStore] = useState(false);  // 新增門市 dialog
+  const [orderTick, setOrderTick]     = useState(0);    // 排序刷新用
+
+  // 使用者自訂門市排序（存 localStorage，每個瀏覽器各自）
+  const ORDER_KEY = 'basic_data_store_order';
+  function loadOrder() {
+    try { return JSON.parse(localStorage.getItem(ORDER_KEY) || '[]'); } catch { return []; }
+  }
+  function saveOrder(arr) {
+    try { localStorage.setItem(ORDER_KEY, JSON.stringify(arr)); setOrderTick(t => t + 1); } catch {}
+  }
+  function moveStore(erpid, dir) {
+    const arr = sortedStores.map(s => s.store_erpid);
+    const idx = arr.indexOf(erpid);
+    const tgt = idx + dir;
+    if (idx < 0 || tgt < 0 || tgt >= arr.length) return;
+    [arr[idx], arr[tgt]] = [arr[tgt], arr[idx]];
+    saveOrder(arr);
+  }
 
   // 一次撈所有 facts + 所有分類欄位
   const loadAll = useCallback(async () => {
@@ -394,6 +412,20 @@ function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrF
     return sum;
   }
 
+  // 依 localStorage 偏好排序：有存的依存的順序，沒在偏好裡的接在後面
+  const sortedStores = (() => {
+    const order = loadOrder();
+    const idxMap = Object.fromEntries(order.map((e, i) => [e, i]));
+    return [...stores].sort((a, b) => {
+      const ai = idxMap[a.store_erpid] ?? Infinity;
+      const bi = idxMap[b.store_erpid] ?? Infinity;
+      if (ai !== bi) return ai - bi;
+      return 0;
+    });
+  })();
+  // eslint-disable-next-line no-unused-vars
+  const _tick = orderTick;
+
   const selStore         = stores.find(s => s.store_erpid === selStoreErpid);
   const selUnmappedStore = unmappedStores.find(s => s.store_erpid === selStoreErpid);
   const isUnmapped       = !selStore && !!selUnmappedStore;
@@ -429,7 +461,7 @@ function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrF
               background: C.dark, color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600,
             }}>+ 新增</button>
         </div>
-        {stores.map(s => {
+        {sortedStores.map((s, i) => {
           const isActive = s.store_erpid === selStoreErpid;
           const sFacts   = factsByStore[s.store_erpid] || [];
           // 依分類整理「N」筆
@@ -437,12 +469,14 @@ function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrF
             const n = sFacts.filter(f => f.category_id === c.id).length;
             return n > 0 ? `${c.icon || ''}${n}` : null;
           }).filter(Boolean).join(' ');
+          const isFirst = i === 0;
+          const isLast  = i === sortedStores.length - 1;
           return (
             <div key={s.store_erpid}
               onClick={() => setSelStoreErpid(s.store_erpid)}
               style={{
                 display: 'block', width: '100%', textAlign: 'left',
-                padding: '10px 14px', border: 'none',
+                padding: '10px 34px 10px 14px', border: 'none',
                 background: isActive ? '#fff8ec' : 'transparent',
                 color: isActive ? C.dark : C.textDark,
                 borderLeft: isActive ? `3px solid ${C.dark}` : '3px solid transparent',
@@ -454,6 +488,17 @@ function StoreView({ stores, categories, selStoreErpid, setSelStoreErpid, onMgrF
               <div style={{ fontWeight: 600, paddingRight: 22 }}>{s.store_name}</div>
               <div style={{ fontSize: 11, color: C.textLight }}>{s.store_erpid}</div>
               {catSummary && <div style={{ fontSize: 11, color: C.textMid, marginTop: 2 }}>{catSummary}</div>}
+              {/* 上/下移 */}
+              <div style={{ position: 'absolute', top: 6, right: 26, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <button onClick={(ev) => { ev.stopPropagation(); moveStore(s.store_erpid, -1); }} disabled={isFirst}
+                        title="上移"
+                        style={{ background: 'transparent', border: 'none', cursor: isFirst ? 'not-allowed' : 'pointer',
+                                 color: C.textMid, fontSize: 9, padding: 0, opacity: isFirst ? 0.3 : 0.8, lineHeight: 1 }}>▲</button>
+                <button onClick={(ev) => { ev.stopPropagation(); moveStore(s.store_erpid, 1); }} disabled={isLast}
+                        title="下移"
+                        style={{ background: 'transparent', border: 'none', cursor: isLast ? 'not-allowed' : 'pointer',
+                                 color: C.textMid, fontSize: 9, padding: 0, opacity: isLast ? 0.3 : 0.8, lineHeight: 1 }}>▼</button>
+              </div>
               <button
                 onClick={(ev) => handleDeleteStore(s, ev)}
                 title="刪除此門市 / 部門（有資料引用會擋下來）"
