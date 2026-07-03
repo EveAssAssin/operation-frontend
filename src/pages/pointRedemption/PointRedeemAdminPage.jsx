@@ -267,6 +267,7 @@ function RedemptionsTab() {
   const [rows, setRows]    = useState([]);
   const [loading, setLoad] = useState(true);
   const [status, setStatus] = useState('pending');   // 預設先看待審
+  const [itemFilter, setItemFilter] = useState('');  // 品項篩選（''=全部）
   const [busyId, setBusyId] = useState(null);
 
   const reload = useCallback(async () => {
@@ -313,9 +314,13 @@ function RedemptionsTab() {
 
   const pendingCount = rows.filter(r => r.status === 'pending').length;
 
+  // 品項下拉選項：從 rows 抽出所有 item_name
+  const itemOptions = Array.from(new Set(rows.map(r => r.item_name).filter(Boolean))).sort();
+  const filteredRows = itemFilter ? rows.filter(r => r.item_name === itemFilter) : rows;
+
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 13, color: C.textMid }}>狀態：</span>
         <select value={status} onChange={e => setStatus(e.target.value)} style={{ ...input, width: 170 }}>
           <option value="pending">送審中（待審核）</option>
@@ -325,10 +330,20 @@ function RedemptionsTab() {
           <option value="cancelled">已取消</option>
           <option value="">全部</option>
         </select>
+        <span style={{ fontSize: 13, color: C.textMid, marginLeft: 4 }}>品項：</span>
+        <select value={itemFilter} onChange={e => setItemFilter(e.target.value)} style={{ ...input, width: 180 }}>
+          <option value="">全部品項</option>
+          {itemOptions.map(name => <option key={name} value={name}>{name}</option>)}
+        </select>
         <button onClick={reload} style={{ ...miniBtn, padding: '6px 12px' }}>🔄 重新整理</button>
         {status === 'pending' && pendingCount > 0 && (
           <span style={{ fontSize: 12, color: '#b7791f', fontWeight: 700 }}>
             {pendingCount} 筆待審核
+          </span>
+        )}
+        {itemFilter && (
+          <span style={{ fontSize: 12, color: C.textMid }}>
+            篩選後 {filteredRows.length} 筆
           </span>
         )}
       </div>
@@ -343,10 +358,10 @@ function RedemptionsTab() {
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 && (
+              {filteredRows.length === 0 && (
                 <tr><td colSpan={10} style={{ textAlign: 'center', color: C.textLight, padding: 30 }}>沒有兌換紀錄</td></tr>
               )}
-              {rows.map(r => {
+              {filteredRows.map(r => {
                 const st = STATUS_META[r.status] || { label: r.status, color: C.textMid };
                 const isPending  = r.status === 'pending';
                 const canFulfill = r.status === 'completed' && r.item_type === 'physical';
@@ -769,21 +784,10 @@ const input = {
   width: '100%', padding: '9px 11px', border: `1px solid ${C.border}`,
   borderRadius: 8, fontSize: 14, boxSizing: 'border-box', background: '#fff',
 };
+
 const primaryBtn = {
-  padding: '10px 18px', background: C.dark, color: '#fff', border: 'none',
-  borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginTop: 0,
-};
-const ghostBtn = {
-  padding: '10px 18px', background: '#fff', color: C.textMid,
-  border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer',
-};
-const miniBtn = {
-  padding: '5px 10px', background: '#fff', color: C.textMid,
-  border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-};
-const tagStyle = {
-  fontSize: 10, fontWeight: 700, color: C.mid, background: '#f0e9dd',
-  padding: '1px 6px', borderRadius: 4, marginLeft: 6, verticalAlign: 'middle',
+  padding: '10px 18px', background: '#c8860d', color: '#fff', border: 'none',
+  borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer',
 };
 
 function fmtTime(t) {
