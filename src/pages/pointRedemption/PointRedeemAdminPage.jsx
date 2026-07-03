@@ -266,7 +266,7 @@ function ItemModal({ item, onClose, onSaved }) {
 function RedemptionsTab() {
   const [rows, setRows]    = useState([]);
   const [loading, setLoad] = useState(true);
-  const [status, setStatus] = useState('pending');   // 預設先看待審
+  const [status, setStatus] = useState('');   // 預設全部
   const [itemFilter, setItemFilter] = useState('');  // 品項篩選（''=全部）
   const [busyId, setBusyId] = useState(null);
 
@@ -582,7 +582,7 @@ function AppTypeModal({ type, onClose, onSaved }) {
 function AppReviewTab() {
   const [rows, setRows]    = useState([]);
   const [loading, setLoad] = useState(true);
-  const [status, setStatus] = useState('pending');
+  const [status, setStatus] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
