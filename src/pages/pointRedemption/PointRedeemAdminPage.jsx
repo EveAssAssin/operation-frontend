@@ -793,6 +793,10 @@ const miniBtn = {
   padding: '5px 10px', background: '#fff', color: C.textMid,
   border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
 };
+const tagStyle = {
+  fontSize: 10, fontWeight: 700, color: C.mid, background: '#f0e9dd',
+  padding: '1px 6px', borderRadius: 4, marginLeft: 6, verticalAlign: 'middle',
+};
 
 function fmtTime(t) {
   if (!t) return '';
