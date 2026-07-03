@@ -1582,28 +1582,40 @@ function CreateBillModal({ sources, departments, onClose, onCreated }) {
             </div>
             <div style={formField}>
               <label style={labelStyle}>會計科目</label>
-              <select style={selectStyle} value={form.accounting_category_id}
-                onChange={e => set('accounting_category_id', e.target.value)}
-                disabled={categories.length === 0}>
-                <option value="">— 選擇科目 —</option>
-                {(() => {
-                  const parents  = categories.filter(c => !c.parent_id);
-                  const childOf  = (id) => categories.filter(c => c.parent_id === id);
-                  const orphans  = categories.filter(c => c.parent_id && !categories.find(p => p.id === c.parent_id));
-                  const rows = [];
-                  for (const p of parents) {
-                    rows.push({ ...p, _level: 0 });
-                    for (const ch of childOf(p.id)) rows.push({ ...ch, _level: 1 });
-                  }
-                  for (const o of orphans) rows.push({ ...o, _level: 0 });
-                  return rows.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c._level > 0 ? '　└ ' : '📁 '}
-                      {c.code ? `[${c.code}] ` : ''}{c.name}
-                    </option>
-                  ));
-                })()}
-              </select>
+              {(() => {
+                const parentsOnly = categories.filter(c => !c.parent_id);
+                const selCat = categories.find(c => c.id === form.accounting_category_id);
+                const selParentId = selCat ? (selCat.parent_id || selCat.id) : '';
+                const children = selParentId ? categories.filter(c => c.parent_id === selParentId) : [];
+                return (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <select style={{ ...selectStyle, flex: 1 }}
+                      value={selParentId}
+                      disabled={parentsOnly.length === 0}
+                      onChange={e => {
+                        // 選母分類時：如果該母有子科目，account_id 先清空等使用者選子；沒子的話直接記為母 id
+                        const pid = e.target.value;
+                        if (!pid) { set('accounting_category_id', ''); return; }
+                        const hasChildren = categories.some(c => c.parent_id === pid);
+                        set('accounting_category_id', hasChildren ? '' : pid);
+                      }}>
+                      <option value="">— 母分類 —</option>
+                      {parentsOnly.map(p => (
+                        <option key={p.id} value={p.id}>{p.code ? `[${p.code}] ` : ''}{p.name}</option>
+                      ))}
+                    </select>
+                    <select style={{ ...selectStyle, flex: 1 }}
+                      value={selCat && selCat.parent_id ? selCat.id : ''}
+                      disabled={!selParentId || children.length === 0}
+                      onChange={e => set('accounting_category_id', e.target.value || selParentId)}>
+                      <option value="">{children.length === 0 ? '（無子科目）' : '— 子科目 —'}</option>
+                      {children.map(c => (
+                        <option key={c.id} value={c.id}>{c.code ? `[${c.code}] ` : ''}{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })()}
             </div>
             <div style={formField}>
               <label style={labelStyle}>帳單月份 *</label>
