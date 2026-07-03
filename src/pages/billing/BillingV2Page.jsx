@@ -2398,7 +2398,7 @@ function SourcePanel({ sources, onRefresh }) {
       {[
         { type: 'admin_dept',  label: '行政部門費用', code: '6-1', accentColor: '#50422d', bgColor: '#f5f0ea' },
         { type: 'vendor',      label: '廠商費用',     code: '6-2', accentColor: '#805ad5', bgColor: '#faf5ff' },
-        { type: 'operational', label: '營運費用',     code: '6-3', accentColor: '#38a169', bgColor: '#f0fff4' },
+        // 營運費用（6-3）已遷移到獨立的「營運費用」分頁，這裡不再顯示
       ].map(({ type, label, code, accentColor, bgColor }) => {
         const group = sources.filter(s => s.source_type === type);
         const activeCount = group.filter(s => s.is_active).length;
@@ -2576,6 +2576,7 @@ export default function BillingV2Page() {
 
   const TABS = [
     { key: 'bills',           label: '帳單列表' },
+    { key: 'operational',     label: '營運費用' },
     { key: 'vendor_payment',  label: '廠商請款審核' },
     { key: 'payment_batch',   label: '匯款批次' },
     { key: 'input_invoice',   label: '進項發票' },
@@ -2733,6 +2734,14 @@ export default function BillingV2Page() {
       {/* 會計科目管理 */}
       {tab === 'categories' && (
         <AccountingCategoriesPanel sources={sources} />
+      )}
+
+      {/* 營運費用（電費 / 水費 / 電話 ...） */}
+      {tab === 'operational' && (
+        <div style={{ padding: 40, textAlign: 'center', color: '#718096', border: '2px dashed #cbd5e0', borderRadius: 8, background: '#fff' }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>營運費用模組建置中</div>
+          <div style={{ fontSize: 13 }}>電費 / 水費 / 電話與網路 等營運費用會在這裡管理。</div>
+        </div>
       )}
 
       {/* 廠商帳號管理 */}
