@@ -1581,33 +1581,28 @@ function CreateBillModal({ sources, departments, onClose, onCreated }) {
               </select>
             </div>
             <div style={formField}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <label style={{ ...labelStyle, marginBottom: 0, flex: 1 }}>會計科目</label>
-                <button type="button" disabled={!form.source_id}
-                  onClick={async () => {
-                    if (!form.source_id) { alert('請先選來源單位'); return; }
-                    const name = window.prompt('新增會計科目名稱：');
-                    if (!name || !name.trim()) return;
-                    const code = window.prompt('會計科目代碼（可留空）：', '') || '';
-                    try {
-                      const r = await billingV2Api.createCategory(form.source_id, { name: name.trim(), code: code.trim() || null });
-                      if (!r.success) throw new Error(r.message);
-                      const listRes = await billingV2Api.getCategories(form.source_id);
-                      if (listRes.success) setCategories(listRes.data);
-                      set('accounting_category_id', r.data?.id || '');
-                    } catch (e) { alert('新增失敗：' + (e?.message || e)); }
-                  }}
-                  style={{ fontSize: 11, color: !form.source_id ? '#a0aec0' : '#50422d', background: 'none', border: 'none', cursor: !form.source_id ? 'not-allowed' : 'pointer', padding: 0 }}>
-                  ＋ 新增科目
-                </button>
-              </div>
+              <label style={labelStyle}>會計科目</label>
               <select style={selectStyle} value={form.accounting_category_id}
                 onChange={e => set('accounting_category_id', e.target.value)}
                 disabled={categories.length === 0}>
                 <option value="">— 選擇科目 —</option>
-                {categories.map(c => (
-                  <option key={c.id} value={c.id}>{c.code ? `[${c.code}] ` : ''}{c.name}</option>
-                ))}
+                {(() => {
+                  const parents  = categories.filter(c => !c.parent_id);
+                  const childOf  = (id) => categories.filter(c => c.parent_id === id);
+                  const orphans  = categories.filter(c => c.parent_id && !categories.find(p => p.id === c.parent_id));
+                  const rows = [];
+                  for (const p of parents) {
+                    rows.push({ ...p, _level: 0 });
+                    for (const ch of childOf(p.id)) rows.push({ ...ch, _level: 1 });
+                  }
+                  for (const o of orphans) rows.push({ ...o, _level: 0 });
+                  return rows.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c._level > 0 ? '　└ ' : '📁 '}
+                      {c.code ? `[${c.code}] ` : ''}{c.name}
+                    </option>
+                  ));
+                })()}
               </select>
             </div>
             <div style={formField}>
@@ -2121,7 +2116,166 @@ function ChiLensSyncBtn() {
   );
 }
 
-// ── 來源單位管理面板 ──────────────────────────────────────────
+// ── 會計科目管理面板（含分層） ────────────────────────────────
+function AccountingCategoriesPanel({ sources }) {
+  const [sourceId, setSourceId] = useState('');
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editCode, setEditCode] = useState('');
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatCode, setNewCatCode] = useState('');
+  const [newSubName, setNewSubName] = useState('');
+  const [newSubCode, setNewSubCode] = useState('');
+  const [newSubParent, setNewSubParent] = useState('');
+
+  const load = useCallback(async () => {
+    if (!sourceId) { setList([]); return; }
+    setLoading(true);
+    try {
+      const r = await billingV2Api.getCategories(sourceId, true);
+      setList(r.success ? r.data : []);
+    } catch (e) { alert('讀取失敗：' + (e?.message || e)); }
+    finally { setLoading(false); }
+  }, [sourceId]);
+  useEffect(() => { load(); }, [load]);
+
+  const parents  = list.filter(c => !c.parent_id);
+  const childOf  = (id) => list.filter(c => c.parent_id === id);
+
+  async function createCat(name, code, parent_id) {
+    if (!name.trim()) return;
+    if (!sourceId) { alert('請先選來源單位'); return; }
+    try {
+      const r = await billingV2Api.createCategory(sourceId, {
+        name: name.trim(), code: (code || '').trim() || null, parent_id: parent_id || null,
+      });
+      if (!r.success) throw new Error(r.message);
+      await load();
+    } catch (e) { alert('新增失敗：' + (e?.message || e)); }
+  }
+  async function updateCat(id, patch) {
+    try {
+      const r = await billingV2Api.updateCategory(id, patch);
+      if (!r.success) throw new Error(r.message);
+      await load();
+    } catch (e) { alert('更新失敗：' + (e?.message || e)); }
+  }
+
+  function renderRow(c, indent) {
+    const isEditing = editingId === c.id;
+    const isHidden = c.is_active === false;
+    return (
+      <div key={c.id} style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: indent ? '8px 14px 8px 36px' : '10px 14px',
+        borderBottom: '1px solid #e2e8f0',
+        background: isEditing ? '#fef5e7' : (indent ? '#f7fafc' : '#fff'),
+        opacity: isHidden ? 0.5 : 1,
+      }}>
+        {indent && <span style={{ color: '#a0aec0', fontSize: 12 }}>└</span>}
+        {!indent && <span style={{ fontSize: 13 }}>📁</span>}
+        {isEditing ? (
+          <>
+            <input value={editCode} onChange={e => setEditCode(e.target.value)}
+                   placeholder="代碼" style={{ ...inputStyle, width: 90, marginBottom: 0 }} />
+            <input value={editName} onChange={e => setEditName(e.target.value)}
+                   placeholder="名稱" style={{ ...inputStyle, flex: 1, marginBottom: 0 }} autoFocus
+                   onKeyDown={e => { if (e.key === 'Enter') { updateCat(c.id, { name: editName.trim(), code: editCode.trim() || null }); setEditingId(null); } if (e.key === 'Escape') setEditingId(null); }} />
+            <button onClick={() => { updateCat(c.id, { name: editName.trim(), code: editCode.trim() || null }); setEditingId(null); }}
+                    style={{ ...smallBtn, background: '#50422d', color: '#fff' }}>儲存</button>
+            <button onClick={() => setEditingId(null)} style={smallBtn}>取消</button>
+          </>
+        ) : (
+          <>
+            <span style={{ flex: 1, fontSize: indent ? 13 : 14, fontWeight: indent ? 400 : 600, textDecoration: isHidden ? 'line-through' : 'none' }}>
+              {c.code && <span style={{ color: '#718096', marginRight: 6 }}>[{c.code}]</span>}
+              {c.name}{isHidden && ' (已隱藏)'}
+            </span>
+            <button onClick={() => updateCat(c.id, { is_active: isHidden })}
+                    title={isHidden ? '顯示' : '隱藏'}
+                    style={{ ...smallBtn, background: '#fff', border: '1px solid #cbd5e0', color: '#4a5568' }}>
+              {isHidden ? '👁 顯示' : '🚫 隱藏'}
+            </button>
+            <button onClick={() => { setEditingId(c.id); setEditName(c.name); setEditCode(c.code || ''); }}
+                    style={{ ...smallBtn, background: '#fff', border: '1px solid #cbd5e0', color: '#4a5568' }}>
+              ✏ 改名
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <strong style={{ fontSize: 15 }}>會計科目管理</strong>
+        <span style={{ color: '#718096', fontSize: 12 }}>先選來源單位再管理其會計科目</span>
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <label style={labelStyle}>來源單位</label>
+        <select value={sourceId} onChange={e => setSourceId(e.target.value)}
+                style={{ ...selectStyle, maxWidth: 320 }}>
+          <option value="">— 選擇來源單位 —</option>
+          {sources.filter(s => s.is_active !== false).map(s => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+      </div>
+      {sourceId && (
+        <>
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 20, maxHeight: 400, overflowY: 'auto' }}>
+            {loading ? <div style={{ padding: 20, color: '#a0aec0' }}>載入中...</div> :
+              list.length === 0 ? <div style={{ padding: 20, color: '#a0aec0' }}>還沒有會計科目，用下方新增</div> :
+              parents.map(p => (
+                <div key={p.id}>
+                  {renderRow(p, false)}
+                  {childOf(p.id).map(ch => renderRow(ch, true))}
+                </div>
+              ))
+            }
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>新增母分類</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={newCatCode} onChange={e => setNewCatCode(e.target.value)}
+                     placeholder="代碼（選填）" style={{ ...inputStyle, width: 120, marginBottom: 0 }} />
+              <input value={newCatName} onChange={e => setNewCatName(e.target.value)}
+                     placeholder="例如：廠商貨款、活動費用" style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+                     onKeyDown={e => e.key === 'Enter' && (createCat(newCatName, newCatCode, null), setNewCatName(''), setNewCatCode(''))} />
+              <button onClick={() => { createCat(newCatName, newCatCode, null); setNewCatName(''); setNewCatCode(''); }}
+                      style={{ ...primaryBtn, whiteSpace: 'nowrap' }}>＋ 新增母分類</button>
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>新增子科目</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <select value={newSubParent} onChange={e => setNewSubParent(e.target.value)}
+                      style={{ ...selectStyle, width: 160, marginBottom: 0 }}>
+                <option value="">選母分類</option>
+                {parents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <input value={newSubCode} onChange={e => setNewSubCode(e.target.value)}
+                     placeholder="代碼（選填）" style={{ ...inputStyle, width: 120, marginBottom: 0 }} />
+              <input value={newSubName} onChange={e => setNewSubName(e.target.value)}
+                     placeholder="例如：晶碩光學、餐飲" style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+                     onKeyDown={e => e.key === 'Enter' && (createCat(newSubName, newSubCode, newSubParent), setNewSubName(''), setNewSubCode(''))} />
+              <button onClick={() => { createCat(newSubName, newSubCode, newSubParent); setNewSubName(''); setNewSubCode(''); }}
+                      disabled={!newSubParent}
+                      style={{ ...primaryBtn, whiteSpace: 'nowrap', opacity: !newSubParent ? 0.5 : 1 }}>
+                ＋ 新增子科目
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── 來源單位管理面板 ─────────────────────────────
 function SourcePanel({ sources, onRefresh }) {
   const [showForm, setShowForm]     = useState(false);
   const [editingId, setEditingId]   = useState(null);
@@ -2414,6 +2568,7 @@ export default function BillingV2Page() {
     { key: 'payment_batch',   label: '匯款批次' },
     { key: 'input_invoice',   label: '進項發票' },
     { key: 'sources',         label: '來源單位',     hidden: !canManage(user?.role) },
+    { key: 'categories',      label: '會計科目管理', hidden: !canManage(user?.role) },
     { key: 'vendors',         label: '廠商帳號管理', hidden: !canManage(user?.role) },
   ].filter(t => !t.hidden);
 
@@ -2561,6 +2716,11 @@ export default function BillingV2Page() {
       {/* 來源單位管理 */}
       {tab === 'sources' && (
         <SourcePanel sources={sources} onRefresh={refreshSources} />
+      )}
+
+      {/* 會計科目管理 */}
+      {tab === 'categories' && (
+        <AccountingCategoriesPanel sources={sources} />
       )}
 
       {/* 廠商帳號管理 */}
