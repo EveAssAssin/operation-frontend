@@ -345,7 +345,13 @@ function ExpenseModal({ expense, categories, storeMap, onClose, onSaved }) {
               <label style={S.fieldLabel}>電號 / 帳號</label>
               <select style={S.select} value={form.fact_id} onChange={e => onPickFact(e.target.value)} disabled={!form.category_id}>
                 <option value="">{form.category_id ? '— 選擇電號 —' : '請先選分類'}</option>
-                {facts.map(f => <option key={f.id} value={f.id}>{getFactDisplay(f)}</option>)}
+                {facts
+                  .filter(f => {
+                    // 只顯示 data 有內容的 fact（過濾掉純占位/歷史匯入的空 fact）
+                    const d = f.data || {};
+                    return Object.values(d).some(v => v !== null && v !== undefined && String(v).trim() !== '');
+                  })
+                  .map(f => <option key={f.id} value={f.id}>{getFactDisplay(f)}</option>)}
               </select>
             </div>
             <div style={S.field}>
