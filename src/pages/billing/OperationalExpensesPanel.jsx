@@ -22,6 +22,8 @@ export default function OperationalExpensesPanel() {
   const [filter, setFilter]     = useState({ from: '', to: '', category_id: '', store_erpid: '' });
   const [categories, setCategories] = useState([]);
   const [storeMap, setStoreMap]     = useState({});
+  const [anomalies, setAnomalies]   = useState({ month: '', anomalies: [], thresholds: null });
+  const [anomalyCollapsed, setAnomalyCollapsed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,13 +40,16 @@ export default function OperationalExpensesPanel() {
   }, [filter]);
   useEffect(() => { load(); }, [load]);
 
-  // 撈基本資料分類 + 門市 map
+  // 撈基本資料分類 + 門市 map + 當月異常
   useEffect(() => {
     basicDataApi.listCategories().then(r => setCategories(r.success ? r.data : [])).catch(() => {});
     personnelApi.getDepartments().then(r => {
       const m = {};
       for (const d of (r.data || [])) if (d.store_erpid) m[d.store_erpid] = d.store_name;
       setStoreMap(m);
+    }).catch(() => {});
+    operationalExpensesApi.detectAnomalies().then(r => {
+      if (r.success) setAnomalies(r.data);
     }).catch(() => {});
   }, []);
 
@@ -56,8 +61,66 @@ export default function OperationalExpensesPanel() {
     } catch (e) { alert('刪除失敗：' + (e?.message || e)); }
   }
 
+  const severe = (anomalies.anomalies || []).filter(a => a.severity === 'severe');
+  const warn   = (anomalies.anomalies || []).filter(a => a.severity === 'warn');
+  const showAnomalyCard = severe.length + warn.length > 0;
+
   return (
     <div>
+      {/* 異常警告卡 */}
+      {showAnomalyCard && (
+        <div style={{
+          border: `2px solid ${severe.length > 0 ? '#c53030' : '#d97706'}`,
+          borderRadius: 10, background: severe.length > 0 ? '#fff5f5' : '#fffbeb',
+          padding: 14, marginBottom: 14,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: anomalyCollapsed ? 0 : 10 }}>
+            <span style={{ fontSize: 18 }}>{severe.length > 0 ? '🔴' : '🟡'}</span>
+            <strong style={{ fontSize: 15, color: severe.length > 0 ? '#c53030' : '#92400e' }}>
+              本月異常提醒 ({anomalies.month})
+            </strong>
+            <span style={{ fontSize: 12, color: '#4a5568' }}>
+              {severe.length > 0 && <>🔴 嚴重 <b>{severe.length}</b> · </>}
+              🟡 提醒 <b>{warn.length}</b>
+            </span>
+            <div style={{ flex: 1 }} />
+            <button onClick={() => setAnomalyCollapsed(v => !v)}
+                    style={{ padding: '4px 10px', border: '1px solid #cbd5e0', borderRadius: 6, background: '#fff', fontSize: 12, cursor: 'pointer', color: '#4a5568' }}>
+              {anomalyCollapsed ? '展開' : '收合'}
+            </button>
+          </div>
+          {!anomalyCollapsed && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[...severe, ...warn].slice(0, 15).map((a, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, fontSize: 13,
+                  padding: '6px 10px', background: '#fff', borderRadius: 6,
+                  borderLeft: `4px solid ${a.severity === 'severe' ? '#c53030' : '#d97706'}`,
+                }}>
+                  <span>{a.category_icon} {a.category_name}</span>
+                  <span style={{ color: '#2d3748', fontWeight: 600 }}>{a.store_name}</span>
+                  <span style={{ color: '#4a5568', fontFamily: 'monospace', fontSize: 12 }}>
+                    ${fmt(a.current)} vs 均 ${fmt(a.avg)}
+                  </span>
+                  <span style={{
+                    padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                    color: '#fff',
+                    background: a.severity === 'severe' ? '#c53030' : '#d97706',
+                  }}>
+                    +{Math.round(a.diff_ratio * 100)}%
+                  </span>
+                </div>
+              ))}
+              {(severe.length + warn.length) > 15 && (
+                <div style={{ fontSize: 12, color: '#718096', textAlign: 'center', marginTop: 4 }}>
+                  ...還有 {severe.length + warn.length - 15} 筆
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={S.toolbar}>
         <span style={S.label}>建檔日 從</span>
         <input type="date" style={S.input} value={filter.from} onChange={e => setFilter(f => ({ ...f, from: e.target.value }))} />
@@ -378,7 +441,6 @@ const S = {
   th:           { padding: '10px 12px', textAlign: 'left', fontWeight: 600, background: '#f7fafc', borderBottom: '2px solid #e2e8f0', color: '#4a5568', whiteSpace: 'nowrap' },
   td:           { padding: '10px 12px', borderBottom: '1px solid #edf2f7', verticalAlign: 'top' },
   empty:        { textAlign: 'center', padding: 40, color: '#a0aec0' },
-  // Modal
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 },
   modalBox:     { background: '#fff', borderRadius: 10, width: '100%', maxWidth: 900, maxHeight: '92vh', display: 'flex', flexDirection: 'column' },
   modalHeader:  { padding: '14px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },

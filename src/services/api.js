@@ -326,6 +326,8 @@ export const operationalExpensesApi = {
   remove: (id)                     => api.delete(`/operational-expenses/${id}`),
   replaceAllocations: (id, allocations) => api.put(`/operational-expenses/${id}/allocations`, { allocations }),
   listFactsByCategory: (categoryId) => api.get(`/operational-expenses/facts/${categoryId}`),
+  detectAnomalies: (month)         => api.get('/operational-expenses/anomalies', { params: month ? { month } : {} }),
+  getFactHistory:  (factId, months = 12) => api.get(`/operational-expenses/facts/${factId}/history`, { params: { months } }),
 };
 
 export const recurringExpensesApi = {
