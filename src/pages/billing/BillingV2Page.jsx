@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { billingV2Api, personnelApi, billingApi, vendorPaymentApi, paymentBatchApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import OperationalExpensesPanel from './OperationalExpensesPanel';
+import OperationalReportPanel   from './OperationalReportPanel';
 
 // ── 廠商帳號管理面板 ──────────────────────────────────────────
 function VendorAccountsPanel({ sources, onSourceUpdate }) {
@@ -2578,6 +2579,7 @@ export default function BillingV2Page() {
   const TABS = [
     { key: 'bills',           label: '帳單列表' },
     { key: 'operational',     label: '營運費用' },
+    { key: 'op_report',       label: '營運報表' },
     { key: 'vendor_payment',  label: '廠商請款審核' },
     { key: 'payment_batch',   label: '匯款批次' },
     { key: 'input_invoice',   label: '進項發票' },
@@ -2739,6 +2741,9 @@ export default function BillingV2Page() {
 
       {/* 營運費用（電費 / 水費 / 電話 ...） */}
       {tab === 'operational' && <OperationalExpensesPanel />}
+
+      {/* 營運報表（分析 + 匯出） */}
+      {tab === 'op_report' && <OperationalReportPanel />}
 
       {/* 廠商帳號管理 */}
       {tab === 'vendors' && (
