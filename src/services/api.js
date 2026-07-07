@@ -99,10 +99,10 @@ export const billingApi = {
     api.post('/billing/sync/chi-finance-lens/sync-now', { period }, { timeout: 60000 }),
   // 企劃部廣告費同步 — 同步等待回應版本 (debug 含 DB 寫入後實際筆數 + samples)
   syncAdBudgetDebug: (month) =>
-    api.post('/billing/ad-sync-debug', null, { params: { month }, timeout: 60000 }),
+    api.post('/billing/ad-sync-debug', {}, { params: { month }, timeout: 60000 }),
   // 暴力版同步：所有 error 都回 200 + body，不會被任何中間件吞掉
   syncAdBudgetV2: (month) =>
-    api.post('/billing/ad-sync-v2', null, { params: { month }, timeout: 60000 }),
+    api.post('/billing/ad-sync-v2', {}, { params: { month }, timeout: 60000 }),
   // 企劃部廣告費明細（同月份）
   getAdOrders: (month) =>
     api.get('/billing/ad-orders', { params: { month } }),
