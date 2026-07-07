@@ -2,7 +2,7 @@
 // 開帳系統 v2：帳單管理（來源單位 / 會計科目 / 帳單建立與審核）
 
 import { useState, useEffect, useCallback } from 'react';
-import { billingV2Api, personnelApi, billingApi, vendorPaymentApi, paymentBatchApi } from '../../services/api';
+import { billingV2Api, personnelApi, billingApi, vendorPaymentApi, paymentBatchApi, chiVendorsApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import OperationalExpensesPanel from './OperationalExpensesPanel';
 import OperationalReportPanel   from './OperationalReportPanel';
@@ -2546,15 +2546,20 @@ export default function BillingV2Page() {
   const [departments, setDepartments] = useState([]);
   const [bills, setBills]           = useState([]);
   const [pagination, setPagination] = useState({});
-  const [filter, setFilter] = useState({ period: currentMonth(), source_type: '', source_id: '', status: '' });
+  const [filter, setFilter] = useState({ period: currentMonth(), source_type: '', source_id: '', vendor: '', status: '' });
   const [loading, setLoading] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [chiVendors, setChiVendors] = useState([]);
+  const [showVendorAdmin, setShowVendorAdmin] = useState(false);
+  const reloadChiVendors = () =>
+    chiVendorsApi.list({ include_inactive: true }).then(r => r?.success && setChiVendors(r.data || []));
 
   // 載入基礎資料
   useEffect(() => {
     billingV2Api.getSources({ is_active: true }).then(r => r.success && setSources(r.data));
     personnelApi.getDepartments().then(r => r.success && setDepartments(r.data));
+    reloadChiVendors();
   }, []);
 
   const loadBills = useCallback(async () => {
@@ -2563,6 +2568,7 @@ export default function BillingV2Page() {
       const res = await billingV2Api.getBills({
         period:    filter.period || undefined,
         source_id: filter.source_id || undefined,
+        vendor:    filter.vendor || undefined,
         status:    filter.status || undefined,
         limit:     50,
       });
@@ -2662,6 +2668,25 @@ export default function BillingV2Page() {
               </select>
             </div>
 
+            {/* 廠商（chi-finance vendor code）*/}
+            <div>
+              <label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>廠商</label>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                <select style={{ ...selectStyle, width: 140 }} value={filter.vendor}
+                  onChange={e => setFilter(f => ({ ...f, vendor: e.target.value }))}>
+                  <option value="">全部廠商</option>
+                  {chiVendors.filter(v => v.is_active).map(v => (
+                    <option key={v.code} value={v.code}>{v.name}</option>
+                  ))}
+                </select>
+                {canManage(user?.role) && (
+                  <button title="管理廠商代號" onClick={() => setShowVendorAdmin(true)}
+                    style={{ border: '1px solid #cbd5e0', background: '#fff', borderRadius: 4,
+                             padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>⚙</button>
+                )}
+              </div>
+            </div>
+
             <div>
               <label style={{ ...labelStyle, display: 'block', marginBottom: 4 }}>狀態</label>
               <select style={{ ...selectStyle, width: 130 }} value={filter.status}
@@ -2686,6 +2711,7 @@ export default function BillingV2Page() {
                     <th style={th}>帳單編號</th>
                     <th style={th}>月份</th>
                     <th style={th}>來源單位</th>
+                    <th style={th}>廠商</th>
                     <th style={th}>標題</th>
                     <th style={{ ...th, textAlign: 'right' }}>金額</th>
                     <th style={th}>狀態</th>
@@ -2713,6 +2739,21 @@ export default function BillingV2Page() {
                           )}
                         </div>
                       </td>
+                      <td style={td}>
+                        {(() => {
+                          const m = /^chi-lens-.+-(RK\d+)$/.exec(b.source_ref || '');
+                          const code = m?.[1];
+                          const v = code && chiVendors.find(x => x.code === code);
+                          if (!code) return <span style={{ color: '#cbd5e0' }}>—</span>;
+                          return (
+                            <span style={{
+                              padding: '1px 6px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                              background: code === 'RK01' ? '#e6f6ff' : code === 'RK02' ? '#fff5e6' : '#edf2f7',
+                              color:      code === 'RK01' ? '#2c5282' : code === 'RK02' ? '#7b341e' : '#4a5568',
+                            }}>{v?.name || code}</span>
+                          );
+                        })()}
+                      </td>
                       <td style={td}>{b.title}</td>
                       <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>
                         {fmtMoney(b.total_amount)}
@@ -2724,7 +2765,7 @@ export default function BillingV2Page() {
                     </tr>
                   ))}
                   {bills.length === 0 && (
-                    <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: '#a0aec0', padding: 32 }}>
+                    <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: '#a0aec0', padding: 32 }}>
                       此條件下無帳單資料
                     </td></tr>
                   )}
@@ -2800,6 +2841,139 @@ export default function BillingV2Page() {
           }}
         />
       )}
+
+      {/* 路奇廠商代號管理 Modal */}
+      {showVendorAdmin && (
+        <ChiVendorAdminModal
+          vendors={chiVendors}
+          onClose={() => setShowVendorAdmin(false)}
+          onChanged={reloadChiVendors}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── 路奇廠商代號管理 Modal ──────────────────────────────
+function ChiVendorAdminModal({ vendors, onClose, onChanged }) {
+  const [editing, setEditing] = useState({});   // code → {name, is_active, display_order}
+  const [busy, setBusy]       = useState(false);
+  const [creating, setCreating] = useState({ code: '', name: '', display_order: 99 });
+  const [msg, setMsg] = useState('');
+
+  const setField = (code, field, val) =>
+    setEditing(e => ({ ...e, [code]: { ...(e[code] || {}), [field]: val } }));
+
+  async function save(code) {
+    const patch = editing[code];
+    if (!patch) return;
+    setBusy(true); setMsg('');
+    try {
+      const r = await chiVendorsApi.update(code, patch);
+      if (!r?.success) throw new Error(r?.message || '儲存失敗');
+      setEditing(e => { const n = { ...e }; delete n[code]; return n; });
+      await onChanged();
+      setMsg(`✓ 已更新 ${code}`);
+    } catch (err) { setMsg('✗ ' + err.message); }
+    finally { setBusy(false); }
+  }
+
+  async function create() {
+    const code = String(creating.code || '').trim().toUpperCase();
+    const name = String(creating.name || '').trim();
+    if (!code || !name) { setMsg('✗ 代號與名稱必填'); return; }
+    setBusy(true); setMsg('');
+    try {
+      const r = await chiVendorsApi.create({ code, name, display_order: Number(creating.display_order) || 99 });
+      if (!r?.success) throw new Error(r?.message || '新增失敗');
+      setCreating({ code: '', name: '', display_order: 99 });
+      await onChanged();
+      setMsg(`✓ 已新增 ${code}`);
+    } catch (err) { setMsg('✗ ' + err.message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div style={modalOverlay} onClick={onClose}>
+      <div style={{ ...modalBox, maxWidth: 640 }} onClick={e => e.stopPropagation()}>
+        <div style={modalHeader}>
+          <h3 style={{ margin: 0, fontSize: 16 }}>路奇廠商代號管理</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer' }}>×</button>
+        </div>
+        <div style={{ padding: 16, overflowY: 'auto' }}>
+          <div style={{ fontSize: 12, color: '#718096', marginBottom: 12, lineHeight: 1.5 }}>
+            代號由 chi-finance 決定（例：RK01、RK02）；同步時遇到新代號會自動加入清單、名稱先設為代號本身，再回到這裡改成中文名稱。
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16 }}>
+            <thead style={{ background: '#f7fafc' }}>
+              <tr>
+                <th style={th}>代號</th>
+                <th style={th}>顯示名稱</th>
+                <th style={{ ...th, width: 70 }}>排序</th>
+                <th style={{ ...th, width: 60 }}>啟用</th>
+                <th style={{ ...th, width: 60 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {(vendors || []).map(v => {
+                const draft = editing[v.code] || {};
+                const dirty = Object.keys(draft).length > 0;
+                const cur = { name: draft.name ?? v.name, is_active: draft.is_active ?? v.is_active, display_order: draft.display_order ?? v.display_order };
+                return (
+                  <tr key={v.code}>
+                    <td style={{ ...td, fontFamily: 'monospace', fontWeight: 600 }}>{v.code}</td>
+                    <td style={td}>
+                      <input style={inputStyle} value={cur.name}
+                        onChange={e => setField(v.code, 'name', e.target.value)} />
+                    </td>
+                    <td style={td}>
+                      <input type="number" style={{ ...inputStyle, width: 60 }} value={cur.display_order}
+                        onChange={e => setField(v.code, 'display_order', Number(e.target.value))} />
+                    </td>
+                    <td style={{ ...td, textAlign: 'center' }}>
+                      <input type="checkbox" checked={!!cur.is_active}
+                        onChange={e => setField(v.code, 'is_active', e.target.checked)} />
+                    </td>
+                    <td style={td}>
+                      <button disabled={!dirty || busy} onClick={() => save(v.code)}
+                        style={{ ...primaryBtn, padding: '4px 10px', opacity: (!dirty || busy) ? 0.4 : 1 }}>
+                        存
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {(!vendors || vendors.length === 0) && (
+                <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: '#a0aec0', padding: 20 }}>
+                  尚無資料
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+
+          <div style={{ borderTop: '1px dashed #cbd5e0', paddingTop: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: '#4a5568' }}>手動新增（一般由同步自動加入）</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input placeholder="代號 e.g. RK03" style={{ ...inputStyle, width: 130, fontFamily: 'monospace' }}
+                value={creating.code} onChange={e => setCreating(c => ({ ...c, code: e.target.value }))} />
+              <input placeholder="中文名稱" style={{ ...inputStyle, width: 160 }}
+                value={creating.name} onChange={e => setCreating(c => ({ ...c, name: e.target.value }))} />
+              <input type="number" placeholder="排序" style={{ ...inputStyle, width: 80 }}
+                value={creating.display_order} onChange={e => setCreating(c => ({ ...c, display_order: e.target.value }))} />
+              <button disabled={busy} onClick={create} style={primaryBtn}>+ 新增</button>
+            </div>
+          </div>
+
+          {msg && (
+            <div style={{ marginTop: 12, padding: 8, borderRadius: 6, fontSize: 12,
+                          background: msg.startsWith('✓') ? '#f0fff4' : '#fff5f5',
+                          color:      msg.startsWith('✓') ? '#22543d' : '#9b2c2c' }}>
+              {msg}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

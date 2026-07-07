@@ -146,6 +146,13 @@ export const billingV2Api = {
   updateVendorAccount: (id, data) => api.patch(`/billing-v2/vendors/${id}`, data),
 };
 
+// 路奇廠商代號 ↔ 中文名對照（chi-finance）
+export const chiVendorsApi = {
+  list:   (params = {}) => api.get('/chi-vendors', { params }),
+  create: (data)        => api.post('/chi-vendors', data),
+  update: (code, data)  => api.patch(`/chi-vendors/${code}`, data),
+};
+
 // Vendor API（廠商後台，獨立 JWT）
 const vendorApi_base = axios.create({
   baseURL: (() => {
