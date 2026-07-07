@@ -2711,7 +2711,6 @@ export default function BillingV2Page() {
                     <th style={th}>帳單編號</th>
                     <th style={th}>月份</th>
                     <th style={th}>來源單位</th>
-                    <th style={th}>廠商</th>
                     <th style={th}>標題</th>
                     <th style={{ ...th, textAlign: 'right' }}>金額</th>
                     <th style={th}>狀態</th>
@@ -2739,21 +2738,6 @@ export default function BillingV2Page() {
                           )}
                         </div>
                       </td>
-                      <td style={td}>
-                        {(() => {
-                          const m = /^chi-lens-.+-(RK\d+)$/.exec(b.source_ref || '');
-                          const code = m?.[1];
-                          const v = code && chiVendors.find(x => x.code === code);
-                          if (!code) return <span style={{ color: '#cbd5e0' }}>—</span>;
-                          return (
-                            <span style={{
-                              padding: '1px 6px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                              background: code === 'RK01' ? '#e6f6ff' : code === 'RK02' ? '#fff5e6' : '#edf2f7',
-                              color:      code === 'RK01' ? '#2c5282' : code === 'RK02' ? '#7b341e' : '#4a5568',
-                            }}>{v?.name || code}</span>
-                          );
-                        })()}
-                      </td>
                       <td style={td}>{b.title}</td>
                       <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>
                         {fmtMoney(b.total_amount)}
@@ -2765,7 +2749,7 @@ export default function BillingV2Page() {
                     </tr>
                   ))}
                   {bills.length === 0 && (
-                    <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: '#a0aec0', padding: 32 }}>
+                    <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: '#a0aec0', padding: 32 }}>
                       此條件下無帳單資料
                     </td></tr>
                   )}
