@@ -1989,6 +1989,7 @@ function BillItemsTable({ items }) {
           <thead style={{ background: '#f7fafc', position: 'sticky', top: 0 }}>
             <tr>
               <th style={th}>類型</th>
+              <th style={th}>廠商</th>
               <th style={th}>日期</th>
               <th style={th}>客戶單號</th>
               <th style={th}>送修單號</th>
@@ -2011,6 +2012,17 @@ function BillItemsTable({ items }) {
                     }}>
                       {isReturn ? '退回' : '完成'}
                     </span>
+                  </td>
+                  <td style={td}>
+                    {it.vendor_name ? (
+                      <span style={{
+                        padding: '1px 6px', borderRadius: 8, fontSize: 10, fontWeight: 600,
+                        background: it.vendor === 'RK01' ? '#e6f6ff' : it.vendor === 'RK02' ? '#fff5e6' : '#edf2f7',
+                        color:      it.vendor === 'RK01' ? '#2c5282' : it.vendor === 'RK02' ? '#7b341e' : '#4a5568',
+                      }}>
+                        {it.vendor_name}
+                      </span>
+                    ) : '—'}
                   </td>
                   <td style={td}>{it.item_date || '—'}</td>
                   <td style={td}>{it.customer_order || '—'}</td>
