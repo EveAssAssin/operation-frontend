@@ -276,6 +276,15 @@ function ResumesTab({ storeMap }) {
   const [editSaving, setEditSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting]     = useState(false);
+  // 招募中人力需求（給投遞門市下拉用）
+  const [openNeeds, setOpenNeeds]   = useState([]);
+
+  // 載入招募中的需求（給投遞門市下拉用）
+  useEffect(() => {
+    recruitmentApi.getNeeds('open')
+      .then(r => setOpenNeeds(r.data || []))
+      .catch(() => {});
+  }, [showAdd, editModal]); // 開新增 / 編輯視窗時重載，確保資料最新
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -468,7 +477,14 @@ function ResumesTab({ storeMap }) {
                 <label style={S.label}>投遞門市</label>
                 <select style={S.sel} value={addForm.target_store_erpid} onChange={e=>setAddForm(f=>({...f,target_store_erpid:e.target.value}))}>
                   <option value="">選擇門市…</option>
-                  {Object.entries(storeMap).map(([id,name]) => <option key={id} value={id}>{name}</option>)}
+                  {openNeeds.length === 0
+                    ? <option disabled>目前無招募中需求</option>
+                    : openNeeds.map(n => (
+                        <option key={n.id} value={n.store_erpid}>
+                          {n.store_name}{n.note ? `　—　${n.note}` : ''}
+                        </option>
+                      ))
+                  }
                 </select>
               </div>
             </div>
@@ -639,7 +655,20 @@ function ResumesTab({ storeMap }) {
                   <label style={S.label}>投遞門市</label>
                   <select style={{ ...S.sel, width:'100%' }} value={editForm.target_store_erpid} onChange={e=>setEditForm(f=>({...f,target_store_erpid:e.target.value}))}>
                     <option value="">選擇門市…</option>
-                    {Object.entries(storeMap).map(([id,name]) => <option key={id} value={id}>{name}</option>)}
+                    {/* 若原資料的門市不在招募中需求裡，補一個 disabled 選項顯示原值 */}
+                    {editForm.target_store_erpid && !openNeeds.some(n => n.store_erpid === editForm.target_store_erpid) && (
+                      <option value={editForm.target_store_erpid}>
+                        {storeMap[editForm.target_store_erpid] || editForm.target_store_erpid}（原資料，非招募中）
+                      </option>
+                    )}
+                    {openNeeds.length === 0
+                      ? <option disabled>目前無招募中需求</option>
+                      : openNeeds.map(n => (
+                          <option key={n.id} value={n.store_erpid}>
+                            {n.store_name}{n.note ? `　—　${n.note}` : ''}
+                          </option>
+                        ))
+                    }
                   </select>
                 </div>
                 <div>
