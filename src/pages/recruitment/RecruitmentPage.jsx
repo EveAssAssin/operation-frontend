@@ -342,6 +342,7 @@ function ResumesTab({ storeMap }) {
   const [month, setMonth]         = useState(today().slice(0, 7)); // YYYY-MM
   const [platform, setPlatform]   = useState('');
   const [statusFilter, setStatusFilter] = useState(''); // 全部 / pending / invited / rejected
+  const [storeFilter, setStoreFilter]   = useState(''); // 應徵門市篩選（依 target_store_erpid）
   const [applicants, setApplicants] = useState([]);
   const [loading, setLoading]     = useState(false);
   const [msg, setMsg]             = useState(null);
@@ -386,12 +387,18 @@ function ResumesTab({ storeMap }) {
     finally { setLoading(false); }
   }, [date, month, platform, statusFilter, viewMode]);
 
-  // 計算各狀態數量（依月份模式下顯示）
+  // 應徵門市篩選後的清單
+  const filteredApplicants = useMemo(() => {
+    if (!storeFilter) return applicants;
+    return applicants.filter(a => a.target_store_erpid === storeFilter);
+  }, [applicants, storeFilter]);
+
+  // 計算各狀態數量（依月份模式下顯示，用篩選後的資料）
   const statusCounts = useMemo(() => {
     const c = {};
-    for (const a of applicants) c[a.status] = (c[a.status] || 0) + 1;
+    for (const a of filteredApplicants) c[a.status] = (c[a.status] || 0) + 1;
     return c;
-  }, [applicants]);
+  }, [filteredApplicants]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -540,11 +547,25 @@ function ResumesTab({ storeMap }) {
           <option value="invited">待面試</option>
           <option value="rejected">已婉拒</option>
         </select>
+        {/* 應徵門市篩選（依 target_store_erpid），選項用當前資料裡出現的門市，避免顯示大量無資料的門市 */}
+        <select style={S.sel} value={storeFilter} onChange={e=>setStoreFilter(e.target.value)}>
+          <option value="">全部門市</option>
+          {Array.from(new Set(applicants.map(a => a.target_store_erpid).filter(Boolean)))
+            .map(erpid => ({
+              erpid,
+              name: applicants.find(a => a.target_store_erpid === erpid)?.target_store_name || erpid,
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'))
+            .map(s => (
+              <option key={s.erpid} value={s.erpid}>{s.name}</option>
+            ))
+          }
+        </select>
         <button style={S.btnP} onClick={()=>setShowAdd(v=>!v)}>+ 新增投遞者</button>
       </div>
 
       {/* 狀態統計列（三種瀏覽模式都顯示） */}
-      {applicants.length > 0 && (
+      {filteredApplicants.length > 0 && (
         <StatusCountsStrip counts={statusCounts} badges={STATUS_BADGE} />
       )}
 
@@ -615,8 +636,10 @@ function ResumesTab({ storeMap }) {
       <div style={S.card}>
         {loading ? (
           <div style={{ textAlign:'center', color:'#a0aec0', padding:32 }}>載入中...</div>
-        ) : applicants.length === 0 ? (
-          <div style={{ textAlign:'center', color:'#a0aec0', padding:32 }}>本日無投遞紀錄</div>
+        ) : filteredApplicants.length === 0 ? (
+          <div style={{ textAlign:'center', color:'#a0aec0', padding:32 }}>
+            {applicants.length === 0 ? '本日無投遞紀錄' : '此門市無符合的投遞紀錄'}
+          </div>
         ) : (
           <table style={S.table}>
             <thead>
@@ -633,7 +656,7 @@ function ResumesTab({ storeMap }) {
               </tr>
             </thead>
             <tbody>
-              {applicants.map(a => (
+              {filteredApplicants.map(a => (
                 <tr key={a.id}>
                   <td style={S.td}><Badge text={a.platform} color="#6b46c1" bg="#faf5ff" border="#d6bcfa" /></td>
                   <td style={S.td}><span style={{ fontWeight:600 }}>{a.name}</span></td>
