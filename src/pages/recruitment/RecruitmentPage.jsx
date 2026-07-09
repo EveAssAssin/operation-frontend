@@ -362,6 +362,8 @@ function ResumesTab({ storeMap }) {
       target_store_erpid: a.target_store_erpid || '',
       interview_date:     a.interview_date || '',
       interview_time:     a.interview_time || '',
+      status:             a.status || 'pending',
+      reject_reason:      a.reject_reason || '',
     });
   }
 
@@ -679,6 +681,34 @@ function ResumesTab({ storeMap }) {
                   <label style={S.label}>面試時間（選填）</label>
                   <input style={S.inp} type="time" value={editForm.interview_time} onChange={e=>setEditForm(f=>({...f,interview_time:e.target.value}))} />
                 </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={S.label}>狀態</label>
+                  <select
+                    style={{ ...S.sel, width:'100%' }}
+                    value={editForm.status}
+                    onChange={e=>setEditForm(f=>({...f,status:e.target.value}))}
+                  >
+                    <option value="pending">待處理</option>
+                    <option value="notified_intent">發出詢問意願通知</option>
+                    <option value="notified_chat">發出聊聊通知</option>
+                    <option value="notified_invite">發出邀約面試通知</option>
+                    <option value="notified_intent_2">發出二次詢問意願通知</option>
+                    <option value="notified_no_response">三次通知未回結案</option>
+                    <option value="invited">待面試</option>
+                    <option value="rejected">婉拒</option>
+                  </select>
+                </div>
+                {editForm.status === 'rejected' && (
+                  <div style={{ gridColumn:'1/-1' }}>
+                    <label style={S.label}>婉拒原因（必填）</label>
+                    <textarea
+                      style={{ ...S.inp, height:60, resize:'vertical' }}
+                      value={editForm.reject_reason}
+                      onChange={e=>setEditForm(f=>({...f,reject_reason:e.target.value}))}
+                      required
+                    />
+                  </div>
+                )}
               </div>
               <div style={{ display:'flex', gap:8 }}>
                 <button style={S.btnP} type="submit" disabled={editSaving}>{editSaving?'儲存中...':'儲存'}</button>
