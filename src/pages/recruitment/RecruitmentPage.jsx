@@ -106,6 +106,10 @@ function NeedsTab({ storeMap }) {
   const [showForm, setShowForm] = useState(false);
   const [statusFilter, setStatusFilter] = useState('open');
   const [form, setForm] = useState({ store_erpid:'', store_name:'', total_needed:1, urgent_needed:0, note:'' });
+  // 修改視窗
+  const [editNeed, setEditNeed] = useState(null);
+  const [editForm, setEditForm] = useState({ total_needed:1, urgent_needed:0, filled:0, note:'', status:'open' });
+  const [editSaving, setEditSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,6 +138,36 @@ function NeedsTab({ storeMap }) {
       await recruitmentApi.updateNeed(id, updates);
       load();
     } catch (e) { setMsg({ type:'error', text: e.message }); }
+  }
+
+  function openEditNeed(n) {
+    setEditNeed(n);
+    setEditForm({
+      total_needed:  n.total_needed || 1,
+      urgent_needed: n.urgent_needed || 0,
+      filled:        n.filled || 0,
+      note:          n.note || '',
+      status:        n.status || 'open',
+    });
+  }
+
+  async function handleEditNeedSave(e) {
+    e.preventDefault();
+    if (!editNeed) return;
+    setEditSaving(true);
+    try {
+      await recruitmentApi.updateNeed(editNeed.id, {
+        total_needed:  Number(editForm.total_needed),
+        urgent_needed: Number(editForm.urgent_needed),
+        filled:        Number(editForm.filled),
+        note:          editForm.note || '',
+        status:        editForm.status,
+      });
+      setMsg({ type:'success', text:'人力需求已更新' });
+      setEditNeed(null);
+      load();
+    } catch (e) { setMsg({ type:'error', text: e.message }); }
+    finally { setEditSaving(false); }
   }
 
   // 當 store_erpid 變動時，自動帶入 store_name
@@ -231,7 +265,7 @@ function NeedsTab({ storeMap }) {
                     <td style={S.td}><Badge text={n.source==='hub'?'Hub':'手動'} color="#6b46c1" bg="#faf5ff" border="#d6bcfa" /></td>
                     <td style={S.td}>{fmtDateTime(n.created_at)}</td>
                     <td style={S.td}>
-                      <div style={{ display:'flex', gap:5 }}>
+                      <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
                         {n.status === 'open' && (
                           <>
                             <button style={S.btnSm} onClick={() => patchNeed(n.id, { filled: n.filled + 1 })}>+1 到職</button>
@@ -241,6 +275,7 @@ function NeedsTab({ storeMap }) {
                         {n.status !== 'open' && (
                           <button style={S.btnSm} onClick={() => patchNeed(n.id, { status:'open' })}>重開</button>
                         )}
+                        <button style={{ ...S.btnSm, color:'#2b6cb0' }} onClick={() => openEditNeed(n)}>✏️ 修改</button>
                       </div>
                     </td>
                   </tr>
@@ -250,6 +285,50 @@ function NeedsTab({ storeMap }) {
           </table>
         )}
       </div>
+
+      {/* 修改人力需求 Modal */}
+      {editNeed && (
+        <div style={S.overlay} onClick={e=>{ if(e.target===e.currentTarget) setEditNeed(null); }}>
+          <div style={S.modal}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+              <strong style={{ fontSize:16 }}>修改人力需求 — {editNeed.store_name}</strong>
+              <button style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, color:'#718096' }} onClick={()=>setEditNeed(null)}>✕</button>
+            </div>
+            <form onSubmit={handleEditNeedSave}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14 }}>
+                <div>
+                  <label style={S.label}>缺額（總）</label>
+                  <input style={S.inp} type="number" min={1} value={editForm.total_needed} onChange={e=>setEditForm(f=>({...f,total_needed:e.target.value}))} required />
+                </div>
+                <div>
+                  <label style={S.label}>急缺人數</label>
+                  <input style={S.inp} type="number" min={0} value={editForm.urgent_needed} onChange={e=>setEditForm(f=>({...f,urgent_needed:e.target.value}))} />
+                </div>
+                <div>
+                  <label style={S.label}>已補</label>
+                  <input style={S.inp} type="number" min={0} value={editForm.filled} onChange={e=>setEditForm(f=>({...f,filled:e.target.value}))} />
+                </div>
+                <div>
+                  <label style={S.label}>狀態</label>
+                  <select style={{ ...S.sel, width:'100%' }} value={editForm.status} onChange={e=>setEditForm(f=>({...f,status:e.target.value}))}>
+                    <option value="open">招募中</option>
+                    <option value="fulfilled">已補齊</option>
+                    <option value="closed">已結案</option>
+                  </select>
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={S.label}>備註</label>
+                  <input style={S.inp} value={editForm.note} onChange={e=>setEditForm(f=>({...f,note:e.target.value}))} placeholder="例：人事行政、早班兩人急缺" />
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button style={S.btnP} type="submit" disabled={editSaving}>{editSaving?'儲存中...':'儲存'}</button>
+                <button style={S.btnS} type="button" onClick={()=>setEditNeed(null)}>取消</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -267,7 +346,7 @@ function ResumesTab({ storeMap }) {
   const [loading, setLoading]     = useState(false);
   const [msg, setMsg]             = useState(null);
   const [showAdd, setShowAdd]     = useState(false);
-  const [addForm, setAddForm]     = useState({ name:'', code:'', phone:'', target_store_erpid:'', platform:'1111' });
+  const [addForm, setAddForm]     = useState({ name:'', code:'', phone:'', platform:'1111', target_need_id:'', target_store_erpid:'', target_store_name:'', target_store_note:'' });
   const [actionModal, setActionModal] = useState(null); // { applicant, type:'reject'|'invite' }
   const [actionForm, setActionForm]   = useState({ reject_reason:'', interview_date:'', interview_time:'' });
   // 編輯 / 刪除
@@ -319,10 +398,16 @@ function ResumesTab({ storeMap }) {
   async function handleAdd(e) {
     e.preventDefault();
     try {
-      await recruitmentApi.createApplicant({ ...addForm, date, target_store_name: storeMap[addForm.target_store_erpid] || '' });
+      await recruitmentApi.createApplicant({
+        ...addForm,
+        date,
+        need_id: addForm.target_need_id || null,
+        // 若 dropdown 沒帶到 name，用 storeMap 補（防呆）
+        target_store_name: addForm.target_store_name || storeMap[addForm.target_store_erpid] || '',
+      });
       setMsg({ type:'success', text:'投遞者已新增' });
       setShowAdd(false);
-      setAddForm({ name:'', code:'', phone:'', target_store_erpid:'', platform: addForm.platform });
+      setAddForm({ name:'', code:'', phone:'', platform: addForm.platform, target_need_id:'', target_store_erpid:'', target_store_name:'', target_store_note:'' });
       load();
     } catch (e) { setMsg({ type:'error', text: e.message }); }
   }
@@ -359,13 +444,28 @@ function ResumesTab({ storeMap }) {
       code:               a.code || '',
       phone:              a.phone || '',
       platform:           a.platform || '1111',
+      target_need_id:     '',  // 在 useEffect 裡自動配對填入
       target_store_erpid: a.target_store_erpid || '',
+      target_store_name:  a.target_store_name  || '',
+      target_store_note:  a.target_store_note  || '',
       interview_date:     a.interview_date || '',
       interview_time:     a.interview_time || '',
       status:             a.status || 'pending',
       reject_reason:      a.reject_reason || '',
     });
   }
+
+  // 開啟編輯視窗且 openNeeds 已載入時，嘗試對應到目前招募中需求
+  useEffect(() => {
+    if (!editModal || openNeeds.length === 0) return;
+    const match = openNeeds.find(n =>
+      n.store_erpid === editForm.target_store_erpid &&
+      (n.note || '') === (editForm.target_store_note || '')
+    );
+    if (match && String(match.id) !== editForm.target_need_id) {
+      setEditForm(f => ({ ...f, target_need_id: String(match.id) }));
+    }
+  }, [editModal, openNeeds]);
 
   async function handleEditSave(e) {
     e.preventDefault();
@@ -477,12 +577,26 @@ function ResumesTab({ storeMap }) {
               </div>
               <div>
                 <label style={S.label}>投遞門市</label>
-                <select style={S.sel} value={addForm.target_store_erpid} onChange={e=>setAddForm(f=>({...f,target_store_erpid:e.target.value}))}>
+                <select
+                  style={S.sel}
+                  value={addForm.target_need_id}
+                  onChange={e=>{
+                    const nid = e.target.value;
+                    const need = openNeeds.find(n => String(n.id) === nid);
+                    setAddForm(f => ({
+                      ...f,
+                      target_need_id:    nid,
+                      target_store_erpid: need?.store_erpid || '',
+                      target_store_name:  need?.store_name  || '',
+                      target_store_note:  need?.note        || '',
+                    }));
+                  }}
+                >
                   <option value="">選擇門市…</option>
                   {openNeeds.length === 0
                     ? <option disabled>目前無招募中需求</option>
                     : openNeeds.map(n => (
-                        <option key={n.id} value={n.store_erpid}>
+                        <option key={n.id} value={n.id}>
                           {n.store_name}{n.note ? `　—　${n.note}` : ''}
                         </option>
                       ))
@@ -524,7 +638,14 @@ function ResumesTab({ storeMap }) {
                   <td style={S.td}><Badge text={a.platform} color="#6b46c1" bg="#faf5ff" border="#d6bcfa" /></td>
                   <td style={S.td}><span style={{ fontWeight:600 }}>{a.name}</span></td>
                   <td style={S.td}><span style={{ fontFamily:'monospace', color:'#718096', fontSize:12 }}>{a.code || '—'}</span></td>
-                  <td style={S.td}>{a.target_store_name || '—'}</td>
+                  <td style={S.td}>
+                    {a.target_store_name || '—'}
+                    {a.target_store_note && (
+                      <div style={{ fontSize:11, color:'#9a8878', marginTop:2 }}>
+                        {a.target_store_note}
+                      </div>
+                    )}
+                  </td>
                   {viewMode !== 'date' && <td style={S.td}><span style={{ fontSize:12, color:'#718096' }}>{fmtDate(a.date)}</span></td>}
                   <td style={S.td}>{STATUS_BADGE[a.status] || a.status}</td>
                   <td style={S.td}>
@@ -655,18 +776,35 @@ function ResumesTab({ storeMap }) {
                 </div>
                 <div style={{ gridColumn:'1/-1' }}>
                   <label style={S.label}>投遞門市</label>
-                  <select style={{ ...S.sel, width:'100%' }} value={editForm.target_store_erpid} onChange={e=>setEditForm(f=>({...f,target_store_erpid:e.target.value}))}>
+                  <select
+                    style={{ ...S.sel, width:'100%' }}
+                    value={editForm.target_need_id || (editForm.target_store_erpid ? '__original__' : '')}
+                    onChange={e=>{
+                      const nid = e.target.value;
+                      if (nid === '__original__') return; // 保持原資料，不動
+                      const need = openNeeds.find(n => String(n.id) === nid);
+                      setEditForm(f => ({
+                        ...f,
+                        target_need_id:     nid,
+                        target_store_erpid: need?.store_erpid || '',
+                        target_store_name:  need?.store_name  || '',
+                        target_store_note:  need?.note        || '',
+                      }));
+                    }}
+                  >
                     <option value="">選擇門市…</option>
-                    {/* 若原資料的門市不在招募中需求裡，補一個 disabled 選項顯示原值 */}
-                    {editForm.target_store_erpid && !openNeeds.some(n => n.store_erpid === editForm.target_store_erpid) && (
-                      <option value={editForm.target_store_erpid}>
-                        {storeMap[editForm.target_store_erpid] || editForm.target_store_erpid}（原資料，非招募中）
+                    {/* 若原資料不在招募中需求裡，補一個選項顯示原值 */}
+                    {editForm.target_store_erpid && !editForm.target_need_id && (
+                      <option value="__original__">
+                        {editForm.target_store_name || storeMap[editForm.target_store_erpid] || editForm.target_store_erpid}
+                        {editForm.target_store_note ? `　—　${editForm.target_store_note}` : ''}
+                        （原資料）
                       </option>
                     )}
                     {openNeeds.length === 0
                       ? <option disabled>目前無招募中需求</option>
                       : openNeeds.map(n => (
-                          <option key={n.id} value={n.store_erpid}>
+                          <option key={n.id} value={n.id}>
                             {n.store_name}{n.note ? `　—　${n.note}` : ''}
                           </option>
                         ))
