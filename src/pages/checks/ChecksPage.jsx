@@ -138,7 +138,7 @@ function TodayPanel() {
     setLoading(true);
     try {
       const [t, u, r] = await Promise.all([
-        checksApi.getToday(),
+        checksApi.getMonth(exportMonth),
         checksApi.getUpcoming(7),
         checksApi.getRenewalReminders(),
       ]);
@@ -148,7 +148,7 @@ function TodayPanel() {
     } catch (e) {
       console.error(e);
     } finally { setLoading(false); }
-  }, []);
+  }, [exportMonth]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -170,35 +170,47 @@ function TodayPanel() {
 
   if (loading) return <Loading />;
 
-  const today = data?.date || '—';
+  const today = data?.today || '—';
   const summary = data?.summary || [];
   const grouped = data?.grouped || {};
+  const totalOverdue = summary.reduce((s, x) => s + (x.overdue_count || 0), 0);
+  const totalDueToday = summary.reduce((s, x) => s + (x.due_today_count || 0), 0);
+  const totalUnpaid = summary.reduce((s, x) => s + (x.unpaid_count || 0), 0);
+  const totalPaid = summary.reduce((s, x) => s + (x.paid_count || 0), 0);
+  const totalPending = totalOverdue + totalDueToday + totalUnpaid;
+
+  // 分類設定
+  const CATEGORY_META = {
+    overdue:   { icon: '🔴', label: '逾期',    color: '#c53030', bg: '#fff5f5', border: '#feb2b2' },
+    due_today: { icon: '🟠', label: '本日到期', color: '#c05621', bg: '#fffaf0', border: '#fbd38d' },
+    unpaid:    { icon: '⚪', label: '未付',    color: '#3a4a5c', bg: '#f7fafc', border: '#cbd5e0' },
+    paid:      { icon: '🟢', label: '已付',    color: '#276749', bg: '#f0fff4', border: '#9ae6b4' },
+  };
 
   // 渲染單一支票列
-  function CheckRow({ c, i }) {
+  function CheckRow({ c, i, category }) {
+    const isPaid = category === 'paid';
     const isChecked = selectedIds.has(c.id);
     return (
       <div style={{
         display: 'flex', alignItems: 'center',
         padding: '12px 18px',
         borderTop: i > 0 ? `1px solid ${C.border}` : 'none',
-        background: isChecked ? '#f0fff4' : (c.is_overdue ? '#fff8f0' : (i % 2 === 0 ? '#fff' : '#faf7f4')),
+        background: isChecked ? '#f0fff4' : (i % 2 === 0 ? '#fff' : '#faf7f4'),
+        opacity: isPaid ? 0.75 : 1,
       }}>
-        <input type="checkbox" checked={isChecked} onChange={() => toggleSelect(c.id)}
-               style={{ marginRight: 12, width: 18, height: 18, cursor: 'pointer', accentColor: '#2d6a4f' }} />
+        {isPaid ? (
+          <div style={{ width: 30, textAlign: 'center', color: '#276749', fontSize: 16 }}>✓</div>
+        ) : (
+          <input type="checkbox" checked={isChecked} onChange={() => toggleSelect(c.id)}
+                 style={{ marginRight: 12, width: 18, height: 18, cursor: 'pointer', accentColor: '#2d6a4f' }} />
+        )}
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600, color: C.textDark, fontSize: 14 }}>
             {c.batch?.subject?.name || '—'}
             <span style={{ fontWeight: 400, color: C.textMid, marginLeft: 8, fontSize: 13 }}>
               第 {c.seq_no} 張
             </span>
-            {c.is_overdue && (
-              <span style={{
-                marginLeft: 8, fontSize: 11, fontWeight: 700,
-                background: '#fed7d7', color: '#c53030',
-                padding: '1px 7px', borderRadius: 999,
-              }}>逾期</span>
-            )}
           </div>
           <div style={{ color: C.textLight, fontSize: 12, marginTop: 2 }}>
             到期日：{c.due_date}
@@ -207,44 +219,87 @@ function TodayPanel() {
           </div>
         </div>
         <div style={{ textAlign: 'right', minWidth: 100 }}>
-          <div style={{ fontWeight: 700, color: c.is_overdue ? '#c53030' : C.dark, fontSize: 16 }}>{fmtAmt(c.amount)}</div>
+          <div style={{ fontWeight: 700, color: category === 'overdue' ? '#c53030' : (isPaid ? '#276749' : C.dark), fontSize: 16 }}>
+            {fmtAmt(c.amount)}
+          </div>
         </div>
-        <button onClick={() => handlePay(c.id)} style={{
-          marginLeft: 16, padding: '6px 14px',
-          background: C.mid, color: '#fff',
-          border: 'none', borderRadius: 6, cursor: 'pointer',
-          fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+        {!isPaid && (
+          <button onClick={() => handlePay(c.id)} style={{
+            marginLeft: 16, padding: '6px 14px',
+            background: C.mid, color: '#fff',
+            border: 'none', borderRadius: 6, cursor: 'pointer',
+            fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+          }}>
+            標記已出款
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // 渲染分類 sub-section
+  function CategorySection({ drawer, category }) {
+    const meta = CATEGORY_META[category];
+    const checks = grouped[drawer]?.[category] || [];
+    if (checks.length === 0) return null;
+    const amt = checks.reduce((s, c) => s + (parseFloat(c.amount) || 0), 0);
+    return (
+      <div>
+        <div style={{
+          padding: '8px 18px',
+          background: meta.bg,
+          borderTop: `1px solid ${C.border}`,
+          borderBottom: `1px solid ${meta.border}`,
+          fontSize: 13, fontWeight: 700, color: meta.color,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
-          標記已出款
-        </button>
+          <span>{meta.icon} {meta.label} <span style={{ fontWeight: 400, marginLeft: 4, opacity: 0.75 }}>{checks.length} 張</span></span>
+          <span style={{ fontSize: 13 }}>{fmtAmt(amt)}</span>
+        </div>
+        {checks.map((c, i) => <CheckRow key={c.id} c={c} i={i} category={category} />)}
       </div>
     );
   }
 
   return (
     <div>
-      {/* 日期 Banner */}
+      {/* 月份 Banner */}
       <div style={{
         background: C.dark, color: '#fff', borderRadius: 12,
         padding: '16px 22px', marginBottom: 20,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div>
-          <div style={{ fontSize: 13, color: C.light, marginBottom: 2 }}>今日應付票據</div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>{today}</div>
+          <div style={{ fontSize: 13, color: C.light, marginBottom: 2 }}>月度應付票據</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{exportMonth}</div>
+          <div style={{ fontSize: 12, color: C.light, marginTop: 2 }}>今日：{today}</div>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {data?.overdue_count > 0 && (
-            <div style={{
-              background: '#c53030', borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700,
-            }}>逾期 {data.overdue_count} 張</div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {totalOverdue > 0 && (
+            <div style={{ background: '#c53030', borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 700 }}>
+              🔴 逾期 {totalOverdue}
+            </div>
           )}
-          <div style={{
-            background: data?.total > 0 ? '#e53e3e' : '#38a169',
-            borderRadius: 999, padding: '6px 18px', fontSize: 15, fontWeight: 700,
-          }}>
-            {data?.total > 0 ? `⚠ ${data.total} 張待出款` : '✓ 今日無應付票據'}
-          </div>
+          {totalDueToday > 0 && (
+            <div style={{ background: '#dd6b20', borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 700 }}>
+              🟠 本日 {totalDueToday}
+            </div>
+          )}
+          {totalUnpaid > 0 && (
+            <div style={{ background: '#4a5568', borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 700 }}>
+              ⚪ 未付 {totalUnpaid}
+            </div>
+          )}
+          {totalPaid > 0 && (
+            <div style={{ background: '#276749', borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 700 }}>
+              🟢 已付 {totalPaid}
+            </div>
+          )}
+          {totalPending === 0 && totalPaid === 0 && (
+            <div style={{ background: '#38a169', borderRadius: 999, padding: '6px 18px', fontSize: 14, fontWeight: 700 }}>
+              ✓ 本月無應付票據
+            </div>
+          )}
         </div>
       </div>
 
@@ -278,13 +333,12 @@ function TodayPanel() {
         </button>
       </div>
 
-      {/* 出款清單（依出款人分群）*/}
+      {/* 出款清單（依出款人分群，再依 逾期/本日/未付/已付 分類）*/}
       {summary.length === 0 ? (
-        <EmptyBox text="今日無需出款的票據" />
+        <EmptyBox text="本月無支票資料" />
       ) : (
         summary.map(s => {
-          const drawerChecks = grouped[s.drawer_name] || { today: [], overdue: [] };
-          const allChecks = [...(drawerChecks.today || []), ...(drawerChecks.overdue || [])];
+          const totalCount = (s.overdue_count || 0) + (s.due_today_count || 0) + (s.unpaid_count || 0) + (s.paid_count || 0);
           return (
             <div key={s.drawer_name} style={{ marginBottom: 20 }}>
               <div style={{
@@ -294,15 +348,18 @@ function TodayPanel() {
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <span>
-                  👤 {s.drawer_name}
+                  👤 {s.drawer_name} 帳戶
                   <span style={{ fontWeight: 400, fontSize: 12, marginLeft: 10, color: C.light }}>
-                    共 {allChecks.length} 張
+                    共 {totalCount} 張（未付 {s.pending_amount ? fmtAmt(s.pending_amount) : '$0'}）
                   </span>
                 </span>
                 <span style={{ fontSize: 14 }}>合計 {fmtAmt(s.total_amount)}</span>
               </div>
               <div style={{ border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
-                {allChecks.map((c, i) => <CheckRow key={c.id} c={c} i={i} />)}
+                <CategorySection drawer={s.drawer_name} category="overdue" />
+                <CategorySection drawer={s.drawer_name} category="due_today" />
+                <CategorySection drawer={s.drawer_name} category="unpaid" />
+                <CategorySection drawer={s.drawer_name} category="paid" />
               </div>
             </div>
           );

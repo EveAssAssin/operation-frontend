@@ -232,6 +232,7 @@ export const checksApi = {
   // 出款清單
   getToday:        ()              => api.get('/checks/today'),
   getUpcoming:     (days = 7)      => api.get('/checks/upcoming', { params: { days } }),
+  getMonth:        (month)         => api.get('/checks/month', { params: { month } }),
   // 元大批次匯款 Excel
   exportEltonBatch: (yearMonth, checkIds = []) =>
     api.post(
