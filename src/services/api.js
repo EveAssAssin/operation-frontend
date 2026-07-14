@@ -336,6 +336,10 @@ export const operationalExpensesApi = {
   listFactsByCategory: (categoryId) => api.get(`/operational-expenses/facts/${categoryId}`),
   detectAnomalies: (month)         => api.get('/operational-expenses/anomalies', { params: month ? { month } : {} }),
   getFactHistory:  (factId, months = 12) => api.get(`/operational-expenses/facts/${factId}/history`, { params: { months } }),
+  getFactAllocatedMonths: (factId, excludeExpenseId = null) =>
+    api.get(`/operational-expenses/facts/${factId}/allocated-months`, {
+      params: excludeExpenseId ? { exclude_expense_id: excludeExpenseId } : {},
+    }),
   getReport:       (params = {})   => api.get('/operational-expenses/report', { params }),
   exportReport:    (params = {})   => api.get('/operational-expenses/report/export', { params, responseType: 'blob' }),
 };

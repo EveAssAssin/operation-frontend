@@ -247,6 +247,8 @@ function ExpenseModal({ expense, categories, storeMap, onClose, onSaved }) {
     (expense.allocations || []).map(a => ({ ...a }))
   );
   const [saving, setSaving] = useState(false);
+  // 此 fact 已分帳月份查詢結果
+  const [allocInfo, setAllocInfo] = useState({ allocated: [], last: null, next_suggested: null });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   // 選了分類 → 撈該分類底下 facts
@@ -257,6 +259,17 @@ function ExpenseModal({ expense, categories, storeMap, onClose, onSaved }) {
       .catch(() => setFacts([]));
   }, [form.category_id]);
 
+  // 選了電號 → 撈已分帳月份（編輯時排除自己）
+  useEffect(() => {
+    if (!form.fact_id) { setAllocInfo({ allocated: [], last: null, next_suggested: null }); return; }
+    operationalExpensesApi.getFactAllocatedMonths(form.fact_id, expense.id || null)
+      .then(r => setAllocInfo(r.success ? r.data : { allocated: [], last: null, next_suggested: null }))
+      .catch(() => setAllocInfo({ allocated: [], last: null, next_suggested: null }));
+  }, [form.fact_id, expense.id]);
+
+  // 已分帳月份集合（給 UI 快速判斷用）
+  const allocatedSet = new Set(allocInfo.allocated || []);
+
   // 選電號 → 自動帶主要門市
   function onPickFact(fid) {
     set('fact_id', fid);
@@ -266,7 +279,9 @@ function ExpenseModal({ expense, categories, storeMap, onClose, onSaved }) {
 
   // 分帳操作
   function addAlloc() {
-    setAllocations(a => [...a, { store_erpid: form.store_erpid || '', year_month: ymOf(form.period_to), amount: '' }]);
+    // 若有建議月份就帶入，否則用 period_to
+    const defaultYm = allocInfo.next_suggested || ymOf(form.period_to);
+    setAllocations(a => [...a, { store_erpid: form.store_erpid || '', year_month: defaultYm, amount: '' }]);
   }
   function updAlloc(i, k, v) {
     setAllocations(a => a.map((row, idx) => idx === i ? { ...row, [k]: v } : row));
@@ -282,6 +297,16 @@ function ExpenseModal({ expense, categories, storeMap, onClose, onSaved }) {
     if (!form.entry_date)                      return alert('建檔日必填');
     if (!form.period_from || !form.period_to)  return alert('費用期間必填');
     if (!form.total_amount)                    return alert('總金額必填');
+    // 檢查是否有分帳月份已存在
+    const collided = allocations
+      .map(a => a.year_month)
+      .filter(ym => ym && allocatedSet.has(ym));
+    if (collided.length > 0) {
+      const uniq = Array.from(new Set(collided));
+      if (!window.confirm(
+        `⚠ 以下分帳月份已在此電號分帳過：\n\n  ${uniq.join('、')}\n\n確定要繼續存檔嗎？`
+      )) return;
+    }
     setSaving(true);
     try {
       const body = {
@@ -383,6 +408,40 @@ function ExpenseModal({ expense, categories, storeMap, onClose, onSaved }) {
               <div style={{ flex: 1 }} />
               <button style={S.btnGhost} onClick={addAlloc}>＋ 加一筆</button>
             </div>
+
+            {/* 已分帳月份提示 banner */}
+            {form.fact_id && allocInfo.allocated.length > 0 && (
+              <div style={{
+                background: '#ebf8ff', border: '1px solid #90cdf4', borderRadius: 6,
+                padding: '8px 12px', marginBottom: 10, fontSize: 12, color: '#2c5282',
+              }}>
+                <div style={{ marginBottom: 4 }}>
+                  <span style={{ fontWeight: 700 }}>ℹ 此電號已分帳月份</span>
+                  <span style={{ marginLeft: 6, color: '#718096' }}>共 {allocInfo.allocated.length} 個月</span>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {allocInfo.allocated.map(ym => (
+                    <span key={ym} style={{
+                      background: '#fff', border: '1px solid #bee3f8', borderRadius: 4,
+                      padding: '1px 6px', fontSize: 11, color: '#2b6cb0',
+                    }}>{ym}</span>
+                  ))}
+                </div>
+                {allocInfo.next_suggested && (
+                  <div style={{ marginTop: 6, color: '#276749', fontWeight: 600 }}>
+                    ✓ 建議下個月份：{allocInfo.next_suggested}
+                  </div>
+                )}
+              </div>
+            )}
+            {form.fact_id && allocInfo.allocated.length === 0 && (
+              <div style={{
+                background: '#fefcbf', border: '1px solid #f6e05e', borderRadius: 6,
+                padding: '8px 12px', marginBottom: 10, fontSize: 12, color: '#744210',
+              }}>
+                ℹ 此電號目前尚無分帳紀錄，這是第一筆
+              </div>
+            )}
             <table style={S.subTable}>
               <thead>
                 <tr>
@@ -397,7 +456,9 @@ function ExpenseModal({ expense, categories, storeMap, onClose, onSaved }) {
                 {allocations.length === 0 && (
                   <tr><td colSpan={5} style={{ ...S.subTd, textAlign: 'center', color: '#a0aec0' }}>未分帳</td></tr>
                 )}
-                {allocations.map((a, i) => (
+                {allocations.map((a, i) => {
+                  const isCollide = a.year_month && allocatedSet.has(a.year_month);
+                  return (
                   <tr key={i}>
                     <td style={S.subTd}>
                       <select style={S.smallSelect} value={a.store_erpid} onChange={e => updAlloc(i, 'store_erpid', e.target.value)}>
@@ -406,7 +467,22 @@ function ExpenseModal({ expense, categories, storeMap, onClose, onSaved }) {
                       </select>
                     </td>
                     <td style={S.subTd}>
-                      <input type="month" style={S.smallInput} value={a.year_month} onChange={e => updAlloc(i, 'year_month', e.target.value)} />
+                      <input
+                        type="month"
+                        style={{
+                          ...S.smallInput,
+                          borderColor: isCollide ? '#c53030' : (S.smallInput.border || '#cbd5e0'),
+                          border: isCollide ? '2px solid #c53030' : S.smallInput.border,
+                          background: isCollide ? '#fff5f5' : '#fff',
+                        }}
+                        value={a.year_month}
+                        onChange={e => updAlloc(i, 'year_month', e.target.value)}
+                      />
+                      {isCollide && (
+                        <div style={{ fontSize: 10, color: '#c53030', marginTop: 2, fontWeight: 600 }}>
+                          ⚠ 此月已分帳過
+                        </div>
+                      )}
                     </td>
                     <td style={{ ...S.subTd, textAlign: 'right' }}>
                       <input type="number" style={{ ...S.smallInput, textAlign: 'right' }} value={a.amount} onChange={e => updAlloc(i, 'amount', e.target.value)} />
@@ -418,7 +494,8 @@ function ExpenseModal({ expense, categories, storeMap, onClose, onSaved }) {
                       <button style={S.btnDanger} onClick={() => delAlloc(i)}>✕</button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
