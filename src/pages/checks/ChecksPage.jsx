@@ -214,6 +214,16 @@ function TodayPanel() {
           </div>
           <div style={{ color: C.textLight, fontSize: 12, marginTop: 2 }}>
             到期日：{c.due_date}
+            {c.payment_date && c.payment_date !== c.due_date && (
+              <span style={{ marginLeft: 6, color: '#2b6cb0', fontWeight: 600 }}>
+                · 付款日 {c.payment_date}
+              </span>
+            )}
+            {c.payment_date && c.payment_date === c.due_date && (
+              <span style={{ marginLeft: 6, color: '#4a5568' }}>
+                · 付款日 {c.payment_date}
+              </span>
+            )}
             {c.check_no && ` · 票號：${c.check_no}`}
             {c.batch?.bank_name && ` · ${c.batch.bank_name}`}
           </div>
@@ -734,9 +744,12 @@ function BatchesPanel({ user }) {
                   <span style={{ color: C.textDark, fontSize: 13, fontWeight: 500 }}>
                     到期：{c.due_date}
                   </span>
-                  {c.display_date && c.display_date !== c.due_date && (
-                    <span style={{ color: C.textLight, fontSize: 11, marginLeft: 8 }}>
-                      （提醒日：{c.display_date}）
+                  {c.payment_date && (
+                    <span style={{
+                      color: c.payment_date !== c.due_date ? '#2b6cb0' : C.textLight,
+                      fontSize: 11, marginLeft: 8, fontWeight: c.payment_date !== c.due_date ? 600 : 400,
+                    }}>
+                      · 付款日 {c.payment_date}
                     </span>
                   )}
                   {c.check_no && (
@@ -1745,43 +1758,60 @@ function CreateBatchModal({ subjects, subjectsTree = [], onClose, onSaved }) {
             新增下一張時自動帶入：金額、下個月同日
           </div>
         </div>
-        <div style={{ border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 1fr 1fr 40px', background: '#f5f0ea', padding: '8px 12px', gap: 8 }}>
-            {['#','到期日 *','金額','票號',''].map((h, i) => (
+        <div style={{ border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 110px 1fr 1fr 40px', background: '#f5f0ea', padding: '8px 12px', gap: 8 }}>
+            {['#','到期日 *','付款日（預估）','金額','票號',''].map((h, i) => (
               <div key={i} style={{ color: C.textMid, fontSize: 12, fontWeight: 600 }}>{h}</div>
             ))}
           </div>
-          {checks.map((c, i) => (
-            <div key={i} style={{
-              display: 'grid', gridTemplateColumns: '40px 1fr 1fr 1fr 40px',
-              padding: '8px 12px', gap: 8, borderTop: `1px solid ${C.border}`,
-              background: i % 2 === 0 ? '#fff' : '#faf7f4',
-            }}>
-              <div style={{ color: C.textLight, fontSize: 12, lineHeight: '34px' }}>#{c.seq_no}</div>
-              {/* 到期日：自動填入時顯示淡藍色邊框提示 */}
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="date"
-                  value={c.due_date}
-                  onChange={e => setCheck(i, 'due_date', e.target.value)}
-                  style={{
-                    ...inputStyle, marginBottom: 0,
-                    borderColor: c._autoDate && c.due_date ? C.mid : C.border,
-                  }}
-                  required
-                />
-                {c._autoDate && c.due_date && (
-                  <div style={{ fontSize: 10, color: C.mid, marginTop: 2 }}>↩ 自動帶入</div>
-                )}
+          {checks.map((c, i) => {
+            // 前一個工作天（僅避開週末，國定假日以後端實際為準）
+            const estimatePay = (() => {
+              if (!c.due_date) return '';
+              const d = new Date(c.due_date);
+              d.setDate(d.getDate() - 1);
+              while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+              return d.toISOString().slice(0, 10);
+            })();
+            return (
+              <div key={i} style={{
+                display: 'grid', gridTemplateColumns: '40px 1fr 110px 1fr 1fr 40px',
+                padding: '8px 12px', gap: 8, borderTop: `1px solid ${C.border}`,
+                background: i % 2 === 0 ? '#fff' : '#faf7f4',
+                alignItems: 'center',
+              }}>
+                <div style={{ color: C.textLight, fontSize: 12, lineHeight: '34px' }}>#{c.seq_no}</div>
+                {/* 到期日：自動填入時顯示淡藍色邊框提示 */}
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="date"
+                    value={c.due_date}
+                    onChange={e => setCheck(i, 'due_date', e.target.value)}
+                    style={{
+                      ...inputStyle, marginBottom: 0,
+                      borderColor: c._autoDate && c.due_date ? C.mid : C.border,
+                    }}
+                    required
+                  />
+                  {c._autoDate && c.due_date && (
+                    <div style={{ fontSize: 10, color: C.mid, marginTop: 2 }}>↩ 自動帶入</div>
+                  )}
+                </div>
+                <div style={{ color: '#2b6cb0', fontSize: 12, fontWeight: 500 }}>
+                  {estimatePay || '—'}
+                </div>
+                <input type="number" value={c.amount} onChange={e => setCheck(i, 'amount', e.target.value)}
+                  style={{ ...inputStyle, marginBottom: 0 }} placeholder="金額（可空）" />
+                <input value={c.check_no} onChange={e => setCheck(i, 'check_no', e.target.value)}
+                  style={{ ...inputStyle, marginBottom: 0 }} placeholder="票號（可空）" />
+                <button type="button" onClick={() => removeRow(i)}
+                  style={{ background: 'none', border: 'none', color: '#e53e3e', cursor: 'pointer', fontSize: 16 }}>✕</button>
               </div>
-              <input type="number" value={c.amount} onChange={e => setCheck(i, 'amount', e.target.value)}
-                style={{ ...inputStyle, marginBottom: 0 }} placeholder="金額（可空）" />
-              <input value={c.check_no} onChange={e => setCheck(i, 'check_no', e.target.value)}
-                style={{ ...inputStyle, marginBottom: 0 }} placeholder="票號（可空）" />
-              <button type="button" onClick={() => removeRow(i)}
-                style={{ background: 'none', border: 'none', color: '#e53e3e', cursor: 'pointer', fontSize: 16 }}>✕</button>
-            </div>
-          ))}
+            );
+          })}
+        </div>
+        <div style={{ color: C.textLight, fontSize: 11, marginBottom: 12 }}>
+          * 付款日僅避開週末（六日），國定假日以建立後系統實際計算為準。
         </div>
         <button type="button" onClick={addRow} style={{ ...btnStyle, background: '#e2e8f0', color: C.textDark, marginBottom: 20 }}>
           ＋ 加入一張支票
