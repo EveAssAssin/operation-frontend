@@ -204,9 +204,23 @@ export default function OperationalExpensesPanel() {
 }
 
 // 從 entity_facts.data 顯示：先號碼、再地址、然後其他、最後門市
-function getFactDisplay(fact) {
+function getFactDisplay(fact, fields = null) {
   if (!fact) return '';
   const d = fact.data || {};
+  const store = fact.store_name || fact.store_erpid || '';
+
+  // 若有欄位定義，照 sort_order 顯示（優先使用）
+  if (Array.isArray(fields) && fields.length > 0) {
+    const parts = [store];  // 門市放最前
+    for (const f of fields) {
+      const val = d[f.field_key];
+      if (val === null || val === undefined || String(val).trim() === '') continue;
+      parts.push(String(val).trim());
+    }
+    return parts.filter(Boolean).join(' · ');
+  }
+
+  // 沒欄位定義時 fallback：舊 heuristic
   const raw = Object.entries(d)
     .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
     .map(([k, v]) => ({ key: String(k), val: String(v).trim() }));
@@ -223,7 +237,6 @@ function getFactDisplay(fact) {
     else               others.push(val);
   }
 
-  const store = fact.store_name || fact.store_erpid || '';
   return [...numbers, ...addrs, ...others, store].filter(Boolean).join(' · ');
 }
 
@@ -243,6 +256,7 @@ function ExpenseModal({ expense, categories, storeMap, onClose, onSaved }) {
     notes:        expense.notes        || '',
   });
   const [facts, setFacts] = useState([]);
+  const [fields, setFields] = useState([]);  // 該分類的欄位定義（依 sort_order 排序）
   const [allocations, setAllocations] = useState(
     (expense.allocations || []).map(a => ({ ...a }))
   );
@@ -251,12 +265,15 @@ function ExpenseModal({ expense, categories, storeMap, onClose, onSaved }) {
   const [allocInfo, setAllocInfo] = useState({ allocated: [], last: null, next_suggested: null });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  // 選了分類 → 撈該分類底下 facts
+  // 選了分類 → 撈該分類底下 facts + 該分類的欄位定義
   useEffect(() => {
-    if (!form.category_id) { setFacts([]); return; }
+    if (!form.category_id) { setFacts([]); setFields([]); return; }
     operationalExpensesApi.listFactsByCategory(form.category_id)
       .then(r => setFacts(r.success ? r.data : []))
       .catch(() => setFacts([]));
+    basicDataApi.listFields(form.category_id)
+      .then(r => setFields(r.success ? r.data : []))
+      .catch(() => setFields([]));
   }, [form.category_id]);
 
   // 選了電號 → 撈已分帳月份（編輯時排除自己）
@@ -376,7 +393,7 @@ function ExpenseModal({ expense, categories, storeMap, onClose, onSaved }) {
                     const d = f.data || {};
                     return Object.values(d).some(v => v !== null && v !== undefined && String(v).trim() !== '');
                   })
-                  .map(f => <option key={f.id} value={f.id}>{getFactDisplay(f)}</option>)}
+                  .map(f => <option key={f.id} value={f.id}>{getFactDisplay(f, fields)}</option>)}
               </select>
             </div>
             <div style={S.field}>
