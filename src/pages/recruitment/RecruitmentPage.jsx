@@ -1346,8 +1346,12 @@ function InterviewsTab() {
   // 該日面試（篩選後）
   const dayInterviews = byDate[selectedDay] || [];
 
-  // 平台顏色
-  const PLATFORM_COLOR = { '1111': '#d53f8c', '104': '#3182ce', '518': '#38a169' };
+  // 平台顏色（飽和度提高，容易一眼區分）
+  const PLATFORM_COLOR = {
+    '1111': '#ff1744',   // 亮紅（原本粉紅太淡）
+    '104':  '#2962ff',   // 亮藍
+    '518':  '#00c853',   // 亮綠
+  };
   // 結果對應淡背景
   const RESULT_BG = {
     pass:      '#c6f6d5',   // 淡綠
@@ -1381,10 +1385,12 @@ function InterviewsTab() {
             <button style={S.btnS} onClick={()=>shiftMonth(1)}>▶</button>
             <button style={S.btnS} onClick={()=>{ setMonth(today().slice(0,7)); setSelectedDay(today()); }}>今日</button>
             {/* 平台色圖例 */}
-            <div style={{ display:'flex', gap:12, marginLeft:'auto', fontSize:11, color:'#718096' }}>
+            <div style={{ display:'flex', gap:12, marginLeft:'auto', fontSize:12, color:'#4a5568', alignItems:'center' }}>
+              <span style={{ fontSize:11, color:'#a0aec0' }}>💡 滑過圓點看詳細</span>
               {Object.entries(PLATFORM_COLOR).map(([k, v]) => (
-                <span key={k} style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
-                  <span style={{ display:'inline-block', width:10, height:10, borderRadius:'50%', background:v }} />{k}
+                <span key={k} style={{ display:'inline-flex', alignItems:'center', gap:5 }}>
+                  <span style={{ display:'inline-block', width:14, height:14, borderRadius:'50%', background:v, boxShadow:'0 1px 2px rgba(0,0,0,0.15)' }} />
+                  <strong>{k}</strong>
                 </span>
               ))}
             </div>
@@ -1506,12 +1512,14 @@ function InterviewsTab() {
                           return (
                             <span
                               key={iv.id || idx}
-                              title={`${ap.name || '—'} · ${ap.platform || ''}${ap.interview_time ? ' ' + ap.interview_time : ''}${iv.result ? ' · ' + iv.result : ''}`}
+                              title={`【${ap.platform || '?'}】 ${ap.name || '—'}${ap.interview_time ? ' · ' + ap.interview_time : ''}${iv.result ? ' · ' + iv.result : ''}`}
                               style={{
-                                display:'inline-block', width:10, height:10, borderRadius:'50%',
+                                display:'inline-block', width:14, height:14, borderRadius:'50%',
                                 background: rBg ? rBg : pColor,
-                                border: rBg ? `2px solid ${pColor}` : 'none',
+                                border: rBg ? `2px solid ${pColor}` : `1px solid rgba(0,0,0,0.15)`,
                                 boxSizing:'border-box',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
+                                cursor: 'help',
                               }}
                             />
                           );
