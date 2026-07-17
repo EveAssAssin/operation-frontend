@@ -285,6 +285,8 @@ export const recruitmentApi = {
   editApplicant:     (id, body)     => api.put(`/recruitment/applicants/${id}`, body),
   checkRejectionHistory: (name, phone) =>
     api.get('/recruitment/applicants/check-rejection-history', { params: { name, phone } }),
+  getPendingFollowUps: (days = 3) =>
+    api.get('/recruitment/applicants/pending-follow-ups', { params: { days } }),
   deleteApplicant:   (id)           => api.delete(`/recruitment/applicants/${id}`),
 
   getInterviews:     (result)       => api.get('/recruitment/interviews', result ? { params: { result } } : {}),

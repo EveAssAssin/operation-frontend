@@ -45,6 +45,34 @@ function Badge({ text, color='#718096', bg='#f7fafc', border='#e2e8f0' }) {
   return <span style={{ display:'inline-block', padding:'2px 9px', borderRadius:999, fontSize:11, fontWeight:700, background:bg, color, border:`1px solid ${border}`, whiteSpace:'nowrap' }}>{text}</span>;
 }
 
+// 星等元件：可點擊 1~5 星（interactive）或純顯示（readOnly）
+function StarRating({ value = 0, onChange = null, size = 22, readOnly = false, title = '' }) {
+  const [hover, setHover] = useState(0);
+  const stars = [1, 2, 3, 4, 5];
+  const active = hover || Number(value) || 0;
+  return (
+    <span style={{ display:'inline-flex', gap:2, cursor: readOnly ? 'default' : 'pointer' }} title={title}>
+      {stars.map(n => (
+        <span
+          key={n}
+          onClick={() => !readOnly && onChange && onChange(n === value ? 0 : n)}
+          onMouseEnter={() => !readOnly && setHover(n)}
+          onMouseLeave={() => !readOnly && setHover(0)}
+          style={{
+            fontSize: size,
+            color: n <= active ? '#f6ad55' : '#e2e8f0',
+            transition: 'color 0.1s',
+            userSelect: 'none',
+            lineHeight: 1,
+          }}
+        >
+          {n <= active ? '★' : '☆'}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 const STATUS_BADGE = {
   pending:              <Badge text="待處理"          color="#d69e2e" bg="#fffff0" border="#f6e05e" />,
   rejected:             <Badge text="婉拒"            color="#718096" bg="#f7fafc" border="#e2e8f0" />,
@@ -362,6 +390,18 @@ function ResumesTab({ storeMap }) {
   // 婉拒歷史檢查結果（顯示在新增表單）
   const [rejectionHistory, setRejectionHistory] = useState({ has_history: false, count: 0, records: [] });
   const [checkingHistory, setCheckingHistory] = useState(false);
+  // 待追蹤區塊（頁面頂端）
+  const [pendingFollowUps, setPendingFollowUps] = useState({ overdue: [], today_list: [], upcoming: [] });
+  const [followUpCollapsed, setFollowUpCollapsed] = useState(false);
+
+  // 載入待追蹤名單（today+3）
+  const loadPendingFollowUps = useCallback(async () => {
+    try {
+      const r = await recruitmentApi.getPendingFollowUps(3);
+      setPendingFollowUps(r.data || { overdue: [], today_list: [], upcoming: [] });
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => { loadPendingFollowUps(); }, [loadPendingFollowUps]);
 
   // 載入招募中的需求（給投遞門市下拉用）
   useEffect(() => {
@@ -403,9 +443,11 @@ function ResumesTab({ storeMap }) {
         const r = await recruitmentApi.getApplicants({ ...params, date });
         setApplicants(r.data || []);
       }
+      // 同步刷新待追蹤名單
+      loadPendingFollowUps();
     } catch (e) { setMsg({ type:'error', text: e.message }); }
     finally { setLoading(false); }
-  }, [date, month, platform, statusFilter, viewMode]);
+  }, [date, month, platform, statusFilter, viewMode, loadPendingFollowUps]);
 
   // 應徵門市篩選後的清單
   const filteredApplicants = useMemo(() => {
@@ -489,6 +531,13 @@ function ResumesTab({ storeMap }) {
       interview_time:     a.interview_time || '',
       status:             a.status || 'pending',
       reject_reason:      a.reject_reason || '',
+      // Batch 2 標記/待追蹤
+      tag_stars:            a.tag_stars ?? '',
+      tag_notes:            a.tag_notes || '',
+      candidate_status:     a.candidate_status || '',
+      expected_reply_date:  a.expected_reply_date || '',
+      follow_up_date:       a.follow_up_date || '',
+      follow_up_notes:      a.follow_up_notes || '',
     });
   }
 
@@ -531,8 +580,70 @@ function ResumesTab({ storeMap }) {
     finally { setDeleting(false); }
   }
 
+  // 待追蹤總數
+  const totalPending = pendingFollowUps.overdue.length + pendingFollowUps.today_list.length + pendingFollowUps.upcoming.length;
+
   return (
     <div>
+      {/* ── 待追蹤區塊（頁面頂端）─────────────────────── */}
+      {totalPending > 0 && (
+        <div style={{
+          border: `2px solid ${pendingFollowUps.overdue.length > 0 ? '#c53030' : '#d97706'}`,
+          borderRadius: 10,
+          background: pendingFollowUps.overdue.length > 0 ? '#fff5f5' : '#fffbeb',
+          padding: 14, marginBottom: 14,
+        }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom: followUpCollapsed ? 0 : 10 }}>
+            <span style={{ fontSize:18 }}>⏰</span>
+            <strong style={{ fontSize:15, color: pendingFollowUps.overdue.length > 0 ? '#c53030' : '#92400e' }}>
+              待追蹤（{totalPending}）
+            </strong>
+            <span style={{ fontSize:12, color:'#4a5568' }}>
+              {pendingFollowUps.overdue.length > 0 && <>🔴 逾期 <b>{pendingFollowUps.overdue.length}</b> · </>}
+              {pendingFollowUps.today_list.length > 0 && <>🟠 今天 <b>{pendingFollowUps.today_list.length}</b> · </>}
+              {pendingFollowUps.upcoming.length > 0 && <>🟡 未來 3 天 <b>{pendingFollowUps.upcoming.length}</b></>}
+            </span>
+            <div style={{ flex:1 }} />
+            <button onClick={()=>setFollowUpCollapsed(v=>!v)}
+              style={{ padding:'4px 10px', border:'1px solid #cbd5e0', borderRadius:6, background:'#fff', fontSize:12, cursor:'pointer', color:'#4a5568' }}>
+              {followUpCollapsed ? '展開' : '收合'}
+            </button>
+          </div>
+          {!followUpCollapsed && (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {[
+                { list: pendingFollowUps.overdue,    color: '#c53030', icon: '🔴' },
+                { list: pendingFollowUps.today_list, color: '#c05621', icon: '🟠' },
+                { list: pendingFollowUps.upcoming,   color: '#b7791f', icon: '🟡' },
+              ].map((group, gi) => group.list.map(a => (
+                <div key={a.id} style={{
+                  display:'flex', alignItems:'center', gap:10, fontSize:13,
+                  padding:'6px 10px', background:'#fff', borderRadius:6,
+                  borderLeft: `4px solid ${group.color}`,
+                }}>
+                  <span style={{ fontSize:14 }}>{group.icon}</span>
+                  <span style={{ fontWeight:700, color:group.color, minWidth:80 }}>
+                    {fmtDate(a.follow_up_date)}
+                  </span>
+                  <strong>{a.name}</strong>
+                  <span style={{ color:'#718096' }}>· {a.target_store_name || '—'}</span>
+                  {a.target_store_note && <span style={{ color:'#9a8878', fontSize:11 }}>／{a.target_store_note}</span>}
+                  <span style={{ fontSize:11 }}>{STATUS_BADGE[a.status] || a.status}</span>
+                  {a.candidate_status && (
+                    <span style={{ fontSize:11, color:'#805ad5' }}>· {a.candidate_status}</span>
+                  )}
+                  {a.follow_up_notes && (
+                    <span style={{ fontSize:11, color:'#4a5568', flex:1 }}>· {a.follow_up_notes}</span>
+                  )}
+                  <div style={{ flex: a.follow_up_notes ? 0 : 1 }} />
+                  <button style={{ ...S.btnSm, color:'#2b6cb0' }} onClick={()=>openEdit(a)}>✏️ 修改</button>
+                </div>
+              )))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 篩選列 */}
       <div style={{ display:'flex', gap:10, marginBottom:14, alignItems:'center', flexWrap:'wrap' }}>
         {/* 依日期 / 全部 / 依月份 三段切換 */}
@@ -723,6 +834,8 @@ function ResumesTab({ storeMap }) {
                 <th style={S.th}>應徵門市</th>
                 {viewMode !== 'date' && <th style={S.th}>投遞日期</th>}
                 <th style={S.th}>狀態</th>
+                <th style={S.th}>星等</th>
+                <th style={S.th}>追蹤</th>
                 <th style={S.th}>面試日期 / 時間</th>
                 <th style={S.th}>備註</th>
                 <th style={S.th}>操作</th>
@@ -744,6 +857,36 @@ function ResumesTab({ storeMap }) {
                   </td>
                   {viewMode !== 'date' && <td style={S.td}><span style={{ fontSize:12, color:'#718096' }}>{fmtDate(a.date)}</span></td>}
                   <td style={S.td}>{STATUS_BADGE[a.status] || a.status}</td>
+                  <td style={S.td}>
+                    {a.tag_stars > 0
+                      ? <StarRating value={a.tag_stars} readOnly size={14} title={a.tag_notes || ''} />
+                      : <span style={{ color:'#cbd5e0', fontSize:12 }}>—</span>}
+                    {a.candidate_status && (
+                      <div style={{ fontSize:10, color:'#805ad5', marginTop:2 }}>{a.candidate_status}</div>
+                    )}
+                  </td>
+                  <td style={S.td}>
+                    {a.follow_up_date ? (
+                      <div>
+                        <span style={{ fontSize:12, fontWeight:600, color: (() => {
+                          const t = today();
+                          if (a.follow_up_date < t) return '#c53030';
+                          if (a.follow_up_date === t) return '#c05621';
+                          return '#276749';
+                        })() }}>
+                          {(() => {
+                            const t = today();
+                            if (a.follow_up_date < t) return '🔴 ';
+                            if (a.follow_up_date === t) return '🟠 ';
+                            return '🟡 ';
+                          })()}{fmtDate(a.follow_up_date)}
+                        </span>
+                        {a.follow_up_notes && (
+                          <div style={{ fontSize:10, color:'#9a8878', marginTop:2 }}>{a.follow_up_notes}</div>
+                        )}
+                      </div>
+                    ) : <span style={{ color:'#cbd5e0', fontSize:12 }}>—</span>}
+                  </td>
                   <td style={S.td}>
                     {a.interview_date
                       ? <span>{fmtDate(a.interview_date)}{a.interview_time && <span style={{ marginLeft:6, color:'#2b6cb0', fontWeight:600 }}>⏰ {a.interview_time}</span>}</span>
@@ -944,6 +1087,73 @@ function ResumesTab({ storeMap }) {
                     />
                   </div>
                 )}
+
+                {/* ── Batch 2：人才標記 + 待追蹤 ────────────────────── */}
+                <div style={{ gridColumn:'1/-1', borderTop:`1px dashed ${C.border}`, paddingTop:10, marginTop:4 }}>
+                  <div style={{ fontSize:12, color:'#9a8878', marginBottom:8, fontWeight:600 }}>🏷 標記 · 追蹤（皆選填）</div>
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={S.label}>人才評等</label>
+                  <div style={{ display:'flex', alignItems:'center', gap:12, padding:'4px 0' }}>
+                    <StarRating
+                      value={Number(editForm.tag_stars) || 0}
+                      onChange={n => setEditForm(f => ({ ...f, tag_stars: n }))}
+                    />
+                    {editForm.tag_stars > 0 && (
+                      <button type="button" style={{ ...S.btnSm, color:'#a0aec0' }} onClick={() => setEditForm(f => ({ ...f, tag_stars: '' }))}>
+                        清除
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={S.label}>評等說明</label>
+                  <input
+                    style={S.inp}
+                    value={editForm.tag_notes}
+                    onChange={e=>setEditForm(f=>({...f,tag_notes:e.target.value}))}
+                    placeholder="例：溝通能力強、經驗豐富"
+                  />
+                </div>
+                <div>
+                  <label style={S.label}>求職者反應</label>
+                  <select
+                    style={{ ...S.sel, width:'100%' }}
+                    value={editForm.candidate_status}
+                    onChange={e=>setEditForm(f=>({...f,candidate_status:e.target.value}))}
+                  >
+                    <option value="">—</option>
+                    <option value="思考中">思考中</option>
+                    <option value="待聯絡">待聯絡</option>
+                    <option value="已回覆">已回覆</option>
+                    <option value="已就任其他">已就任其他</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={S.label}>預計何時給答案</label>
+                  <input
+                    style={S.inp} type="date"
+                    value={editForm.expected_reply_date}
+                    onChange={e=>setEditForm(f=>({...f,expected_reply_date:e.target.value}))}
+                  />
+                </div>
+                <div>
+                  <label style={S.label}>下次追蹤日</label>
+                  <input
+                    style={S.inp} type="date"
+                    value={editForm.follow_up_date}
+                    onChange={e=>setEditForm(f=>({...f,follow_up_date:e.target.value}))}
+                  />
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={S.label}>追蹤備註</label>
+                  <input
+                    style={S.inp}
+                    value={editForm.follow_up_notes}
+                    onChange={e=>setEditForm(f=>({...f,follow_up_notes:e.target.value}))}
+                    placeholder="例：週三上午打電話確認意願"
+                  />
+                </div>
               </div>
               <div style={{ display:'flex', gap:8 }}>
                 <button style={S.btnP} type="submit" disabled={editSaving}>{editSaving?'儲存中...':'儲存'}</button>
@@ -1040,7 +1250,18 @@ function InterviewsTab() {
   function toggleExpand(id, interview) {
     if (expanded === id) { setExpanded(null); return; }
     setExpanded(id);
-    setEditForm({ notes: interview.notes || '', result: interview.result || '', pending_reason: interview.pending_reason || '' });
+    setEditForm({
+      notes: interview.notes || '',
+      result: interview.result || '',
+      pending_reason: interview.pending_reason || '',
+      // Batch 2 面試標記
+      tag_stars:            interview.tag_stars ?? '',
+      tag_notes:            interview.tag_notes || '',
+      candidate_status:     interview.candidate_status || '',
+      expected_reply_date:  interview.expected_reply_date || '',
+      follow_up_date:       interview.follow_up_date || '',
+      follow_up_notes:      interview.follow_up_notes || '',
+    });
     // 預填 SMS 欄位
     const ap = interview.recruitment_applicants || {};
     if (ap.phone) setSmsPhone(p => ({ ...p, [id]: p[id] ?? ap.phone }));
@@ -1053,6 +1274,13 @@ function InterviewsTab() {
         notes:          editForm.notes,
         result:         editForm.result || null,
         pending_reason: editForm.result === '' ? (editForm.pending_reason || null) : null,
+        // Batch 2 面試標記
+        tag_stars:            editForm.tag_stars === '' ? null : Number(editForm.tag_stars),
+        tag_notes:            editForm.tag_notes || null,
+        candidate_status:     editForm.candidate_status || null,
+        expected_reply_date:  editForm.expected_reply_date || null,
+        follow_up_date:       editForm.follow_up_date || null,
+        follow_up_notes:      editForm.follow_up_notes || null,
       });
       setMsg({ type:'success', text:'面試紀錄已儲存' });
       load();
@@ -1148,6 +1376,7 @@ function InterviewsTab() {
                 <th style={S.th}>應徵門市</th>
                 <th style={S.th}>面試日期</th>
                 <th style={S.th}>結果</th>
+                <th style={S.th}>星等</th>
                 <th style={S.th}>錄音</th>
                 <th style={S.th}>教訓建檔</th>
                 <th style={S.th}>操作</th>
@@ -1168,6 +1397,11 @@ function InterviewsTab() {
                         {ap.interview_time && <span style={{ marginLeft:6, color:'#2b6cb0', fontWeight:600, fontSize:12 }}>⏰ {ap.interview_time}</span>}
                       </td>
                       <td style={S.td}>{iv.result ? RESULT_BADGE[iv.result] : <Badge text="待面試" color="#d69e2e" bg="#fffff0" border="#f6e05e" />}</td>
+                      <td style={S.td}>
+                        {iv.tag_stars > 0
+                          ? <StarRating value={iv.tag_stars} readOnly size={14} title={iv.tag_notes || ''} />
+                          : <span style={{ color:'#cbd5e0', fontSize:12 }}>—</span>}
+                      </td>
                       <td style={S.td}>{iv.audio_url ? <a href={iv.audio_url} target="_blank" rel="noreferrer" style={{ color:'#2b6cb0', fontSize:12 }}>🎙 播放</a> : <span style={{ color:'#a0aec0', fontSize:12 }}>—</span>}</td>
                       <td style={S.td}>
                         {iv.result === 'pass'
@@ -1226,6 +1460,58 @@ function InterviewsTab() {
                                   />
                                 </div>
                               )}
+
+                              {/* ── Batch 2：面試人才標記 + 追蹤 ────────────── */}
+                              <div style={{ borderTop:`1px dashed ${C.border}`, paddingTop:10, marginTop:6, marginBottom:10 }}>
+                                <div style={{ fontSize:11, color:'#9a8878', marginBottom:6, fontWeight:600 }}>🏷 面試後的評等 · 追蹤（皆選填）</div>
+
+                                <label style={S.label}>面試評等</label>
+                                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
+                                  <StarRating
+                                    value={Number(editForm.tag_stars) || 0}
+                                    onChange={n => setEditForm(f => ({ ...f, tag_stars: n }))}
+                                  />
+                                  {editForm.tag_stars > 0 && (
+                                    <button type="button" style={{ ...S.btnSm, color:'#a0aec0' }} onClick={() => setEditForm(f => ({ ...f, tag_stars: '' }))}>清除</button>
+                                  )}
+                                </div>
+
+                                <label style={S.label}>評等說明</label>
+                                <input
+                                  style={{ ...S.inp, marginBottom:8 }}
+                                  value={editForm.tag_notes}
+                                  onChange={e=>setEditForm(f=>({...f,tag_notes:e.target.value}))}
+                                  placeholder="例：面試表現優、個性穩定"
+                                />
+
+                                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
+                                  <div>
+                                    <label style={S.label}>求職者反應</label>
+                                    <select style={{ ...S.sel, width:'100%' }} value={editForm.candidate_status} onChange={e=>setEditForm(f=>({...f,candidate_status:e.target.value}))}>
+                                      <option value="">—</option>
+                                      <option value="思考中">思考中</option>
+                                      <option value="待聯絡">待聯絡</option>
+                                      <option value="已回覆">已回覆</option>
+                                      <option value="已就任其他">已就任其他</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label style={S.label}>預計何時給答案</label>
+                                    <input style={S.inp} type="date" value={editForm.expected_reply_date} onChange={e=>setEditForm(f=>({...f,expected_reply_date:e.target.value}))} />
+                                  </div>
+                                </div>
+
+                                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
+                                  <div>
+                                    <label style={S.label}>下次追蹤日</label>
+                                    <input style={S.inp} type="date" value={editForm.follow_up_date} onChange={e=>setEditForm(f=>({...f,follow_up_date:e.target.value}))} />
+                                  </div>
+                                  <div>
+                                    <label style={S.label}>追蹤備註</label>
+                                    <input style={S.inp} value={editForm.follow_up_notes} onChange={e=>setEditForm(f=>({...f,follow_up_notes:e.target.value}))} placeholder="例：週三上午打電話" />
+                                  </div>
+                                </div>
+                              </div>
 
                               <button style={S.btnP} onClick={()=>handleSave(iv.id)}>儲存</button>
                             </div>
