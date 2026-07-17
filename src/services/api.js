@@ -283,6 +283,8 @@ export const recruitmentApi = {
   createApplicant:   (body)         => api.post('/recruitment/applicants', body),
   updateApplicant:   (id, body)     => api.patch(`/recruitment/applicants/${id}`, body),
   editApplicant:     (id, body)     => api.put(`/recruitment/applicants/${id}`, body),
+  checkRejectionHistory: (name, phone) =>
+    api.get('/recruitment/applicants/check-rejection-history', { params: { name, phone } }),
   deleteApplicant:   (id)           => api.delete(`/recruitment/applicants/${id}`),
 
   getInterviews:     (result)       => api.get('/recruitment/interviews', result ? { params: { result } } : {}),

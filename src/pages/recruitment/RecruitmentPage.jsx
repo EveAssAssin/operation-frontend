@@ -48,6 +48,7 @@ function Badge({ text, color='#718096', bg='#f7fafc', border='#e2e8f0' }) {
 const STATUS_BADGE = {
   pending:              <Badge text="待處理"          color="#d69e2e" bg="#fffff0" border="#f6e05e" />,
   rejected:             <Badge text="婉拒"            color="#718096" bg="#f7fafc" border="#e2e8f0" />,
+  rejected_again:       <Badge text="再次婉拒"         color="#4a5568" bg="#edf2f7" border="#a0aec0" />,
   invited:              <Badge text="待面試"          color="#2b6cb0" bg="#ebf8ff" border="#90cdf4" />,
   notified_intent:      <Badge text="發出詢問意願通知"   color="#c05621" bg="#fffaf0" border="#fbd38d" />,
   notified_chat:        <Badge text="發出聊聊通知"      color="#6b46c1" bg="#faf5ff" border="#d6bcfa" />,
@@ -358,6 +359,9 @@ function ResumesTab({ storeMap }) {
   const [deleting, setDeleting]     = useState(false);
   // 招募中人力需求（給投遞門市下拉用）
   const [openNeeds, setOpenNeeds]   = useState([]);
+  // 婉拒歷史檢查結果（顯示在新增表單）
+  const [rejectionHistory, setRejectionHistory] = useState({ has_history: false, count: 0, records: [] });
+  const [checkingHistory, setCheckingHistory] = useState(false);
 
   // 載入招募中的需求（給投遞門市下拉用）
   useEffect(() => {
@@ -365,6 +369,22 @@ function ResumesTab({ storeMap }) {
       .then(r => setOpenNeeds(r.data || []))
       .catch(() => {});
   }, [showAdd, editModal]); // 開新增 / 編輯視窗時重載，確保資料最新
+
+  // 檢查婉拒歷史（姓名+手機都有填才查）
+  async function checkRejectionHistory(name, phone) {
+    const n = (name || '').trim();
+    const p = (phone || '').trim();
+    if (!n || !p) {
+      setRejectionHistory({ has_history: false, count: 0, records: [] });
+      return;
+    }
+    setCheckingHistory(true);
+    try {
+      const r = await recruitmentApi.checkRejectionHistory(n, p);
+      setRejectionHistory(r.data || { has_history: false, count: 0, records: [] });
+    } catch { setRejectionHistory({ has_history: false, count: 0, records: [] }); }
+    finally { setCheckingHistory(false); }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -404,6 +424,12 @@ function ResumesTab({ storeMap }) {
 
   async function handleAdd(e) {
     e.preventDefault();
+    // 若已有婉拒歷史，二次確認
+    if (rejectionHistory.has_history) {
+      if (!window.confirm(
+        `⚠ 此人 (${addForm.name} / ${addForm.phone}) 半年內已婉拒 ${rejectionHistory.count} 次\n\n確定要建立此投遞紀錄嗎？`
+      )) return;
+    }
     try {
       await recruitmentApi.createApplicant({
         ...addForm,
@@ -412,9 +438,13 @@ function ResumesTab({ storeMap }) {
         // 若 dropdown 沒帶到 name，用 storeMap 補（防呆）
         target_store_name: addForm.target_store_name || storeMap[addForm.target_store_erpid] || '',
       });
-      setMsg({ type:'success', text:'投遞者已新增' });
+      const successMsg = rejectionHistory.has_history
+        ? '投遞者已新增（此人有婉拒歷史，記得追蹤處理）'
+        : '投遞者已新增';
+      setMsg({ type:'success', text: successMsg });
       setShowAdd(false);
       setAddForm({ name:'', code:'', phone:'', platform: addForm.platform, target_need_id:'', target_store_erpid:'', target_store_name:'', target_store_note:'' });
+      setRejectionHistory({ has_history: false, count: 0, records: [] });
       load();
     } catch (e) { setMsg({ type:'error', text: e.message }); }
   }
@@ -546,6 +576,7 @@ function ResumesTab({ storeMap }) {
           <option value="notified_no_response">三次通知未回結案</option>
           <option value="invited">待面試</option>
           <option value="rejected">已婉拒</option>
+          <option value="rejected_again">再次婉拒</option>
         </select>
         {/* 應徵門市篩選（依 target_store_erpid），選項用當前資料裡出現的門市，避免顯示大量無資料的門市 */}
         <select style={S.sel} value={storeFilter} onChange={e=>setStoreFilter(e.target.value)}>
@@ -586,7 +617,13 @@ function ResumesTab({ storeMap }) {
               </div>
               <div>
                 <label style={S.label}>姓名</label>
-                <input style={S.inp} value={addForm.name} onChange={e=>setAddForm(f=>({...f,name:e.target.value}))} required />
+                <input
+                  style={S.inp}
+                  value={addForm.name}
+                  onChange={e=>setAddForm(f=>({...f,name:e.target.value}))}
+                  onBlur={()=>checkRejectionHistory(addForm.name, addForm.phone)}
+                  required
+                />
               </div>
               <div>
                 <label style={S.label}>代碼</label>
@@ -594,7 +631,14 @@ function ResumesTab({ storeMap }) {
               </div>
               <div>
                 <label style={S.label}>手機號碼</label>
-                <input style={S.inp} type="tel" value={addForm.phone} onChange={e=>setAddForm(f=>({...f,phone:e.target.value}))} placeholder="09xxxxxxxx（選填）" />
+                <input
+                  style={S.inp}
+                  type="tel"
+                  value={addForm.phone}
+                  onChange={e=>setAddForm(f=>({...f,phone:e.target.value}))}
+                  onBlur={()=>checkRejectionHistory(addForm.name, addForm.phone)}
+                  placeholder="09xxxxxxxx（選填）"
+                />
               </div>
               <div>
                 <label style={S.label}>投遞門市</label>
@@ -625,9 +669,38 @@ function ResumesTab({ storeMap }) {
                 </select>
               </div>
             </div>
-            <div style={{ display:'flex', gap:8 }}>
+
+            {/* 婉拒歷史警告卡 */}
+            {rejectionHistory.has_history && (
+              <div style={{
+                marginTop:8, padding:'10px 14px',
+                background:'#fff5f5', border:'1.5px solid #feb2b2', borderRadius:8,
+                fontSize:13, color:'#742a2a',
+              }}>
+                <div style={{ fontWeight:700, marginBottom:6 }}>
+                  ⚠ 此人半年內已婉拒 {rejectionHistory.count} 次
+                </div>
+                {rejectionHistory.records.slice(0,5).map(r => (
+                  <div key={r.id} style={{ fontSize:12, marginBottom:2 }}>
+                    • {fmtDate(r.date)} · {r.target_store_name || '—'}
+                    {r.reject_reason && <span style={{ color:'#9a4642', marginLeft:6 }}>（{r.reject_reason}）</span>}
+                  </div>
+                ))}
+                <div style={{ marginTop:6, fontSize:12, color:'#9a4642' }}>
+                  💡 若仍要建立，狀態會自動預設為「再次婉拒」提示
+                </div>
+              </div>
+            )}
+            {checkingHistory && (
+              <div style={{ marginTop:8, fontSize:12, color:'#718096' }}>檢查婉拒歷史中…</div>
+            )}
+
+            <div style={{ display:'flex', gap:8, marginTop:12 }}>
               <button style={S.btnP} type="submit">存檔</button>
-              <button style={S.btnS} type="button" onClick={()=>setShowAdd(false)}>取消</button>
+              <button style={S.btnS} type="button" onClick={()=>{
+                setShowAdd(false);
+                setRejectionHistory({ has_history: false, count: 0, records: [] });
+              }}>取消</button>
             </div>
           </form>
         </div>
@@ -857,9 +930,10 @@ function ResumesTab({ storeMap }) {
                     <option value="notified_no_response">三次通知未回結案</option>
                     <option value="invited">待面試</option>
                     <option value="rejected">婉拒</option>
+                    <option value="rejected_again">再次婉拒</option>
                   </select>
                 </div>
-                {editForm.status === 'rejected' && (
+                {(editForm.status === 'rejected' || editForm.status === 'rejected_again') && (
                   <div style={{ gridColumn:'1/-1' }}>
                     <label style={S.label}>婉拒原因（必填）</label>
                     <textarea
