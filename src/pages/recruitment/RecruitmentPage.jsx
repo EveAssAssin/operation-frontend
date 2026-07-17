@@ -1204,7 +1204,10 @@ function InterviewsTab() {
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [filter, setFilter]         = useState('pending');
-  const [month,  setMonth]          = useState('');  // '' = 全部 / 'YYYY-MM' = 依月份
+  const [month,  setMonth]          = useState(today().slice(0, 7)); // 行事曆用（YYYY-MM）
+  const [listMonthMode, setListMonthMode] = useState(false); // 清單模式：是否依月份篩
+  const [viewMode, setViewMode]     = useState('calendar');  // 'calendar' | 'list'
+  const [selectedDay, setSelectedDay] = useState(today());
   const [msg, setMsg]               = useState(null);
   const [expanded, setExpanded]     = useState(null);
   const [editForm, setEditForm]     = useState({});
@@ -1214,19 +1217,19 @@ function InterviewsTab() {
   const [smsSending, setSmsSending] = useState(null); // interviewId currently sending
   const audioRef = useRef(null);
 
-  // 撈全部 interview（不帶 result 篩選），讓前端依當前 filter 過濾並計算各狀態數量
+  // 撈 interview：行事曆模式永遠帶 month；清單模式看 listMonthMode
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // recruitmentApi.getInterviews 只接 result 字串；要帶 month 需用直接 api.get
-      // 但我們可以包裝：把 month 透過 axios params 帶上（用內部 helper）
       const params = {};
-      if (month) params.month = month;
+      if (viewMode === 'calendar' || listMonthMode) {
+        params.month = month;
+      }
       const r = await recruitmentApi.getInterviewsByParams(params);
       setInterviews(r.data || []);
     } catch (e) { setMsg({ type:'error', text: e.message }); }
     finally { setLoading(false); }
-  }, [month]);
+  }, [month, viewMode, listMonthMode]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1322,46 +1325,266 @@ function InterviewsTab() {
   // 全部數量（用於「全部」按鈕）
   const totalCount = interviews.length;
 
+  // 行事曆邏輯：把 month 拆成 year / m
+  const [calYear, calMonth] = month.split('-').map(Number);
+  function shiftMonth(delta) {
+    const d = new Date(calYear, calMonth - 1 + delta, 1);
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    setMonth(ym);
+  }
+  // 該月各日面試 index：{ 'YYYY-MM-DD': [interview, ...] }
+  const byDate = useMemo(() => {
+    const idx = {};
+    for (const iv of interviews) {
+      const ap = iv.recruitment_applicants || {};
+      const d = ap.interview_date;
+      if (!d) continue;
+      (idx[d] = idx[d] || []).push(iv);
+    }
+    return idx;
+  }, [interviews]);
+  // 該日面試（篩選後）
+  const dayInterviews = byDate[selectedDay] || [];
+
+  // 平台顏色
+  const PLATFORM_COLOR = { '1111': '#d53f8c', '104': '#3182ce', '518': '#38a169' };
+  // 結果對應淡背景
+  const RESULT_BG = {
+    pass:      '#c6f6d5',   // 淡綠
+    fail:      '#fed7d7',   // 淡紅
+    no_show:   '#e2e8f0',   // 淡灰
+    found_job: '#e9d8fd',   // 淡紫
+  };
+
   return (
     <div>
-      {/* 月份篩選列 */}
+      {/* 顯示模式切換 + 月份 */}
       <div style={{ display:'flex', gap:10, marginBottom:10, alignItems:'center', flexWrap:'wrap' }}>
         <div style={{ display:'flex', border:`1px solid ${C.border}`, borderRadius:6, overflow:'hidden' }}>
           <button
             style={{ padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
-              background: !month ? C.dark : '#fff', color: !month ? '#fff' : '#718096',
+              background: viewMode==='calendar' ? C.dark : '#fff', color: viewMode==='calendar' ? '#fff' : '#718096',
               borderRight: `1px solid ${C.border}` }}
-            onClick={() => setMonth('')}
-          >全部</button>
+            onClick={() => setViewMode('calendar')}
+          >🗓 行事曆</button>
           <button
             style={{ padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
-              background: month ? C.dark : '#fff', color: month ? '#fff' : '#718096' }}
-            onClick={() => setMonth(month || today().slice(0, 7))}
-          >依月份</button>
+              background: viewMode==='list' ? C.dark : '#fff', color: viewMode==='list' ? '#fff' : '#718096' }}
+            onClick={() => setViewMode('list')}
+          >📄 清單</button>
         </div>
-        {month && (
-          <input style={{ ...S.inp, width:150 }} type="month" value={month} onChange={e=>setMonth(e.target.value || today().slice(0,7))} />
+
+        {viewMode === 'calendar' && (
+          <>
+            <button style={S.btnS} onClick={()=>shiftMonth(-1)}>◀</button>
+            <input style={{ ...S.inp, width:150 }} type="month" value={month} onChange={e=>setMonth(e.target.value || today().slice(0,7))} />
+            <button style={S.btnS} onClick={()=>shiftMonth(1)}>▶</button>
+            <button style={S.btnS} onClick={()=>{ setMonth(today().slice(0,7)); setSelectedDay(today()); }}>今日</button>
+            {/* 平台色圖例 */}
+            <div style={{ display:'flex', gap:12, marginLeft:'auto', fontSize:11, color:'#718096' }}>
+              {Object.entries(PLATFORM_COLOR).map(([k, v]) => (
+                <span key={k} style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+                  <span style={{ display:'inline-block', width:10, height:10, borderRadius:'50%', background:v }} />{k}
+                </span>
+              ))}
+            </div>
+          </>
+        )}
+
+        {viewMode === 'list' && (
+          <>
+            <div style={{ display:'flex', border:`1px solid ${C.border}`, borderRadius:6, overflow:'hidden' }}>
+              <button
+                style={{ padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
+                  background: !listMonthMode ? C.dark : '#fff', color: !listMonthMode ? '#fff' : '#718096',
+                  borderRight: `1px solid ${C.border}` }}
+                onClick={() => setListMonthMode(false)}
+              >全部</button>
+              <button
+                style={{ padding:'7px 14px', fontSize:13, border:'none', cursor:'pointer', fontWeight:600,
+                  background: listMonthMode ? C.dark : '#fff', color: listMonthMode ? '#fff' : '#718096' }}
+                onClick={() => setListMonthMode(true)}
+              >依月份</button>
+            </div>
+            {listMonthMode && (
+              <input style={{ ...S.inp, width:150 }} type="month" value={month} onChange={e=>setMonth(e.target.value || today().slice(0,7))} />
+            )}
+          </>
         )}
       </div>
 
-      {/* 狀態按鈕：每顆帶數量 */}
-      <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
-        {[
-          { v:'pending',   label:'待面試',         count: resultCounts.pending },
-          { v:'pass',      label:'✅ 已通過',       count: resultCounts.pass },
-          { v:'fail',      label:'❌ 未通過',       count: resultCounts.fail },
-          { v:'no_show',   label:'🚫 未到場',       count: resultCounts.no_show },
-          { v:'found_job', label:'💼 已找到工作',   count: resultCounts.found_job },
-          { v:'',          label:'全部',            count: totalCount },
-        ].map(({ v, label, count }) => (
-          <button key={v} style={{ ...S.btnS, ...(filter===v?{background:C.dark,color:'#fff',border:`1px solid ${C.dark}`}:{}) }} onClick={()=>setFilter(v)}>
-            {label} <span style={{ marginLeft:4, fontWeight:700 }}>{count}</span>
-          </button>
-        ))}
-      </div>
+      {/* 狀態按鈕：每顆帶數量（清單模式時顯示）*/}
+      {viewMode === 'list' && (
+        <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+          {[
+            { v:'pending',   label:'待面試',         count: resultCounts.pending },
+            { v:'pass',      label:'✅ 已通過',       count: resultCounts.pass },
+            { v:'fail',      label:'❌ 未通過',       count: resultCounts.fail },
+            { v:'no_show',   label:'🚫 未到場',       count: resultCounts.no_show },
+            { v:'found_job', label:'💼 已找到工作',   count: resultCounts.found_job },
+            { v:'',          label:'全部',            count: totalCount },
+          ].map(({ v, label, count }) => (
+            <button key={v} style={{ ...S.btnS, ...(filter===v?{background:C.dark,color:'#fff',border:`1px solid ${C.dark}`}:{}) }} onClick={()=>setFilter(v)}>
+              {label} <span style={{ marginLeft:4, fontWeight:700 }}>{count}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {msg && <div style={S.alert(msg.type)}>{msg.text}</div>}
 
+      {/* ═══════════════ 行事曆模式 ═══════════════ */}
+      {viewMode === 'calendar' && (() => {
+        // 該月天數 + 起始 offset
+        const firstDay = new Date(calYear, calMonth - 1, 1);
+        const firstDow = firstDay.getDay(); // 0=Sun
+        const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+        const t = today();
+        const cells = [];
+        // 前面空白
+        for (let i = 0; i < firstDow; i++) cells.push(null);
+        // 該月
+        for (let d = 1; d <= daysInMonth; d++) {
+          const ymd = `${calYear}-${String(calMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          cells.push(ymd);
+        }
+        // 後面補齊到 7 的倍數
+        while (cells.length % 7 !== 0) cells.push(null);
+        const rows = [];
+        for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+
+        return (
+          <div style={{ ...S.card, marginBottom: 14 }}>
+            {/* 星期列 */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(7, 1fr)', gap:0 }}>
+              {['日','一','二','三','四','五','六'].map((w, i) => (
+                <div key={i} style={{
+                  padding:'8px 4px', textAlign:'center', fontWeight:700, fontSize:12,
+                  background:'#f7fafc', color: (i===0||i===6) ? '#c53030' : '#4a5568',
+                  borderBottom:`2px solid ${C.border}`,
+                }}>{w}</div>
+              ))}
+            </div>
+            {/* 日期格 */}
+            {rows.map((row, ri) => (
+              <div key={ri} style={{ display:'grid', gridTemplateColumns:'repeat(7, 1fr)', gap:0 }}>
+                {row.map((ymd, ci) => {
+                  if (!ymd) return <div key={ci} style={{ minHeight:80, background:'#fafafa', borderRight:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}` }} />;
+                  const isToday = ymd === t;
+                  const isSelected = ymd === selectedDay;
+                  const isWeekend = ci === 0 || ci === 6;
+                  const dayIvs = byDate[ymd] || [];
+                  return (
+                    <div
+                      key={ci}
+                      onClick={()=>setSelectedDay(ymd)}
+                      style={{
+                        minHeight:80, padding:6, cursor:'pointer',
+                        borderRight:`1px solid ${C.border}`,
+                        borderBottom:`1px solid ${C.border}`,
+                        background: isSelected ? '#fff7e6'
+                                  : isToday    ? '#ebf8ff'
+                                  : isWeekend  ? '#fafaf7'
+                                  : '#fff',
+                        boxShadow: isToday ? 'inset 0 0 0 2px #4299e1' : 'none',
+                        transition:'background 0.15s',
+                      }}
+                    >
+                      <div style={{
+                        fontSize:12, fontWeight: isToday ? 700 : 500,
+                        color: isToday ? '#2b6cb0' : (isWeekend ? '#c53030' : '#4a5568'),
+                        marginBottom:4,
+                      }}>
+                        {parseInt(ymd.split('-')[2])}
+                      </div>
+                      {/* 面試點點 */}
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:3 }}>
+                        {dayIvs.slice(0, 8).map((iv, idx) => {
+                          const ap = iv.recruitment_applicants || {};
+                          const pColor = PLATFORM_COLOR[ap.platform] || '#a0aec0';
+                          const rBg = iv.result ? RESULT_BG[iv.result] : null;
+                          return (
+                            <span
+                              key={iv.id || idx}
+                              title={`${ap.name || '—'} · ${ap.platform || ''}${ap.interview_time ? ' ' + ap.interview_time : ''}${iv.result ? ' · ' + iv.result : ''}`}
+                              style={{
+                                display:'inline-block', width:10, height:10, borderRadius:'50%',
+                                background: rBg ? rBg : pColor,
+                                border: rBg ? `2px solid ${pColor}` : 'none',
+                                boxSizing:'border-box',
+                              }}
+                            />
+                          );
+                        })}
+                        {dayIvs.length > 8 && (
+                          <span style={{ fontSize:10, color:'#718096', fontWeight:600 }}>+{dayIvs.length - 8}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* 行事曆模式下方：當日面試清單 */}
+      {viewMode === 'calendar' && (
+        <div style={{ ...S.card }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+            <strong style={{ fontSize:15 }}>📅 {fmtDate(selectedDay)} 的面試</strong>
+            <span style={{ fontSize:12, color:'#718096' }}>共 {dayInterviews.length} 場</span>
+          </div>
+          {dayInterviews.length === 0 ? (
+            <div style={{ padding:20, textAlign:'center', color:'#a0aec0', fontSize:13 }}>此日無面試</div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {dayInterviews
+                .slice()
+                .sort((a, b) => {
+                  const ta = a.recruitment_applicants?.interview_time || '';
+                  const tb = b.recruitment_applicants?.interview_time || '';
+                  return ta.localeCompare(tb);
+                })
+                .map(iv => {
+                  const ap = iv.recruitment_applicants || {};
+                  const pColor = PLATFORM_COLOR[ap.platform] || '#a0aec0';
+                  return (
+                    <div key={iv.id} style={{
+                      display:'flex', alignItems:'center', gap:12,
+                      padding:'8px 12px', borderRadius:6,
+                      borderLeft:`4px solid ${pColor}`,
+                      background: iv.result ? RESULT_BG[iv.result] : '#fafaf7',
+                    }}>
+                      <span style={{ fontWeight:700, minWidth:60, color:'#2b6cb0' }}>
+                        {ap.interview_time || '—'}
+                      </span>
+                      <span style={{ fontWeight:600 }}>{ap.name || '—'}</span>
+                      <Badge text={ap.platform || '—'} color="#6b46c1" bg="#faf5ff" border="#d6bcfa" />
+                      <span style={{ fontSize:13, color:'#4a5568' }}>{ap.target_store_name || '—'}</span>
+                      {ap.target_store_note && (
+                        <span style={{ fontSize:11, color:'#9a8878' }}>／{ap.target_store_note}</span>
+                      )}
+                      <div style={{ flex:1 }} />
+                      {iv.result && RESULT_BADGE[iv.result]}
+                      {iv.tag_stars > 0 && <StarRating value={iv.tag_stars} readOnly size={14} />}
+                      <button style={S.btnSm} onClick={()=>{
+                        // 切到清單模式並展開這筆
+                        setViewMode('list');
+                        setFilter('');
+                        setListMonthMode(true);
+                        setTimeout(() => toggleExpand(iv.id, iv), 100);
+                      }}>▼ 詳情</button>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {viewMode === 'list' && (
       <div style={S.card}>
         {loading ? (
           <div style={{ textAlign:'center', color:'#a0aec0', padding:32 }}>載入中...</div>
@@ -1420,7 +1643,7 @@ function InterviewsTab() {
                     {/* 展開編輯區 */}
                     {isOpen && (
                       <tr key={`${iv.id}-edit`}>
-                        <td colSpan={8} style={{ padding:'0 12px 14px', background:'#f7f5f2' }}>
+                        <td colSpan={9} style={{ padding:'0 12px 14px', background:'#f7f5f2' }}>
                           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, paddingTop:12 }}>
 
                             {/* 左：文字紀錄 + 結果 */}
@@ -1481,7 +1704,7 @@ function InterviewsTab() {
                                   style={{ ...S.inp, marginBottom:8 }}
                                   value={editForm.tag_notes}
                                   onChange={e=>setEditForm(f=>({...f,tag_notes:e.target.value}))}
-                                  placeholder="例：面試表現優、個性穩定"
+                                  placeholder="例:面試表現優、個性穩定"
                                 />
 
                                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
@@ -1508,7 +1731,7 @@ function InterviewsTab() {
                                   </div>
                                   <div>
                                     <label style={S.label}>追蹤備註</label>
-                                    <input style={S.inp} value={editForm.follow_up_notes} onChange={e=>setEditForm(f=>({...f,follow_up_notes:e.target.value}))} placeholder="例：週三上午打電話" />
+                                    <input style={S.inp} value={editForm.follow_up_notes} onChange={e=>setEditForm(f=>({...f,follow_up_notes:e.target.value}))} placeholder="例:週三上午打電話" />
                                   </div>
                                 </div>
                               </div>
@@ -1516,7 +1739,7 @@ function InterviewsTab() {
                               <button style={S.btnP} onClick={()=>handleSave(iv.id)}>儲存</button>
                             </div>
 
-                            {/* 右：錄音上傳 + 教訓系統 */}
+                            {/* 右:錄音上傳 + 教訓系統 */}
                             <div>
                               <label style={S.label}>上傳錄音檔</label>
                               <input
@@ -1541,7 +1764,7 @@ function InterviewsTab() {
                               {/* 面試通過後的教育訓練引導 */}
                               {editForm.result === 'pass' && (
                                 <div style={{ background:'#f0fff4', border:'1px solid #9ae6b4', borderRadius:8, padding:'12px 14px' }}>
-                                  <div style={{ fontWeight:600, fontSize:13, color:'#276749', marginBottom:8 }}>🎉 面試通過！下一步</div>
+                                  <div style={{ fontWeight:600, fontSize:13, color:'#276749', marginBottom:8 }}>🎉 面試通過!下一步</div>
 
                                   {/* 前往教育訓練系統 */}
                                   <a
@@ -1560,21 +1783,21 @@ function InterviewsTab() {
                                     }
                                   </div>
 
-                                  {/* SMS 區塊：面試通過即顯示 */}
+                                  {/* SMS 區塊:面試通過即顯示 */}
                                   <div style={{ borderTop:'1px solid #9ae6b4', paddingTop:10 }}>
                                     <div style={{ fontSize:12, fontWeight:600, color:'#276749', marginBottom:6 }}>📱 發送到職簡訊</div>
                                     <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                                       <input
                                         style={S.inp}
                                         type="tel"
-                                        placeholder="新人手機（09xxxxxxxx）"
+                                        placeholder="新人手機(09xxxxxxxx)"
                                         value={smsPhone[iv.id] ?? (ap.phone || '')}
                                         onChange={e => setSmsPhone(p => ({ ...p, [iv.id]: e.target.value }))}
                                       />
                                       <input
                                         style={S.inp}
                                         type="url"
-                                        placeholder="到職連結（教育系統建立後自動填入，或手動貼上）"
+                                        placeholder="到職連結(教育系統建立後自動填入,或手動貼上)"
                                         value={smsUrl[iv.id] ?? (iv.onboarding_url || '')}
                                         onChange={e => setSmsUrl(u => ({ ...u, [iv.id]: e.target.value }))}
                                       />
@@ -1601,6 +1824,7 @@ function InterviewsTab() {
           </table>
         )}
       </div>
+      )}
     </div>
   );
 }
