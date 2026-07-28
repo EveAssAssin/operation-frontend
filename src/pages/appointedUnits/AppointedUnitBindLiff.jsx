@@ -54,7 +54,7 @@ const MENU_ITEMS = [
     desc:   '了解特約廠商可享有的專屬福利與優惠',
     accent: '#f59e0b',
     type:   'link',
-    url:    'https://www.lohasglasses.com/page/1/516',
+    url:    'https://www.lohasglasses.com/vipstore-partner.html#benefits',
   },
   {
     key:    'approval',
