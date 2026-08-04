@@ -805,6 +805,46 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
           </div>
         )}
 
+        {Array.isArray(data.ticket_details) && data.ticket_details.length > 0 && (
+          <div style={{ padding: 12, background: '#fff', border: '1px solid #e0d5c8', borderRadius: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#3a2e1e', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+              <span>📋 明細（{data.ticket_details.length} 筆）</span>
+              {data.linked_bill_id ? (
+                <span style={{ fontSize: 11, color: '#2d6a4f', background: '#e6fffa', padding: '2px 8px', borderRadius: 4 }}>
+                  ✅ 已建對應 bill（通過時自動）
+                </span>
+              ) : (
+                <span style={{ fontSize: 11, color: '#7c4a03', background: '#fef5e7', padding: '2px 8px', borderRadius: 4 }}>
+                  ⏳ 通過後將依此明細自動建門市 allocation
+                </span>
+              )}
+            </div>
+            <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#f5f0ea', color: '#6b5640' }}>
+                  <th style={{ padding: 6, textAlign: 'left' }}>單號</th>
+                  <th style={{ padding: 6, textAlign: 'left' }}>門市</th>
+                  <th style={{ padding: 6, textAlign: 'right' }}>金額</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.ticket_details.map((d, i) => (
+                  <tr key={i} style={{ borderTop: '1px solid #efe6d6' }}>
+                    <td style={{ padding: 6, fontFamily: 'monospace' }}>{d.number || '—'}</td>
+                    <td style={{ padding: 6 }}>
+                      {d.store_name || '—'}
+                      {d.store_erpid && <span style={{ color: '#a0aec0', marginLeft: 4 }}>({d.store_erpid})</span>}
+                    </td>
+                    <td style={{ padding: 6, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                      {fmtMoney(d.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {data.description && (
           <div style={{ padding: 12, background: '#fff', border: '1px solid #e0d5c8', borderRadius: 6, fontSize: 13, whiteSpace: 'pre-wrap' }}>
             {data.description}
@@ -2614,6 +2654,24 @@ export default function BillingV2Page() {
   const hasAutoOpen = !!(initialAutoOpen.market_pr_id || initialAutoOpen.chi_lens_pr_id);
   const [tab, setTab] = useState(hasAutoOpen ? 'vendor_payment' : 'bills');
   const [autoOpenPrId, setAutoOpenPrId] = useState(initialAutoOpen);
+
+  // ─── 廠商請款審核 tab 上的紅點（同 Layout 邏輯，60 秒 poll）───
+  const [pendingExtCount, setPendingExtCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCount = async () => {
+      try {
+        const r = await vendorPaymentApi.pendingCount('external');
+        if (!cancelled && r?.success) setPendingExtCount(Number(r.data?.count) || 0);
+      } catch (_) { /* 忽略 */ }
+    };
+    fetchCount();
+    const iv = setInterval(fetchCount, 60_000);
+    // 使用者操作完（approve/reject/mark-paid）也刷一次
+    const onFocus = () => fetchCount();
+    window.addEventListener('focus', onFocus);
+    return () => { cancelled = true; clearInterval(iv); window.removeEventListener('focus', onFocus); };
+  }, [tab]);
   const [sources, setSources]       = useState([]);
   const [departments, setDepartments] = useState([]);
   const [bills, setBills]           = useState([]);
@@ -2696,8 +2754,16 @@ export default function BillingV2Page() {
             color: tab === t.key ? '#50422d' : '#718096',
             borderBottom: tab === t.key ? '2px solid #50422d' : '2px solid transparent',
             marginBottom: -2,
+            display: 'inline-flex', alignItems: 'center', gap: 6,
           }}>
             {t.label}
+            {t.key === 'vendor_payment' && pendingExtCount > 0 && (
+              <span style={{
+                background: '#e53e3e', color: '#fff', borderRadius: 10,
+                minWidth: 20, height: 18, padding: '0 6px', fontSize: 11, fontWeight: 700,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}>{pendingExtCount}</span>
+            )}
           </button>
         ))}
       </div>
