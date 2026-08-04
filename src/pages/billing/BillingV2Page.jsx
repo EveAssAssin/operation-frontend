@@ -828,18 +828,36 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
                 </tr>
               </thead>
               <tbody>
-                {data.ticket_details.map((d, i) => (
-                  <tr key={i} style={{ borderTop: '1px solid #efe6d6' }}>
-                    <td style={{ padding: 6, fontFamily: 'monospace' }}>{d.number || '—'}</td>
-                    <td style={{ padding: 6 }}>
-                      {d.store_name || '—'}
-                      {d.store_erpid && <span style={{ color: '#a0aec0', marginLeft: 4 }}>({d.store_erpid})</span>}
-                    </td>
-                    <td style={{ padding: 6, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
-                      {fmtMoney(d.amount)}
-                    </td>
-                  </tr>
-                ))}
+                {data.ticket_details.map((d, i) => {
+                  const detailUrl = d.detail_url || d.raw?.detail_url || null;
+                  const desc      = d.description || d.raw?.description || d.note || d.raw?.note || null;
+                  return (
+                    <tr key={i} style={{ borderTop: '1px solid #efe6d6', verticalAlign: 'top' }}>
+                      <td style={{ padding: 6, fontFamily: 'monospace' }}>
+                        {detailUrl
+                          ? <a href={detailUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1e40af', textDecoration: 'underline' }}>{d.number || '—'} ↗</a>
+                          : (d.number || '—')}
+                        {desc && (
+                          <div style={{ fontSize: 11, color: '#6b5640', marginTop: 3, whiteSpace: 'pre-wrap', maxWidth: 300 }}>
+                            {desc}
+                          </div>
+                        )}
+                        {(d.item_date || d.raw?.item_date) && (
+                          <div style={{ fontSize: 10, color: '#a0aec0', marginTop: 2 }}>
+                            {d.item_date || d.raw?.item_date}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: 6 }}>
+                        {d.store_name || '—'}
+                        {d.store_erpid && <span style={{ color: '#a0aec0', marginLeft: 4 }}>({d.store_erpid})</span>}
+                      </td>
+                      <td style={{ padding: 6, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                        {fmtMoney(d.amount)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
