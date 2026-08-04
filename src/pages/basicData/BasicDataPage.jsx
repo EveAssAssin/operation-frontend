@@ -988,6 +988,7 @@ const EVENT_OPTIONS = [
   { key: 'fact_update',  label: '修改資料' },
   { key: 'fact_delete',  label: '刪除資料' },
   { key: 'meta_change',  label: '分類/欄位變動' },
+  { key: 'recruitment_follow_up', label: '⏰ 履歷追蹤提醒（人事專屬）' },
 ];
 
 function SubscribersModal({ onClose }) {

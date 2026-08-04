@@ -616,19 +616,22 @@ function ResumesTab({ storeMap }) {
                 { list: pendingFollowUps.today_list, color: '#c05621', icon: '🟠' },
                 { list: pendingFollowUps.upcoming,   color: '#b7791f', icon: '🟡' },
               ].map((group, gi) => group.list.map(a => (
-                <div key={a.id} style={{
+                <div key={`${a.source || 'applicant'}-${a.id}`} style={{
                   display:'flex', alignItems:'center', gap:10, fontSize:13,
                   padding:'6px 10px', background:'#fff', borderRadius:6,
                   borderLeft: `4px solid ${group.color}`,
                 }}>
                   <span style={{ fontSize:14 }}>{group.icon}</span>
+                  <span title={a.source === 'interview' ? '面試追蹤' : '履歷追蹤'} style={{ fontSize:14 }}>
+                    {a.source === 'interview' ? '🗣' : '📄'}
+                  </span>
                   <span style={{ fontWeight:700, color:group.color, minWidth:80 }}>
                     {fmtDate(a.follow_up_date)}
                   </span>
                   <strong>{a.name}</strong>
                   <span style={{ color:'#718096' }}>· {a.target_store_name || '—'}</span>
                   {a.target_store_note && <span style={{ color:'#9a8878', fontSize:11 }}>／{a.target_store_note}</span>}
-                  <span style={{ fontSize:11 }}>{STATUS_BADGE[a.status] || a.status}</span>
+                  {a.status && <span style={{ fontSize:11 }}>{STATUS_BADGE[a.status] || a.status}</span>}
                   {a.candidate_status && (
                     <span style={{ fontSize:11, color:'#805ad5' }}>· {a.candidate_status}</span>
                   )}
@@ -636,7 +639,10 @@ function ResumesTab({ storeMap }) {
                     <span style={{ fontSize:11, color:'#4a5568', flex:1 }}>· {a.follow_up_notes}</span>
                   )}
                   <div style={{ flex: a.follow_up_notes ? 0 : 1 }} />
-                  <button style={{ ...S.btnSm, color:'#2b6cb0' }} onClick={()=>openEdit(a)}>✏️ 修改</button>
+                  {a.source === 'applicant'
+                    ? <button style={{ ...S.btnSm, color:'#2b6cb0' }} onClick={()=>openEdit(a)}>✏️ 修改</button>
+                    : <span style={{ fontSize:11, color:'#a0aec0' }}>（去面試紀錄修改）</span>
+                  }
                 </div>
               )))}
             </div>
