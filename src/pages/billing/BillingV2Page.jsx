@@ -619,7 +619,23 @@ function VendorPaymentReviewPanel({ sources }) {
                     <b style={{ fontFamily: 'monospace' }}>{r.request_no || '—'}</b>
                     <div style={{ fontSize: 11, color: '#a0aec0' }}>{r.period}</div>
                   </td>
-                  <td style={td}>{r.source?.name || '—'}</td>
+                  <td style={td}>
+                    {r.source_system === 'market' && r.engineer_name
+                      ? <><b>{r.engineer_name}</b><span style={{ color: '#a0aec0', marginLeft: 4 }}>（{r.source?.name}）</span></>
+                      : (r.source?.name || '—')}
+                    {r.source_system === 'market' && (
+                      <span style={{
+                        marginLeft: 6, padding: '1px 6px', borderRadius: 4,
+                        fontSize: 10, fontWeight: 700, background: '#dbeafe', color: '#1e40af',
+                        verticalAlign: 'middle',
+                      }}>市場 · 修繕</span>
+                    )}
+                    {r.source_system === 'market' && Array.isArray(r.ticket_numbers) && r.ticket_numbers.length > 0 && (
+                      <div style={{ fontSize: 10, color: '#a0aec0', marginTop: 2 }}>
+                        {r.ticket_numbers.length} 單
+                      </div>
+                    )}
+                  </td>
                   <td style={td}>{r.title}</td>
                   <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
                     {fmtMoney(r.total_amount)}
@@ -745,6 +761,35 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
           <div><span style={{ color: '#a0aec0' }}>附言：</span><code style={{ fontSize: 12 }}>{data.remit_memo || '—'}</code></div>
           <div><span style={{ color: '#a0aec0' }}>建立者：</span>{data.created_by_type === 'vendor' ? '廠商自助' : '系統人員'}</div>
         </div>
+
+
+        {data.source_system === 'market' && (
+          <div style={{ padding: 12, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#1e40af', marginBottom: 6 }}>
+              🔗 來自市場管理系統（外部工務師請款）
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
+              <div><span style={{ color: '#a0aec0' }}>工務師：</span><b>{data.engineer_name || '—'}</b></div>
+              <div><span style={{ color: '#a0aec0' }}>market 單號：</span><code style={{ fontSize: 11 }}>{data.market_payment_request_id}</code></div>
+              {Array.isArray(data.ticket_numbers) && data.ticket_numbers.length > 0 && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ color: '#a0aec0' }}>修繕單號（{data.ticket_numbers.length}）：</span>
+                  <code style={{ fontSize: 11 }}>{data.ticket_numbers.join('、')}</code>
+                </div>
+              )}
+              {data.bank_snapshot && (
+                <div style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+                  <span style={{ color: '#a0aec0' }}>market 端記錄的收款帳號：</span>
+                  <div style={{ marginTop: 4, padding: 8, background: '#fff', borderRadius: 4, fontSize: 12 }}>
+                    <b>{data.bank_snapshot.account_holder_name}</b> · {data.bank_snapshot.bank_name}
+                    {data.bank_snapshot.bank_code ? `（${data.bank_snapshot.bank_code}${data.bank_snapshot.branch_code ? '-' + data.bank_snapshot.branch_code : ''}）` : ''}
+                    <div><code style={{ fontFamily: 'monospace' }}>{data.bank_snapshot.account_number}</code></div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {data.description && (
           <div style={{ padding: 12, background: '#fff', border: '1px solid #e0d5c8', borderRadius: 6, fontSize: 13, whiteSpace: 'pre-wrap' }}>
