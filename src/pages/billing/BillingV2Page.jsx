@@ -524,7 +524,7 @@ const REQ_STATUS_COLOR = {
   rejected:  ['#fff0f0', '#c53030',  '#feb2b2'],
 };
 
-function VendorPaymentReviewPanel({ sources }) {
+function VendorPaymentReviewPanel({ sources, autoOpenPrId, onAutoOpenConsumed }) {
   const [list, setList]       = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter]   = useState({ status: 'submitted', source_id: '', period: '', keyword: '' });
@@ -545,6 +545,20 @@ function VendorPaymentReviewPanel({ sources }) {
   }, [filter]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 深連結：list 載完之後，若 URL 帶 pr_id 就自動開對應的 modal
+  useEffect(() => {
+    if (!autoOpenPrId) return;
+    if (!list || list.length === 0) return;
+    const target = list.find(r =>
+      (autoOpenPrId.market_pr_id   && r.source_system === 'market'   && r.market_payment_request_id === autoOpenPrId.market_pr_id) ||
+      (autoOpenPrId.chi_lens_pr_id && r.source_system === 'chi_lens' && r.market_payment_request_id === autoOpenPrId.chi_lens_pr_id)
+    );
+    if (target) {
+      setDetail(target);
+      onAutoOpenConsumed && onAutoOpenConsumed();
+    }
+  }, [list, autoOpenPrId, onAutoOpenConsumed]);
 
   const vendorSources = sources.filter(s => s.source_type === 'vendor');
 
@@ -2586,7 +2600,20 @@ function SourcePanel({ sources, onRefresh }) {
 // ── 主頁面 ────────────────────────────────────────────────────
 export default function BillingV2Page() {
   const { user } = useAuth();
-  const [tab, setTab] = useState('bills');  // 'bills' | 'sources'
+  // ── 深連結支援：?market_pr_id=<uuid> 或 ?chi_lens_pr_id=<uuid> 會自動切到「廠商請款審核」tab
+  //    並把該 id 傳給 panel 自動開 modal
+  const initialAutoOpen = (() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      return {
+        market_pr_id:   q.get('market_pr_id')   || null,
+        chi_lens_pr_id: q.get('chi_lens_pr_id') || null,
+      };
+    } catch { return { market_pr_id: null, chi_lens_pr_id: null }; }
+  })();
+  const hasAutoOpen = !!(initialAutoOpen.market_pr_id || initialAutoOpen.chi_lens_pr_id);
+  const [tab, setTab] = useState(hasAutoOpen ? 'vendor_payment' : 'bills');
+  const [autoOpenPrId, setAutoOpenPrId] = useState(initialAutoOpen);
   const [sources, setSources]       = useState([]);
   const [departments, setDepartments] = useState([]);
   const [bills, setBills]           = useState([]);
@@ -2834,7 +2861,11 @@ export default function BillingV2Page() {
 
       {/* 廠商請款審核 */}
       {tab === 'vendor_payment' && (
-        <VendorPaymentReviewPanel sources={sources} />
+        <VendorPaymentReviewPanel
+          sources={sources}
+          autoOpenPrId={autoOpenPrId}
+          onAutoOpenConsumed={() => setAutoOpenPrId({ market_pr_id: null, chi_lens_pr_id: null })}
+        />
       )}
 
       {/* 匯款批次 */}

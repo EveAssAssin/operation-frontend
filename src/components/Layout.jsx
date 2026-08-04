@@ -1,9 +1,10 @@
 // components/Layout.jsx
 // 左側 Sidebar — 支援單層 + 可展開子項目
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { vendorPaymentApi } from '../services/api';
 
 // ── 導覽項目定義 ─────────────────────────────────────────────
 // 有 children 的項目可展開，自身不導頁
@@ -112,6 +113,29 @@ export default function Layout({ children }) {
     .map(it => it.key);
   const [expanded, setExpanded] = useState(new Set(initiallyExpanded));
 
+  // ─── 外部請款未審核紅點（每 60 秒 poll）─────────────
+  const [pendingExtCount, setPendingExtCount] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const fetchCount = async () => {
+      try {
+        const r = await vendorPaymentApi.pendingCount('external');
+        if (!cancelled && r?.success) setPendingExtCount(Number(r.data?.count) || 0);
+      } catch (_) { /* 忽略：可能無權限 */ }
+    };
+    fetchCount();
+    const iv = setInterval(fetchCount, 60_000);
+    // 若使用者切到 /billing-v2，立刻刷一次（進頁處理完 badge 會歸零）
+    const onFocus = () => fetchCount();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [user]);
+
   const toggleGroup = (key) => {
     setExpanded(prev => {
       const next = new Set(prev);
@@ -203,7 +227,14 @@ export default function Layout({ children }) {
                   })}
                 >
                   <span style={styles.navIcon}>{item.icon}</span>
-                  <span>{item.label}</span>
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  {item.path === '/billing-v2' && pendingExtCount > 0 && (
+                    <span style={{
+                      background: '#e53e3e', color: '#fff', borderRadius: 10,
+                      minWidth: 20, height: 18, padding: '0 6px', fontSize: 11, fontWeight: 700,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    }}>{pendingExtCount}</span>
+                  )}
                 </NavLink>
               );
             })}

@@ -694,6 +694,7 @@ export const vendorPaymentApi = {
   deleteBankAccount:    (id)                  => api.delete(`/vendor-payment/bank-accounts/${id}`),
   // 請款單
   listRequests:         (params = {})         => api.get('/vendor-payment/requests', { params }),
+  pendingCount:         (source_system = 'external') => api.get('/vendor-payment/pending-count', { params: { source_system } }),
   getRequest:           (id)                  => api.get(`/vendor-payment/requests/${id}`),
   createRequest:        (body)                => api.post('/vendor-payment/requests', body),
   updateRequest:        (id, body)            => api.patch(`/vendor-payment/requests/${id}`, body),
