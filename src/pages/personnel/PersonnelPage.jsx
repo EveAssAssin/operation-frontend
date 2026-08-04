@@ -7,9 +7,11 @@ import { useAuth } from '../../contexts/AuthContext';
 
 // ── 角色定義 ────────────────────────────────────────────────
 const ROLES = [
-  { value: 'super_admin',     label: '超級管理員', bg: '#fff5f5', color: '#c53030' },
-  { value: 'operation_lead',  label: '營運部主管', bg: '#faf5ee', color: '#8b6f4e' },
-  { value: 'operation_staff', label: '營運部部員', bg: '#f5f0ea', color: '#50422d' },
+  { value: 'super_admin',          label: '超級管理員', bg: '#fff5f5', color: '#c53030' },
+  { value: 'operation_lead',       label: '營運部主管', bg: '#faf5ee', color: '#8b6f4e' },
+  { value: 'operation_accounting', label: '營運部會計', bg: '#f0fff4', color: '#276749' },
+  { value: 'operation_hr',         label: '營運部人事', bg: '#ebf8ff', color: '#2b6cb0' },
+  { value: 'operation_staff',      label: '營運部部員', bg: '#f5f0ea', color: '#50422d' },
 ];
 
 const ROLE_MAP = Object.fromEntries(ROLES.map(r => [r.value, r]));
@@ -95,9 +97,11 @@ function RoleModal({ target, onClose, onSave, saving, allowedRoles }) {
 }
 
 const ROLE_DESCS = {
-  super_admin:     '可管理所有功能與用戶授權',
-  operation_lead:  '可查看帳單、人員清單',
-  operation_staff: '基本系統存取',
+  super_admin:          '可管理所有功能與用戶授權',
+  operation_lead:       '可查看帳單、人員清單',
+  operation_accounting: '會計專屬：可管理支票、開帳',
+  operation_hr:         '人事專屬：可管理招募、履歷',
+  operation_staff:      '基本系統存取',
 };
 
 // ── 推播群組：成員選擇 Modal ─────────────────────────────────
@@ -494,17 +498,20 @@ export default function PersonnelPage() {
   }
 
   // 當前用戶可管理的角色清單
+  //   super_admin：全部
+  //   operation_lead：可授予基層三種（staff / accounting / hr）
   const allowedRoles = useMemo(() => {
     if (isSuperAdmin) return ROLES;
-    return ROLES.filter(r => r.value === 'operation_staff');
+    return ROLES.filter(r => ['operation_staff','operation_accounting','operation_hr'].includes(r.value));
   }, [isSuperAdmin]);
 
-  // 判斷某員工是否可被當前用戶操作（主管只能操作未授權者或 operation_staff）
+  // 判斷某員工是否可被當前用戶操作
   function canEditEmp(emp) {
     if (!canEdit) return false;
     if (isSuperAdmin) return true;
-    // operation_lead：只能操作未授權的人，或已是 operation_staff 的人
-    return !emp.has_access || emp.role === 'operation_staff';
+    // operation_lead：只能操作未授權者、或已是基層三種角色（staff/accounting/hr）
+    return !emp.has_access
+        || ['operation_staff','operation_accounting','operation_hr'].includes(emp.role);
   }
 
   // ── 授權 / 修改角色 ─────────────────────────────────────

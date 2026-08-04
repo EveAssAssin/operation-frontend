@@ -29,7 +29,7 @@ const STATUS_COLOR = {
 };
 
 // ── 角色權限 ─────────────────────────────────────────────────
-const canManage = (role) => ['operation_lead','super_admin'].includes(role);
+const canManage = (role) => ['operation_lead','operation_accounting','super_admin'].includes(role);
 
 // ── 金額格式 ─────────────────────────────────────────────────
 const fmtAmt = (n) =>
