@@ -360,6 +360,7 @@ export const recurringExpensesApi = {
   getTodayDue:    ()      => api.get('/recurring-expenses/payments/today'),
   markPaid:       (id, paid_note) => api.post(`/recurring-expenses/payments/${id}/pay`,   { paid_note }),
   unmarkPaid:     (id)            => api.post(`/recurring-expenses/payments/${id}/unpay`),
+  recomputeDueDates: () => api.post('/recurring-expenses/recompute-due-dates'),
   // 元大批次匯款 Excel
   exportEltonBatch: (yearMonth, paymentIds = []) =>
     api.post(

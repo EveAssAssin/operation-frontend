@@ -197,6 +197,21 @@ function PaymentsTab() {
   }
 
   const [exporting, setExporting] = useState(false);
+  const [recomputing, setRecomputing] = useState(false);
+  async function handleRecompute() {
+    if (!window.confirm('確定要重算所有 pending 的應付日？\n（已付款的紀錄不會被動到）')) return;
+    setRecomputing(true);
+    try {
+      const r = await recurringExpensesApi.recomputeDueDates();
+      const d = r?.data || r || {};
+      alert(`重算完成：掃描 ${d.scanned || 0} 筆，更新 ${d.updated || 0} 筆`);
+      load();
+    } catch (e) {
+      alert(`重算失敗：${e?.message || e}`);
+    } finally {
+      setRecomputing(false);
+    }
+  }
   async function exportElton() {
     if (!month) return alert('請先選擇月份');
     const ids = [...selected];
@@ -245,6 +260,14 @@ function PaymentsTab() {
         />
         <button style={S.btnSecondary} onClick={load} disabled={loading}>
           {loading ? '載入中...' : '重新載入'}
+        </button>
+        <button
+          style={S.btnSecondary}
+          onClick={handleRecompute}
+          disabled={recomputing || loading}
+          title="重算所有 pending 應付日 = 原始日的前一個工作天。已付款的不動。"
+        >
+          {recomputing ? '重算中...' : '🔄 重算應付日'}
         </button>
         <div style={{ flex: 1 }} />
         <button
