@@ -2076,6 +2076,9 @@ function InfoRow({ label, value }) {
 // ── 帳單明細列表（API 自動同步的帳單會帶 items）─────────────
 function BillItemsTable({ items }) {
   const [showAll, setShowAll] = useState(false);
+  // 判斷是否任一 item 有這些欄位，決定要不要顯示對應欄位（避免對舊資料多出空欄）
+  const anyStore     = items.some(i => i.store_name || i.store_erpid);
+  const anyDetailUrl = items.some(i => i.detail_url);
   const completionCount = items.filter(i => i.type !== 'return').length;
   const returnCount     = items.filter(i => i.type === 'return').length;
   const sumCompletion   = items.filter(i => i.type !== 'return').reduce((s, i) => s + (Number(i.total) || 0), 0);
@@ -2110,6 +2113,7 @@ function BillItemsTable({ items }) {
               <th style={th}>日期</th>
               <th style={th}>客戶單號</th>
               <th style={th}>送修單號</th>
+              {anyStore && <th style={th}>門市</th>}
               <th style={th}>規格</th>
               <th style={{ ...th, textAlign: 'right' }}>數量</th>
               <th style={{ ...th, textAlign: 'right' }}>單價</th>
@@ -2143,8 +2147,21 @@ function BillItemsTable({ items }) {
                   </td>
                   <td style={td}>{it.item_date || '—'}</td>
                   <td style={td}>{it.customer_order || '—'}</td>
-                  <td style={{ ...td, fontFamily: 'monospace', fontSize: 11 }}>{it.doc_number || '—'}</td>
-                  <td style={{ ...td, fontSize: 11, maxWidth: 240, wordBreak: 'break-word' }}>{it.product_spec || '—'}</td>
+                  <td style={{ ...td, fontFamily: 'monospace', fontSize: 11 }}>
+                    {it.detail_url
+                      ? <a href={it.detail_url} target="_blank" rel="noopener noreferrer" style={{ color: '#1e40af', textDecoration: 'underline' }}>{it.doc_number || '—'} ↗</a>
+                      : (it.doc_number || '—')}
+                    {it.engineer && <div style={{ fontSize: 10, color: '#a0aec0', marginTop: 2 }}>工務師：{it.engineer}</div>}
+                  </td>
+                  {anyStore && (
+                    <td style={td}>
+                      {it.store_name || '—'}
+                      {it.store_erpid && <span style={{ color: '#a0aec0', marginLeft: 4, fontSize: 10 }}>({it.store_erpid})</span>}
+                    </td>
+                  )}
+                  <td style={{ ...td, fontSize: 11, maxWidth: 240, wordBreak: 'break-word' }}>
+                    {it.product_spec || it.description || it.notes || '—'}
+                  </td>
                   <td style={{ ...td, textAlign: 'right' }}>{it.quantity ?? '—'}</td>
                   <td style={{ ...td, textAlign: 'right' }}>{fmtMoney(it.unit_price)}</td>
                   <td style={{ ...td, textAlign: 'right', color: isReturn ? '#c53030' : '#2d3748', fontWeight: 600 }}>
@@ -2155,7 +2172,7 @@ function BillItemsTable({ items }) {
             })}
             {!showAll && items.length > 20 && (
               <tr>
-                <td colSpan={8} style={{ ...td, textAlign: 'center', color: '#718096', fontSize: 11 }}>
+                <td colSpan={anyStore ? 10 : 9} style={{ ...td, textAlign: 'center', color: '#718096', fontSize: 11 }}>
                   ... 還有 {items.length - 20} 筆，點上方「展開全部」查看
                 </td>
               </tr>
