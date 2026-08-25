@@ -137,6 +137,37 @@ export default function OperationalExpensesPanel() {
           {Object.entries(storeMap).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
         </select>
         <div style={{ flex: 1 }} />
+        {/* 統計金額卡片：依當前 filter 撈的資料總和 */}
+        {(() => {
+          const totalCount = list.length;
+          const totalAmt = list.reduce((s, x) => s + Number(x.total_amount || 0), 0);
+          const allocAmt = list.reduce((s, x) => s + (x.allocations || []).reduce((ss, a) => ss + Number(a.amount || 0), 0), 0);
+          return (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '6px 14px', background: '#f0f9ff', border: '1px solid #90cdf4',
+              borderRadius: 8,
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                <span style={{ fontSize: 10, color: '#4a5568', fontWeight: 600 }}>共</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: '#2c5282' }}>{totalCount} 筆</span>
+              </div>
+              <div style={{ height: 28, borderLeft: '1px solid #90cdf4' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                <span style={{ fontSize: 10, color: '#4a5568', fontWeight: 600 }}>總金額</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: '#2c5282' }}>${fmt(totalAmt)}</span>
+              </div>
+              <div style={{ height: 28, borderLeft: '1px solid #90cdf4' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                <span style={{ fontSize: 10, color: '#4a5568', fontWeight: 600 }}>分帳合計</span>
+                <span style={{
+                  fontSize: 15, fontWeight: 700,
+                  color: Math.abs(totalAmt - allocAmt) < 0.01 ? '#276749' : '#c53030'
+                }}>${fmt(allocAmt)}</span>
+              </div>
+            </div>
+          );
+        })()}
         <button style={S.btnPrimary} onClick={() => setEditing({})}>＋ 新增</button>
       </div>
 
