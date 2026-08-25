@@ -542,6 +542,32 @@ function BatchesPanel({ user }) {
   const [showMerge, setShowMerge] = useState(false);
   const [showSubjects, setShowSubjects] = useState(false);
   const [showDone, setShowDone]     = useState(false); // 已完成批次是否展開
+  const [exportingUnpaid, setExportingUnpaid] = useState(false);
+
+  async function handleExportUnpaid() {
+    if (exportingUnpaid) return;
+    setExportingUnpaid(true);
+    try {
+      const res = await checksApi.exportUnpaid();
+      const blob = new Blob([res.data || res], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const today = new Date().toLocaleDateString('sv-SE');
+      a.href = url;
+      a.download = `未出款支票_${today}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      // Blob 錯誤時要把 blob 讀成 text 才拿得到 message
+      let msg = e?.response?.data?.message || e.message || '匯出失敗';
+      if (e?.response?.data instanceof Blob) {
+        try { msg = JSON.parse(await e.response.data.text()).message || msg; } catch { /* ignore */ }
+      }
+      alert('匯出失敗：' + msg);
+    } finally { setExportingUnpaid(false); }
+  }
 
   const [subjectsTree, setSubjectsTree] = useState([]); // 樹狀母分類
 
@@ -803,6 +829,10 @@ function BatchesPanel({ user }) {
           <option value="">全部出款人</option>
           {DRAWER_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
         </select>
+        {/* 未出款匯出（全角色都能匯出，方便會計對帳） */}
+        <button onClick={handleExportUnpaid} disabled={exportingUnpaid} style={{ ...btnStyle, background: '#2b6cb0' }} title="匯出所有未出款支票，依黃信儒 / 黃志雄 分工作表">
+          {exportingUnpaid ? '匯出中...' : '📥 未出款匯出'}
+        </button>
         <div style={{ flex: 1 }} />
         {canManage(user?.role) && (
           <>

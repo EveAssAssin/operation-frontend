@@ -240,6 +240,8 @@ export const checksApi = {
       { checkIds },
       { responseType: 'blob' }
     ),
+  exportUnpaid: () =>
+    api.post('/checks/export-unpaid', null, { responseType: 'blob' }),
   // 台灣假日
   refreshHolidays: (year)          => api.post('/checks/holidays/refresh', null, { params: { year } }),
   // 通知名單
