@@ -516,6 +516,14 @@ export default function PersonnelPage() {
 
   // ── 授權 / 修改角色 ─────────────────────────────────────
   async function handleSave(target, role) {
+    if (!target?.app_number) {
+      setMessage({
+        type: 'error',
+        text: `❌ 「${target?.name}」缺少 app_number（LeftHand 員工編號），無法授權。請先請對方在 LeftHand 建立員工資料，或手動到 Supabase 幫這位員工填 employees.app_number。`
+      });
+      setModalTarget(null);
+      return;
+    }
     setSaving(true);
     try {
       await systemApi.grantAccess(target.app_number, role);
