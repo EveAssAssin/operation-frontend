@@ -302,6 +302,14 @@ export const recruitmentApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  uploadVideo:       (id, file)     => {
+    const form = new FormData();
+    form.append('video', file);
+    return api.post(`/recruitment/interviews/${id}/video`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 600000, // 10 分鐘（大檔上傳）
+    });
+  },
   sendSms:           (id, phone, onboarding_url) => api.post(`/recruitment/interviews/${id}/sms`, { phone, onboarding_url }),
 };
 

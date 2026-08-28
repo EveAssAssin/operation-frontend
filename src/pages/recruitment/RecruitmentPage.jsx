@@ -1222,6 +1222,7 @@ function InterviewsTab() {
   const [smsUrl, setSmsUrl]         = useState({});   // { [interviewId]: onboarding_url }
   const [smsSending, setSmsSending] = useState(null); // interviewId currently sending
   const audioRef = useRef(null);
+  const videoRef = useRef(null);
 
   // 撈 interview：行事曆模式永遠帶 month；清單模式看 listMonthMode
   const load = useCallback(async () => {
@@ -1302,6 +1303,22 @@ function InterviewsTab() {
     try {
       await recruitmentApi.uploadAudio(interviewId, file);
       setMsg({ type:'success', text:'錄音檔已上傳' });
+      load();
+    } catch (e) { setMsg({ type:'error', text: e.message }); }
+    finally { setUploading(false); }
+  }
+
+  async function handleVideo(interviewId, file) {
+    if (!file) return;
+    // 檢查大小（500MB）
+    if (file.size > 500 * 1024 * 1024) {
+      setMsg({ type:'error', text:`影片檔案過大（${(file.size / 1024 / 1024).toFixed(1)} MB），上限 500 MB` });
+      return;
+    }
+    setUploading(true);
+    try {
+      await recruitmentApi.uploadVideo(interviewId, file);
+      setMsg({ type:'success', text:'影片已上傳' });
       load();
     } catch (e) { setMsg({ type:'error', text: e.message }); }
     finally { setUploading(false); }
@@ -1614,7 +1631,7 @@ function InterviewsTab() {
                 <th style={S.th}>面試日期</th>
                 <th style={S.th}>結果</th>
                 <th style={S.th}>星等</th>
-                <th style={S.th}>錄音</th>
+                <th style={S.th}>錄音 / 影片</th>
                 <th style={S.th}>教訓建檔</th>
                 <th style={S.th}>操作</th>
               </tr>
@@ -1639,7 +1656,11 @@ function InterviewsTab() {
                           ? <StarRating value={iv.tag_stars} readOnly size={14} title={iv.tag_notes || ''} />
                           : <span style={{ color:'#cbd5e0', fontSize:12 }}>—</span>}
                       </td>
-                      <td style={S.td}>{iv.audio_url ? <a href={iv.audio_url} target="_blank" rel="noreferrer" style={{ color:'#2b6cb0', fontSize:12 }}>🎙 播放</a> : <span style={{ color:'#a0aec0', fontSize:12 }}>—</span>}</td>
+                      <td style={S.td}>
+                        {iv.audio_url && <a href={iv.audio_url} target="_blank" rel="noreferrer" style={{ color:'#2b6cb0', fontSize:12, marginRight:8 }}>🎙 音</a>}
+                        {iv.video_url && <a href={iv.video_url} target="_blank" rel="noreferrer" style={{ color:'#805ad5', fontSize:12 }}>🎬 影</a>}
+                        {!iv.audio_url && !iv.video_url && <span style={{ color:'#a0aec0', fontSize:12 }}>—</span>}
+                      </td>
                       <td style={S.td}>
                         {iv.result === 'pass'
                           ? iv.education_linked
@@ -1772,6 +1793,27 @@ function InterviewsTab() {
                               {iv.audio_url && (
                                 <div style={{ marginBottom:10 }}>
                                   <audio controls src={iv.audio_url} style={{ width:'100%', marginTop:4 }} />
+                                </div>
+                              )}
+
+                              {/* 影片上傳 */}
+                              <label style={S.label}>上傳影片檔（mp4，上限 500 MB）</label>
+                              <input
+                                type="file" accept="video/mp4,video/*"
+                                ref={videoRef}
+                                style={{ display:'none' }}
+                                onChange={e=>handleVideo(iv.id, e.target.files[0])}
+                              />
+                              <button
+                                style={{ ...S.btnS, marginBottom:10 }}
+                                onClick={()=>videoRef.current.click()}
+                                disabled={uploading}
+                              >
+                                {uploading ? '上傳中...' : '🎬 選擇影片檔'}
+                              </button>
+                              {iv.video_url && (
+                                <div style={{ marginBottom:10 }}>
+                                  <video controls src={iv.video_url} style={{ width:'100%', marginTop:4, borderRadius:6, background:'#000' }} />
                                 </div>
                               )}
 
