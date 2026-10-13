@@ -444,12 +444,15 @@ export default function BillingDeptSummaryPage() {
     }
   }
 
-  // 部門篩選：deptFilter='' → 全部；否則只留 billing_category 拆開後包含 deptFilter
+  // 部門篩選：deptFilter='' → 全部；否則只留「單一部門且剛好是這個」的門市
   // 後端有時會回「工程部、企劃部」合併字串，所以要拆開
   const splitDepts = (s) => String(s || '').split(/[、,]/).map(x => x.trim()).filter(Boolean);
   const deptOptions = Array.from(new Set(summary.flatMap(s => splitDepts(s.billing_category)))).sort();
   const filteredSummary = deptFilter
-    ? summary.filter(s => splitDepts(s.billing_category).includes(deptFilter))
+    ? summary.filter(s => {
+        const depts = splitDepts(s.billing_category);
+        return depts.length === 1 && depts[0] === deptFilter;
+      })
     : summary;
 
   const totals = filteredSummary.reduce((acc, s) => ({
