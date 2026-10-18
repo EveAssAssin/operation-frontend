@@ -961,9 +961,60 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
   );
 }
 
-// ── 請款明細：依門市彙總，點開看單筆明細 ──────────────────────
+// ── 請款明細：依門市彙總，點開看單筆明細（路奇多廠商時分廠商小計）──────
+const VENDOR_FALLBACK = { RK01: '天格', RK02: '康德' };
+const VENDOR_COLORS = {
+  RK01: { bg: '#e6f6ff', fg: '#2c5282', bd: '#bee3f8' },
+  RK02: { bg: '#fff5e6', fg: '#7b341e', bd: '#fbd38d' },
+};
+const vendorColor = (c) => VENDOR_COLORS[c] || { bg: '#edf2f7', fg: '#4a5568', bd: '#cbd5e0' };
+const vendorOf = (d) => String(d.vendor || d.raw?.vendor || '').trim();
+
+function VendorChip({ code, name, amount, count, size = 11 }) {
+  const c = vendorColor(code);
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 8px', borderRadius: 10,
+                   fontSize: size, fontWeight: 600, background: c.bg, color: c.fg, border: `1px solid ${c.bd}`, whiteSpace: 'nowrap' }}>
+      {name}
+      {amount !== undefined && <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(amount)}</span>}
+      {count !== undefined && <span style={{ fontWeight: 400, opacity: 0.8 }}>({count})</span>}
+    </span>
+  );
+}
+
 function TicketDetailsByStore({ details }) {
   const [open, setOpen] = useState({});   // key → bool
+  const [vendorNames, setVendorNames] = useState(VENDOR_FALLBACK);
+
+  const hasVendor = useMemo(() => (details || []).some(d => vendorOf(d)), [details]);
+
+  useEffect(() => {
+    if (!hasVendor) return;
+    chiVendorsApi.list({ include_inactive: true })
+      .then(r => {
+        if (!r?.success || !Array.isArray(r.data)) return;
+        const m = { ...VENDOR_FALLBACK };
+        r.data.forEach(v => { m[v.code] = v.name; });
+        setVendorNames(m);
+      })
+      .catch(() => {});
+  }, [hasVendor]);
+
+  const vName = (c) => (c ? (vendorNames[c] || c) : '未標廠商');
+
+  // 依廠商加總（排序：代號）
+  const sumByVendor = (items) => {
+    const m = new Map();
+    for (const d of items) {
+      const v = vendorOf(d);
+      if (!m.has(v)) m.set(v, { code: v, total: 0, count: 0, items: [] });
+      const g = m.get(v);
+      g.total += Number(d.amount) || 0;
+      g.count += 1;
+      g.items.push(d);
+    }
+    return [...m.values()].sort((a, b) => (a.code || 'ZZZ').localeCompare(b.code || 'ZZZ'));
+  };
 
   const groups = useMemo(() => {
     const map = new Map();
@@ -975,8 +1026,14 @@ function TicketDetailsByStore({ details }) {
       g.count += 1;
       g.items.push(d);
     }
-    return [...map.values()].sort((a, b) => b.total - a.total);
+    return [...map.values()]
+      .map(g => ({ ...g, vendors: sumByVendor(g.items) }))
+      .sort((a, b) => b.total - a.total);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [details]);
+
+  const overallVendors = useMemo(() => sumByVendor(details || []), [details]);
+  const multiVendor = hasVendor && overallVendors.length > 1;
 
   const grand = groups.reduce((s, g) => s + g.total, 0);
   const allOpen = groups.length > 0 && groups.every(g => open[g.key]);
@@ -986,8 +1043,46 @@ function TicketDetailsByStore({ details }) {
     setOpen(next);
   };
 
+  const ItemRow = ({ d }) => {
+    const detailUrl = d.detail_url || d.raw?.detail_url || null;
+    const desc      = d.description || d.raw?.description || d.note || d.raw?.note || null;
+    const date      = d.item_date || d.raw?.item_date || null;
+    const isReturn  = d.type === 'return' || Number(d.amount) < 0;
+    return (
+      <tr style={{ borderTop: '1px dashed #e8dcc8', verticalAlign: 'top' }}>
+        <td style={{ padding: 6, fontFamily: 'monospace' }}>
+          {isReturn && <span style={{ fontFamily: 'inherit', fontSize: 10, fontWeight: 700, color: '#9b2c2c', background: '#fed7d7', padding: '0 5px', borderRadius: 6, marginRight: 4 }}>退回</span>}
+          {detailUrl
+            ? <a href={detailUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1e40af', textDecoration: 'underline' }}>{d.number || '—'} ↗</a>
+            : (d.number || '—')}
+          {desc && <div style={{ fontSize: 11, color: '#6b5640', marginTop: 3, whiteSpace: 'pre-wrap' }}>{desc}</div>}
+          {date && <div style={{ fontSize: 10, color: '#a0aec0', marginTop: 2 }}>{date}</div>}
+        </td>
+        <td style={{ padding: 6, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, width: 120, color: isReturn ? '#c53030' : undefined }}>
+          {fmtMoney(d.amount)}
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <>
+      {/* 廠商總額 */}
+      {multiVendor && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'stretch', marginBottom: 10 }}>
+          {overallVendors.map(v => {
+            const c = vendorColor(v.code);
+            return (
+              <div key={v.code || 'none'} style={{ flex: '1 1 160px', padding: '8px 12px', borderRadius: 8, background: c.bg, border: `1px solid ${c.bd}` }}>
+                <div style={{ fontSize: 12, color: c.fg, fontWeight: 600 }}>{vName(v.code)}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: c.fg, fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(v.total)}</div>
+                <div style={{ fontSize: 11, color: c.fg, opacity: 0.8 }}>{v.count} 筆</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#6b5640', marginBottom: 6 }}>
         <span>共 {groups.length} 間門市，點門市看明細</span>
         <button onClick={toggleAll}
@@ -1014,6 +1109,11 @@ function TicketDetailsByStore({ details }) {
                     <span style={{ display: 'inline-block', width: 14, color: '#8b6f4e' }}>{isOpen ? '▾' : '▸'}</span>
                     {g.store_name}
                     {g.store_erpid && <span style={{ color: '#a0aec0', marginLeft: 4, fontWeight: 400 }}>({g.store_erpid})</span>}
+                    {multiVendor && (
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4, marginLeft: 14, fontWeight: 400 }}>
+                        {g.vendors.map(v => <VendorChip key={v.code || 'none'} code={v.code} name={vName(v.code)} amount={v.total} />)}
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: 6, textAlign: 'right', color: '#6b5640' }}>{g.count}</td>
                   <td style={{ padding: 6, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{fmtMoney(g.total)}</td>
@@ -1021,29 +1121,24 @@ function TicketDetailsByStore({ details }) {
                 {isOpen && (
                   <tr>
                     <td colSpan={3} style={{ padding: '0 0 8px 20px', background: '#fbf7f1' }}>
-                      <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-                        <tbody>
-                          {g.items.map((d, i) => {
-                            const detailUrl = d.detail_url || d.raw?.detail_url || null;
-                            const desc      = d.description || d.raw?.description || d.note || d.raw?.note || null;
-                            const date      = d.item_date || d.raw?.item_date || null;
-                            return (
-                              <tr key={i} style={{ borderTop: '1px dashed #e8dcc8', verticalAlign: 'top' }}>
-                                <td style={{ padding: 6, fontFamily: 'monospace' }}>
-                                  {detailUrl
-                                    ? <a href={detailUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1e40af', textDecoration: 'underline' }}>{d.number || '—'} ↗</a>
-                                    : (d.number || '—')}
-                                  {desc && <div style={{ fontSize: 11, color: '#6b5640', marginTop: 3, whiteSpace: 'pre-wrap' }}>{desc}</div>}
-                                  {date && <div style={{ fontSize: 10, color: '#a0aec0', marginTop: 2 }}>{date}</div>}
-                                </td>
-                                <td style={{ padding: 6, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, width: 120, color: Number(d.amount) < 0 ? '#c53030' : undefined }}>
-                                  {fmtMoney(d.amount)}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                      {(multiVendor ? g.vendors : [{ code: '', items: g.items }]).map(v => (
+                        <div key={v.code || 'all'} style={{ marginTop: 6 }}>
+                          {multiVendor && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 6px',
+                                          borderBottom: `2px solid ${vendorColor(v.code).bd}` }}>
+                              <VendorChip code={v.code} name={vName(v.code)} count={v.count} size={12} />
+                              <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: vendorColor(v.code).fg }}>
+                                小計 {fmtMoney(v.total)}
+                              </span>
+                            </div>
+                          )}
+                          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                            <tbody>
+                              {v.items.map((d, i) => <ItemRow key={i} d={d} />)}
+                            </tbody>
+                          </table>
+                        </div>
+                      ))}
                     </td>
                   </tr>
                 )}
@@ -1051,7 +1146,14 @@ function TicketDetailsByStore({ details }) {
             );
           })}
           <tr style={{ borderTop: '2px solid #e0d5c8', background: '#f5f0ea' }}>
-            <td style={{ padding: 6, fontWeight: 700 }}>合計</td>
+            <td style={{ padding: 6, fontWeight: 700 }}>
+              合計
+              {multiVendor && (
+                <span style={{ marginLeft: 8, display: 'inline-flex', gap: 4, fontWeight: 400 }}>
+                  {overallVendors.map(v => <VendorChip key={v.code || 'none'} code={v.code} name={vName(v.code)} amount={v.total} />)}
+                </span>
+              )}
+            </td>
             <td style={{ padding: 6, textAlign: 'right', color: '#6b5640' }}>{(details || []).length}</td>
             <td style={{ padding: 6, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{fmtMoney(grand)}</td>
           </tr>
