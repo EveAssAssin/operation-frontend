@@ -1,7 +1,7 @@
 // pages/billing/BillingV2Page.jsx
 // 開帳系統 v2：帳單管理（來源單位 / 會計科目 / 帳單建立與審核）
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { billingV2Api, personnelApi, billingApi, vendorPaymentApi, paymentBatchApi, chiVendorsApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import OperationalExpensesPanel from './OperationalExpensesPanel';
@@ -819,47 +819,7 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
                 </span>
               )}
             </div>
-            <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#f5f0ea', color: '#6b5640' }}>
-                  <th style={{ padding: 6, textAlign: 'left' }}>單號</th>
-                  <th style={{ padding: 6, textAlign: 'left' }}>門市</th>
-                  <th style={{ padding: 6, textAlign: 'right' }}>金額</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.ticket_details.map((d, i) => {
-                  const detailUrl = d.detail_url || d.raw?.detail_url || null;
-                  const desc      = d.description || d.raw?.description || d.note || d.raw?.note || null;
-                  return (
-                    <tr key={i} style={{ borderTop: '1px solid #efe6d6', verticalAlign: 'top' }}>
-                      <td style={{ padding: 6, fontFamily: 'monospace' }}>
-                        {detailUrl
-                          ? <a href={detailUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1e40af', textDecoration: 'underline' }}>{d.number || '—'} ↗</a>
-                          : (d.number || '—')}
-                        {desc && (
-                          <div style={{ fontSize: 11, color: '#6b5640', marginTop: 3, whiteSpace: 'pre-wrap', maxWidth: 300 }}>
-                            {desc}
-                          </div>
-                        )}
-                        {(d.item_date || d.raw?.item_date) && (
-                          <div style={{ fontSize: 10, color: '#a0aec0', marginTop: 2 }}>
-                            {d.item_date || d.raw?.item_date}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: 6 }}>
-                        {d.store_name || '—'}
-                        {d.store_erpid && <span style={{ color: '#a0aec0', marginLeft: 4 }}>({d.store_erpid})</span>}
-                      </td>
-                      <td style={{ padding: 6, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
-                        {fmtMoney(d.amount)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <TicketDetailsByStore details={data.ticket_details} />
           </div>
         )}
 
@@ -998,6 +958,106 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
         </div>
       </div>
     </Modal>
+  );
+}
+
+// ── 請款明細：依門市彙總，點開看單筆明細 ──────────────────────
+function TicketDetailsByStore({ details }) {
+  const [open, setOpen] = useState({});   // key → bool
+
+  const groups = useMemo(() => {
+    const map = new Map();
+    for (const d of details || []) {
+      const key = d.store_erpid || d.store_name || '(未指定門市)';
+      if (!map.has(key)) map.set(key, { key, store_erpid: d.store_erpid || '', store_name: d.store_name || '(未指定門市)', total: 0, count: 0, items: [] });
+      const g = map.get(key);
+      g.total += Number(d.amount) || 0;
+      g.count += 1;
+      g.items.push(d);
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total);
+  }, [details]);
+
+  const grand = groups.reduce((s, g) => s + g.total, 0);
+  const allOpen = groups.length > 0 && groups.every(g => open[g.key]);
+  const toggleAll = () => {
+    const next = {};
+    if (!allOpen) groups.forEach(g => { next[g.key] = true; });
+    setOpen(next);
+  };
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#6b5640', marginBottom: 6 }}>
+        <span>共 {groups.length} 間門市，點門市看明細</span>
+        <button onClick={toggleAll}
+          style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #e0d5c8', background: '#fff', borderRadius: 4, cursor: 'pointer', color: '#6b5640' }}>
+          {allOpen ? '全部收合' : '全部展開'}
+        </button>
+      </div>
+      <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ background: '#f5f0ea', color: '#6b5640' }}>
+            <th style={{ padding: 6, textAlign: 'left' }}>門市</th>
+            <th style={{ padding: 6, textAlign: 'right', width: 70 }}>筆數</th>
+            <th style={{ padding: 6, textAlign: 'right', width: 120 }}>金額</th>
+          </tr>
+        </thead>
+        <tbody>
+          {groups.map(g => {
+            const isOpen = !!open[g.key];
+            return (
+              <React.Fragment key={g.key}>
+                <tr onClick={() => setOpen(o => ({ ...o, [g.key]: !o[g.key] }))}
+                  style={{ borderTop: '1px solid #efe6d6', cursor: 'pointer', background: isOpen ? '#fbf7f1' : '#fff' }}>
+                  <td style={{ padding: 6, fontWeight: 600 }}>
+                    <span style={{ display: 'inline-block', width: 14, color: '#8b6f4e' }}>{isOpen ? '▾' : '▸'}</span>
+                    {g.store_name}
+                    {g.store_erpid && <span style={{ color: '#a0aec0', marginLeft: 4, fontWeight: 400 }}>({g.store_erpid})</span>}
+                  </td>
+                  <td style={{ padding: 6, textAlign: 'right', color: '#6b5640' }}>{g.count}</td>
+                  <td style={{ padding: 6, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{fmtMoney(g.total)}</td>
+                </tr>
+                {isOpen && (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '0 0 8px 20px', background: '#fbf7f1' }}>
+                      <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                        <tbody>
+                          {g.items.map((d, i) => {
+                            const detailUrl = d.detail_url || d.raw?.detail_url || null;
+                            const desc      = d.description || d.raw?.description || d.note || d.raw?.note || null;
+                            const date      = d.item_date || d.raw?.item_date || null;
+                            return (
+                              <tr key={i} style={{ borderTop: '1px dashed #e8dcc8', verticalAlign: 'top' }}>
+                                <td style={{ padding: 6, fontFamily: 'monospace' }}>
+                                  {detailUrl
+                                    ? <a href={detailUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1e40af', textDecoration: 'underline' }}>{d.number || '—'} ↗</a>
+                                    : (d.number || '—')}
+                                  {desc && <div style={{ fontSize: 11, color: '#6b5640', marginTop: 3, whiteSpace: 'pre-wrap' }}>{desc}</div>}
+                                  {date && <div style={{ fontSize: 10, color: '#a0aec0', marginTop: 2 }}>{date}</div>}
+                                </td>
+                                <td style={{ padding: 6, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, width: 120, color: Number(d.amount) < 0 ? '#c53030' : undefined }}>
+                                  {fmtMoney(d.amount)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            );
+          })}
+          <tr style={{ borderTop: '2px solid #e0d5c8', background: '#f5f0ea' }}>
+            <td style={{ padding: 6, fontWeight: 700 }}>合計</td>
+            <td style={{ padding: 6, textAlign: 'right', color: '#6b5640' }}>{(details || []).length}</td>
+            <td style={{ padding: 6, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{fmtMoney(grand)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </>
   );
 }
 
