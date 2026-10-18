@@ -636,7 +636,7 @@ export const scoreApplicationPublicApi = {
 // 分數兌換模組（員工自助公開入口 — 不需登入，用 app_number 驗證）
 export const pointRedemptionPublicApi = {
   verify:        (app_number)          => api.get('/point-redemption/public/verify', { params: { app_number } }),
-  catalog:       ()                    => api.get('/point-redemption/public/catalog'),
+  catalog:       (app_number)          => api.get('/point-redemption/public/catalog', { params: app_number ? { app_number } : {} }),
   balance:       (app_number)          => api.get('/point-redemption/public/balance', { params: { app_number } }),
   scoreDetail:   (app_number)          => api.get('/point-redemption/public/score-detail', { params: { app_number } }),
   redeem:        (app_number, item_id, quantity = 1) => api.post('/point-redemption/public/redeem', { app_number, item_id, quantity }),

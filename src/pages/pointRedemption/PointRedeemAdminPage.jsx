@@ -168,6 +168,7 @@ function ItemModal({ item, onClose, onSaved }) {
     sort_order:  item.sort_order  ?? 0,
     is_active:   item.is_active ?? true,
     min_balance_after: item.min_balance_after ?? (item.item_type === 'cash' ? 200 : 0),
+    min_balance_after_office: item.min_balance_after_office ?? (isNew && item.item_type === 'cash' ? 100 : ''),
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState('');
@@ -189,6 +190,9 @@ function ItemModal({ item, onClose, onSaved }) {
         sort_order:  Number(form.sort_order) || 0,
         is_active:   !!form.is_active,
         min_balance_after: Math.max(0, Math.trunc(Number(form.min_balance_after) || 0)),
+        min_balance_after_office: form.min_balance_after_office === '' || form.min_balance_after_office === null
+          ? null
+          : Math.max(0, Math.trunc(Number(form.min_balance_after_office) || 0)),
       };
       if (isNew) await pointRedemptionApi.createItem(payload);
       else       await pointRedemptionApi.updateItem(item.id, payload);
@@ -236,10 +240,19 @@ function ItemModal({ item, onClose, onSaved }) {
           )}
         </div>
       )}
-      <Field label={`兌換後最低餘額（≥ 此值才可兌換${form.item_type === 'cash' ? '；現金型建議 200' : '；填 0 = 不限制'}）`}>
-        <input type="number" value={form.min_balance_after} onChange={e => set('min_balance_after', e.target.value)}
-          min={0} placeholder="0" style={input} />
-      </Field>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Field label={`門市人員：兌換後最低餘額${form.item_type === 'cash' ? '（建議 200）' : '（0 = 不限制）'}`} style={{ flex: 1 }}>
+          <input type="number" value={form.min_balance_after} onChange={e => set('min_balance_after', e.target.value)}
+            min={0} placeholder="0" style={input} />
+        </Field>
+        <Field label={`辦公室人員：兌換後最低餘額${form.item_type === 'cash' ? '（建議 100）' : ''}`} style={{ flex: 1 }}>
+          <input type="number" value={form.min_balance_after_office} onChange={e => set('min_balance_after_office', e.target.value)}
+            min={0} placeholder="留空 = 同門市" style={input} />
+        </Field>
+      </div>
+      <div style={{ fontSize: 11, color: C.textMid, marginTop: -6, marginBottom: 10 }}>
+        辦公室人員 = 所屬部門名稱不含「店」者（含商城門市、各部室、加工部）。
+      </div>
       <Field label="圖片網址（選填）">
         <input value={form.image_url} onChange={e => set('image_url', e.target.value)}
           placeholder="https://..." style={input} />

@@ -63,7 +63,7 @@ export default function PointRedeemPage() {
   const loadAll = useCallback(async (app) => {
     const [balRes, catRes, hisRes, typeRes, myAppRes] = await Promise.all([
       pointRedemptionPublicApi.balance(app),
-      pointRedemptionPublicApi.catalog(),
+      pointRedemptionPublicApi.catalog(app),   // 帶身分 → 後端依辦公室/門市換算門檻
       pointRedemptionPublicApi.myRedemptions(app),
       scoreApplicationPublicApi.listTypes().catch(() => ({ data: [] })),
       scoreApplicationPublicApi.myList(app).catch(() => ({ data: [] })),
