@@ -14,6 +14,7 @@ import BillingDeptSummaryPage  from './pages/billing/BillingDeptSummaryPage';
 import BillingV2Page           from './pages/billing/BillingV2Page';
 import BillingReportPage       from './pages/billing/BillingReportPage';
 import BillingAdPage           from './pages/billing/BillingAdPage';
+import MonthlyReportPage       from './pages/monthlyReport/MonthlyReportPage';
 import ChecksPage        from './pages/checks/ChecksPage';
 import RecruitmentPage   from './pages/recruitment/RecruitmentPage';
 import SalesEventsPage   from './pages/salesEvents/SalesEventsPage';
@@ -98,6 +99,7 @@ function AppRoutes() {
       <Route path="/billing-ad"     element={<PrivateRoute><BillingAdPage /></PrivateRoute>} />
       <Route path="/billing-v2"     element={<PrivateRoute><BillingV2Page /></PrivateRoute>} />
       <Route path="/billing-report" element={<PrivateRoute><BillingReportPage /></PrivateRoute>} />
+      <Route path="/monthly-report" element={<PrivateRoute><MonthlyReportPage /></PrivateRoute>} />
       <Route path="/checks"         element={<PrivateRoute><ChecksPage /></PrivateRoute>} />
       <Route path="/recruitment"    element={<PrivateRoute><RecruitmentPage /></PrivateRoute>} />
       <Route path="/sales-events"   element={<PrivateRoute><SalesEventsPage /></PrivateRoute>} />
