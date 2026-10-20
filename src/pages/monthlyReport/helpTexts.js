@@ -77,6 +77,7 @@ export const TOUR_OVERVIEW = [
   { sel: '[data-yaya="mr-close"]', title: '送審閱與關帳', body: '會計整理完按「送審閱」（＝月報完成）。主管看過按「關帳」，數字就凍結，店長和股東才看得到；要改必須「重開」並寫原因。' },
   { sel: '[data-yaya="mr-cardfee"]', title: '刷卡手續費費率', body: '每一種 ERP 付款方式設一次費率（％＋每筆固定），之後每月自動算每家店的刷卡手續費。' },
   { sel: '[data-yaya="mr-import"]', title: 'Excel 匯入', body: '勞健保、實收這類每月手填的數字，可以下載範本一次填好全部門市再上傳；先預覽、確認才寫入。' },
+  { sel: '[data-yaya="mr-amort"]', title: '分攤開帳', body: '一筆費用要分好幾個月算（招牌、整修、年度保險），填一次總額和月數，每個月自動列一筆；零頭放最後一個月。' },
   { sel: '[data-yaya="mr-accounts"]', title: '科目與廠商', body: '新增月報科目（支出或收入），以及設定每個廠商的帳要進月報哪一格。' },
   { sel: '[data-yaya="mr-audit"]', title: '查帳提醒', body: '系統自動抓：沒填的實收、沒設科目的帳、房租合約到期、退票、刷卡費率沒設、跟上個月差很多…確認過可以按「知道了」。' },
   { sel: '[data-yaya="mr-list"]', title: '全部門市', body: '每家店的業績、實收、支出、盈餘一覽；按「看月報」進單店，每一格都點得開。' },

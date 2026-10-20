@@ -8,13 +8,14 @@ import CloseBar from './CloseBar';
 import AccountsPanel from './AccountsPanel';
 import CardFeePanel from './CardFeePanel';
 import ImportPanel from './ImportPanel';
+import AmortPanel from './AmortPanel';
 import HelpTip from '../../components/help/HelpTip';
 import { useCoachMarks } from '../../components/help/CoachMarks';
 import { ROW_HELP, REV_HELP, SECTION_HELP, DEFAULT_ROW_HELP, TOUR_OVERVIEW, TOUR_STORE } from './helpTexts';
 import { ledgerApi } from '../../services/api';
 
 const fmt = (n) => (n === null || n === undefined ? '—' : Math.round(n).toLocaleString('zh-TW'));
-const SRC_COLOR = { 刷卡費率: '#2b6cb0', 左手薪資: '#2f855a', 支票: '#975a16', 開帳單: '#2b6cb0', 部門開帳: '#6b46c1', 營運費用: '#2f855a', 固定支出: '#975a16', 固定金額: '#975a16', 'ERP 費用單': '#c05621', 愛民支出: '#c05621', 企劃部開帳: '#6b46c1', 倉庫開帳: '#2c7a7b', 合約: '#8b6f4e', 基本資料: '#718096', 手填: '#4a5568', 調帳: '#c53030' };
+const SRC_COLOR = { 刷卡費率: '#2b6cb0', 左手薪資: '#2f855a', 支票: '#975a16', 開帳單: '#2b6cb0', 部門開帳: '#6b46c1', 營運費用: '#2f855a', 固定支出: '#975a16', 固定金額: '#975a16', 'ERP 費用單': '#c05621', 愛民支出: '#c05621', 企劃部開帳: '#6b46c1', 倉庫開帳: '#2c7a7b', 合約: '#8b6f4e', 基本資料: '#718096', 手填: '#4a5568', 調帳: '#c53030', 分攤: '#805ad5' };
 const VENDOR_GROUPS = ['misc', 'frame', 'lens', 'contact'];
 const CODE_NAME = { electricity: '電費', water: '水費', telecom: '電話網路', rent: '租金', golden_chicken: '金雞', ad_budget: '廣告費', repair: '工程修繕', edu_bonus: '教育訓練獎金' };
 
@@ -150,6 +151,7 @@ export default function MonthlyReportPage() {
       {!store && <CloseBar ym={ym} onDone={loadOverview} />}
       {!store && <CardFeePanel ym={ym} />}
       {!store && <ImportPanel onDone={loadOverview} />}
+      {!store && <AmortPanel ym={ym} stores={ov ? ov.stores : []} onDone={loadOverview} />}
       {!store && <AccountsPanel />}
       {!store && <AuditPanel ym={ym} onPickStore={(id) => setStore(id)} />}
 

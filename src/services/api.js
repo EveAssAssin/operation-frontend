@@ -829,6 +829,9 @@ export const ledgerApi = {
   mapCategory:(id, code)  => api.patch(`/ledger/mapping/category/${id}`, { ledger_code: code }),
   addAccount: (body)      => api.post('/ledger/accounts', body),
   storehouseMap:    ()     => api.get('/ledger/storehouse-map'),
+  amortList: (store) => api.get('/ledger/amortize', { params: store ? { store } : {} }),
+  amortAdd:  (body)  => api.post('/ledger/amortize', body),
+  amortDel:  (group) => api.delete(`/ledger/amortize/${group}`),
   setStorehouseMap: (body) => api.put('/ledger/storehouse-map', body),
   // 2026-10-20：刷卡手續費費率、Excel 匯入
   cardFeeRates: (ym)      => api.get('/ledger/card-fee-rates', { params: { ym }, timeout: 120000 }),
