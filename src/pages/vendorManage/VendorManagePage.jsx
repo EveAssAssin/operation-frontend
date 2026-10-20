@@ -22,6 +22,26 @@ const TOUR = [
   { sel: '[data-tour="vm-new"]', title: '新建廠商', body: '按這裡，一次填好基本資料、登入帳號密碼、出款資訊。' },
   { sel: '[data-tour="vm-list"]', title: '廠商清單', body: '每家廠商的登入帳號、預設收款帳號都列在這裡；沒設出款資訊的會標紅。點一家可以修改。' },
 ];
+// 一鍵列印廠商帳號密碼＋登入網址（2026-10-21）：密碼只存 hash，所以只有「剛建立／剛改密碼」時畫面上還有明碼才印得出來
+function printCredentials({ name, username, password, contact }) {
+  const qr = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(VENDOR_LOGIN)}`;
+  const w = window.open('', '_blank', 'width=720,height=900');
+  if (!w) { alert('瀏覽器擋了彈出視窗，請允許後再按一次'); return; }
+  const esc = (t) => String(t || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>廠商入口登入資料 - ${esc(name)}</title>
+<style>body{font-family:"Noto Sans TC",system-ui,sans-serif;color:#2d3748;padding:36px;max-width:640px;margin:0 auto}h1{font-size:22px;margin:0 0 4px}.sub{color:#718096;font-size:13px;margin-bottom:24px}
+.box{border:1px solid #cbd5e0;border-radius:10px;padding:18px 20px;margin-bottom:16px}.row{display:flex;gap:12px;align-items:baseline;margin:10px 0}.k{width:96px;color:#718096;font-size:13px}.v{font-size:20px;font-weight:700;letter-spacing:1px;font-family:ui-monospace,Menlo,monospace}
+.url{font-size:15px;word-break:break-all}.qr{float:right;margin-left:16px}ol{font-size:14px;line-height:1.8;padding-left:20px}.note{font-size:12px;color:#718096;margin-top:20px}@media print{.noprint{display:none}}</style></head><body>
+<h1>樂活眼鏡 廠商入口 登入資料</h1><div class="sub">廠商：${esc(name)}${contact ? `　聯絡人：${esc(contact)}` : ''}　列印日期：${new Date().toLocaleDateString('zh-TW')}</div>
+<div class="box"><img class="qr" src="${qr}" width="150" height="150" alt="QR"><div class="row"><span class="k">登入網址</span><span class="url">${VENDOR_LOGIN}</span></div>
+<div class="row"><span class="k">帳號</span><span class="v">${esc(username)}</span></div><div class="row"><span class="k">密碼</span><span class="v">${esc(password)}</span></div><div style="clear:both"></div></div>
+<div class="box"><b>使用方式</b><ol><li>用手機掃 QR Code 或在瀏覽器輸入上方網址。</li><li>輸入帳號、密碼登入。</li><li>登入後可上傳帳單請款、查看請款進度、修改聯絡資料與收款帳號。</li><li>建議第一次登入後到「廠商資料」自行更改密碼。</li></ol></div>
+<div class="note">此文件含登入密碼，請妥善保管，勿轉傳。有問題請聯絡樂活眼鏡營運部。</div>
+<div class="noprint" style="margin-top:20px"><button onclick="window.print()" style="padding:10px 18px;font-size:15px;cursor:pointer">🖨️ 列印</button></div>
+<script>setTimeout(function(){window.print()},400)</script></body></html>`);
+  w.document.close();
+}
+
 const emptyNew = { name: '', tax_id: '', contact_name: '', contact_phone: '', contact_email: '', notes: '', username: '', password: '', bank: { bank_code: '', branch_code: '', account_no: '', account_name: '' } };
 
 export default function VendorManagePage() {
@@ -87,10 +107,23 @@ function CreateForm({ onDone, onCancel }) {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const [created, setCreated] = useState(null);
   const save = async () => {
     setBusy(true); setMsg('');
-    try { const r = await vendorManageApi.create(f); onDone(r.data); } catch (e) { setMsg('⚠ ' + (e.message || '失敗')); } finally { setBusy(false); }
+    try { const r = await vendorManageApi.create(f); if (f.username && f.password) setCreated({ data: r.data, name: f.name, username: f.username, password: f.password, contact: f.contact_name }); else onDone(r.data); }
+    catch (e) { setMsg('⚠ ' + (e.message || '失敗')); } finally { setBusy(false); }
   };
+  if (created) return (
+    <div style={{ ...card, borderColor: C.ok }}>
+      <b style={{ fontSize: 16 }}>✅ 廠商「{created.name}」已建立</b>
+      <div style={{ fontSize: 13, color: C.muted, margin: '6px 0 12px' }}>密碼只有現在看得到（系統只存加密後的值），請現在列印或抄下來給廠商。</div>
+      <div style={{ fontSize: 14, lineHeight: 1.9 }}>登入網址：{VENDOR_LOGIN}<br />帳號：<b>{created.username}</b><br />密碼：<b>{created.password}</b></div>
+      <div style={{ marginTop: 12 }}>
+        <button style={btn(C.primary)} onClick={() => printCredentials(created)}>🖨️ 一鍵列印帳號密碼＋登入網址</button>
+        <button style={{ ...ghost, marginLeft: 8 }} onClick={() => onDone(created.data)}>完成</button>
+      </div>
+    </div>
+  );
   return (
     <div>
       <div style={card}>
@@ -159,6 +192,12 @@ function Edit({ v, reload }) {
           {a && <button style={{ ...ghost, marginLeft: 8 }} onClick={() => act(() => vendorManageApi.account(v.id, { is_active: !a.is_active }), a.is_active ? '帳號已停用' : '帳號已啟用')}>{a.is_active ? '停用帳號' : '啟用帳號'}</button>}
           <span style={{ fontSize: 12, color: C.muted, marginLeft: 10 }}>登入網址：{VENDOR_LOGIN}</span>
         </div>
+        {a && (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${C.border || '#e2e8f0'}` }}>
+            <button style={btn(C.primary)} onClick={() => printCredentials({ name: v.name, username: acc.username || a.username, password: acc.password || '（密碼未變更；要重發請先在上方填新密碼並按「更新帳號／密碼」）', contact: v.contact_name })}>🖨️ 列印帳號密碼＋登入網址</button>
+            <span style={{ fontSize: 12, color: C.muted, marginLeft: 8 }}>密碼只存加密值，印出來的是你現在填在「新密碼」欄的值；沒填就只印帳號與網址。</span>
+          </div>
+        )}
       </div>
       <div style={card}>
         <b>出款資訊（收款銀行帳號）</b><HelpTip title="出款資訊" body={HELP.bank} />
