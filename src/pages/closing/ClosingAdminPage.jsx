@@ -235,8 +235,9 @@ function Settings() {
   return (
     <div style={S.card}>
       <div style={S.cardTitle}>繳回截止日</div>
-      <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>每月 <input type="number" min={1} max={28} value={v.due_day} onChange={(e) => setV({ ...v, due_day: Number(e.target.value) })} style={{ ...S.inp, width: 70 }} /> 號前要寄出上個月的結帳資料。截止後每天 10:00 自動 LINE 提醒還沒寄出的門市店長，營運部主管收未繳摘要。
-        <button style={{ ...S.btn, background: '#2d3748', color: '#fff' }} onClick={() => closingApi.saveSettings({ due_day: v.due_day }).then(unwrap).then((r) => { setV(r); setMsg('✅ 已存'); }).catch((e) => setMsg('❌ ' + e.message))}>儲存</button>{msg && <span style={{ fontSize: 12 }}>{msg}</span>}</div>
+      <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>每月 <input type="number" min={1} max={28} value={v.due_day} onChange={(e) => setV({ ...v, due_day: Number(e.target.value) })} style={{ ...S.inp, width: 70 }} /> 號前要寄出上個月的結帳資料。截止後每天 10:00 自動 LINE 提醒還沒寄出的門市店長，營運部主管收未繳摘要。</div>
+      <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>從 <input type="month" value={v.start_ym || ''} onChange={(e) => setV({ ...v, start_ym: e.target.value })} style={{ ...S.inp, width: 150 }} /> 這個月的結帳資料開始用系統（之前的月份不提醒、不算逾期，門市照舊紙本繳）。
+        <button style={{ ...S.btn, background: '#2d3748', color: '#fff' }} onClick={() => closingApi.saveSettings({ due_day: v.due_day, start_ym: v.start_ym }).then(unwrap).then((r) => { setV(r); setMsg('✅ 已存'); }).catch((e) => setMsg('❌ ' + e.message))}>儲存</button>{msg && <span style={{ fontSize: 12 }}>{msg}</span>}</div>
     </div>
   );
 }
