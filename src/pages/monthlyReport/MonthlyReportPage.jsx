@@ -96,7 +96,10 @@ export default function MonthlyReportPage() {
               <div key={l.source + l.ref_id} style={S.line}>
                 <span style={S.tag(SRC_COLOR[l.source_name] || '#718096')}>{l.source_name}</span>
                 {l.fee_ym && l.fee_ym !== ym && <span style={S.tag('#805ad5')}>{l.fee_ym} 帳</span>}
-                <span style={{ flex: 1 }}>{String(l.ref_title || '').replace(/^｜|｜$/g, '')}</span>
+                <span style={{ flex: 1 }}>{String(l.ref_title || '').replace(/^｜|｜$/g, '')}
+                  {l.source === 'erp_cost' && l.receipt_status && l.receipt_status !== 'none' && <span style={S.tag(l.receipt_status === 'approved' ? '#2f855a' : l.receipt_status === 'rejected' ? '#c53030' : '#d69e2e')}>{l.receipt_status === 'approved' ? `憑證通過${l.receipt_reviewed_by ? '・' + l.receipt_reviewed_by : ''}` : l.receipt_status === 'rejected' ? '憑證退回' : '憑證待核'}</span>}
+                  {(l.receipt_photos || []).length > 0 && <span style={{ display: 'inline-flex', gap: 4, marginLeft: 6, verticalAlign: 'middle' }}>{l.receipt_photos.map((u, i) => <a key={i} href={u} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><img src={u} alt="憑證" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 4, border: '1px solid #e2e8f0' }} /></a>)}</span>}
+                </span>
                 <span style={S.num}>{fmt(l.amount)}</span>
                 {!closed && (l.source === 'manual_value' || l.source === 'manual_adjust') && <button style={S.linkBtn} onClick={(e) => { e.stopPropagation(); voidLine(l.ref_id); }}>作廢</button>}
               </div>

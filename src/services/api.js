@@ -825,4 +825,19 @@ export const ledgerApi = {
   patchAccount:(code, b)  => api.patch(`/ledger/accounts/${code}`, b),
 };
 
+// 結帳資料（門市每月繳交清點；代理市場部，2026-10-21）
+export const closingApi = {
+  overview:   (ym)             => api.get('/closing/overview', { params: { ym } }),
+  byStore:    (store, ym)      => api.get('/closing/by-store', { params: { store, ym } }),
+  submission: (id, refresh)    => api.get(`/closing/submissions/${id}`, { params: refresh ? { refresh: 1 } : {}, timeout: 90000 }),
+  checkItem:  (id, item, b)    => api.put(`/closing/submissions/${id}/items/${item}`, b),
+  setStatus:  (id, b)          => api.post(`/closing/submissions/${id}/status`, b),
+  receipt:    (payId, b)       => api.put(`/closing/receipts/${payId}`, b),
+  upload:     (data)           => api.post('/closing/upload', { data }, { timeout: 60000 }),
+  templates:  ()               => api.get('/closing/templates'),
+  saveTemplates: (items)       => api.put('/closing/templates', { items }),
+  settings:   ()               => api.get('/closing/settings'),
+  saveSettings: (b)            => api.put('/closing/settings', b),
+};
+
 export default api;
