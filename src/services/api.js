@@ -759,6 +759,10 @@ export const ledgerApi = {
   voidManual: (id)        => api.delete(`/ledger/manual/${id}`),
   retained:   (body)      => api.post('/ledger/report/retained', body),
   fixed:      (store)     => api.get('/ledger/fixed', { params: { store } }),
+  audit:      (ym, fresh) => api.get('/ledger/audit', { params: { ym, fresh: fresh ? 1 : undefined }, timeout: 240000 }),
+  auditAck:   (body)      => api.post('/ledger/audit/ack', body),
+  auditUnack: (id)        => api.delete(`/ledger/audit/ack/${id}`),
+  auditExplain: (body)    => api.post('/ledger/audit/explain', body, { timeout: 120000 }),
 };
 
 export default api;

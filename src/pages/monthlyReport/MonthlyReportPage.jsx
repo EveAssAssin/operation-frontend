@@ -3,6 +3,7 @@
 // 手填與調帳只有 billing「編輯」權限的人送得出去（後端擋）；已關帳月份不能改。
 // ⚠ App 內建瀏覽器的 confirm／prompt 不可靠 → 全部用頁內表單（陷阱 143）
 import { useState, useEffect, useCallback } from 'react';
+import AuditPanel from './AuditPanel';
 import { ledgerApi } from '../../services/api';
 
 const fmt = (n) => (n === null || n === undefined ? '—' : Math.round(n).toLocaleString('zh-TW'));
@@ -128,6 +129,8 @@ export default function MonthlyReportPage() {
       </div>
       {err && <div style={S.err}>{err}</div>}
 
+      {!store && <AuditPanel ym={ym} onPickStore={(id) => setStore(id)} />}
+
       {/* ── 全部門市一覽 ── */}
       {!store && ov && (
         <div style={S.card}>
@@ -173,6 +176,8 @@ export default function MonthlyReportPage() {
       {store && rep && (
         <>
           {rep.warnings.length > 0 && <div style={S.warn}>{rep.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}</div>}
+
+          <AuditPanel ym={ym} store={store} canEdit={!closed} />
 
           <div style={S.card}>
             <div style={S.cardTitle}>業績與實收</div>
