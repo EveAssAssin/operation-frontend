@@ -370,6 +370,8 @@ export const recurringExpensesApi = {
   getTodayDue:    ()      => api.get('/recurring-expenses/payments/today'),
   markPaid:       (id, paid_note) => api.post(`/recurring-expenses/payments/${id}/pay`,   { paid_note }),
   unmarkPaid:     (id)            => api.post(`/recurring-expenses/payments/${id}/unpay`),
+  updateCheck:    (id, body)      => api.patch(`/recurring-expenses/payments/${id}/check`, body),
+  openChecks:     ()              => api.get('/recurring-expenses/checks/open'),
   recomputeDueDates: () => api.post('/recurring-expenses/recompute-due-dates'),
   // 元大批次匯款 Excel
   exportEltonBatch: (yearMonth, paymentIds = []) =>
@@ -425,6 +427,10 @@ export const contractsApi = {
   update:      (id, body)       => api.patch(`/contracts/${id}`, body),
   remove:      (id)             => api.delete(`/contracts/${id}`),
   listExpiring:(days = 60)      => api.get('/contracts/expiring', { params: { days } }),
+  // 合約連動應付（2026-10-20 C3）
+  linkExpense:  (id, expense_id, share) => api.post(`/contracts/${id}/link-expense`, { expense_id, share }),
+  unlinkExpense:(expense_id)           => api.post('/contracts/unlink-expense', { expense_id }),
+  addPayee:     (id, body)             => api.post(`/contracts/${id}/payees`, body),
   // 歷史
   listHistory:     (id, limit = 200) => api.get(`/contracts/${id}/history`, { params: { limit } }),
   // 提醒

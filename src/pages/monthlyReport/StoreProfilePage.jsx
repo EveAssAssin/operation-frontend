@@ -2,7 +2,7 @@
 // 房租合約（月報引用）＋基本資料（房租／電／水／電話網路／金雞）＋固定支出與近 6 個月付款狀態＋行銷基金／折舊＋股東
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { ledgerApi, recurringExpensesApi } from '../../services/api';
+import { ledgerApi, recurringExpensesApi, contractsApi } from '../../services/api';
 
 const fmt = (n) => (n == null || n === '' ? '—' : Math.round(Number(n)).toLocaleString('zh-TW'));
 const errMsg = (e) => (e && e.response && e.response.data && e.response.data.message) || (e && e.message) || '讀取失敗';
@@ -46,6 +46,7 @@ export default function StoreProfilePage() {
       </div>
       {err && <div style={{ color: '#c53030' }}>{err}</div>}
       {!store && <div style={S.sub}>選一家門市，看它的房租合約、基本資料、固定支出付款狀態、行銷基金折舊和股東。</div>}
+      {!store && <OpenChecks stores={stores} onPick={(id) => setSp({ store: id, ym })} />}
 
       {d && <>
         <div style={S.card} data-yaya="sp-rent">
@@ -66,6 +67,7 @@ export default function StoreProfilePage() {
                 ｜押金 {fmt((c.type_data || {}).deposit)}
                 {((c.type_data || {}).rent_schedule || []).length > 1 && <span>｜分段：{c.type_data.rent_schedule.map((x) => `${x.from_date} 起 ${fmt(x.monthly_amount)}`).join('、')}</span>}
               </div>
+              {c.status !== 'archived' && <ContractPayees contract={c} recurring={d.recurring} onDone={load} />}
             </div>
           ))}
           {rentBasic && (
@@ -81,10 +83,9 @@ export default function StoreProfilePage() {
           {d.recurring.length === 0 && <div style={S.sub}>這家店的固定支出還沒綁門市（營運部「固定支出」要選門市才會出現在這裡）。</div>}
           {d.recurring.map((r) => (
             <div key={r.id} style={S.row}>
-              <div><b>{r.name}</b> <span style={S.sub}>{r.payment_method || ''}｜收款 {r.payee_name || '—'}｜每月 {r.cycle_day || '?'} 號｜{fmt(r.amount)}{r.is_active ? '' : '｜已停用'}</span></div>
+              <div><b>{r.name}</b> <span style={S.sub}>{r.payment_method || ''}｜收款 {r.payee_name || '—'}｜每月 {r.cycle_day || '?'} 號｜{fmt(r.amount)}{r.is_active ? '' : '｜已停用'}{r.contract_id ? `｜🔗 連動合約（${Math.round(Number(r.contract_share) * 10000) / 100}%）` : ''}</span></div>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
-                {r.payments.map((p) => <span key={p.year_month} title={p.paid_at ? `付款 ${String(p.paid_at).slice(0, 10)}` : `到期 ${p.due_date || ''}`}
-                  style={S.tag(p.status === 'paid' ? '#2f855a' : (p.due_date && p.due_date < new Date().toISOString().slice(0, 10)) ? '#c53030' : '#a0aec0')}>{p.year_month.slice(5)} 月 {p.status === 'paid' ? '已付' : '未付'}</span>)}
+                {r.payments.map((p) => <PayChip key={p.year_month} p={p} method={r.payment_method} onDone={load} />)}
                 {r.payments.length === 0 && <span style={S.sub}>近 6 個月沒有付款紀錄</span>}
               </div>
             </div>
@@ -186,6 +187,100 @@ function HolderEditor({ store, ym, items, onDone }) {
         <button style={S.btn} disabled={!f.name || !f.shares} onClick={add}>新增</button>
       </div>
       {msg && <div style={S.sub}>{msg}</div>}
+    </div>
+  );
+}
+
+const isCheck = (m) => /支票|票/.test(String(m || ''));
+// 一期應付：點開可填支票（票號、開票日、票面到期日、兌現日）
+function PayChip({ p, method, onDone }) {
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ check_no: p.check_no || '', check_issue_date: p.check_issue_date || '', check_due_date: p.check_due_date || '', check_cashed_date: p.check_cashed_date || '', check_note: p.check_note || '' });
+  const [msg, setMsg] = useState('');
+  const today = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
+  const overdue = p.check_no && !p.check_cashed_date && p.check_due_date && p.check_due_date < today;
+  const color = p.check_no ? (p.check_cashed_date ? '#2f855a' : overdue ? '#c53030' : '#b7791f') : p.status === 'paid' ? '#2f855a' : (p.due_date && p.due_date < today) ? '#c53030' : '#a0aec0';
+  const label = p.check_no ? (p.check_cashed_date ? '已兌現' : overdue ? '票到期未兌現' : '已開票') : p.status === 'paid' ? '已付' : '未付';
+  const save = async () => { try { await recurringExpensesApi.updateCheck(p.id, f); setOpen(false); onDone(); } catch (e) { setMsg(errMsg(e)); } };
+  return (
+    <span style={{ display: 'inline-block', position: 'relative' }}>
+      <span style={{ ...S.tag(color), cursor: 'pointer' }} onClick={() => setOpen(!open)} title={`${fmt(p.amount)}｜到期 ${p.due_date || ''}${p.check_no ? `｜票號 ${p.check_no}` : ''}`}>{p.year_month.slice(5)} 月 {label}</span>
+      {open && (
+        <div style={{ ...S.card, position: 'absolute', zIndex: 10, padding: 10, marginTop: 4, width: 300 }}>
+          <div style={S.sub}>{p.year_month}｜應付 {fmt(p.amount)}｜{p.status === 'paid' ? '已付' : '未付'}{isCheck(method) ? '' : `｜付款方式 ${method || '—'}`}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 4, marginTop: 6, fontSize: 13 }}>
+            <span>票號</span><input style={S.input} value={f.check_no} onChange={(e) => setF({ ...f, check_no: e.target.value })} />
+            <span>開票日</span><input style={S.input} type="date" value={f.check_issue_date} onChange={(e) => setF({ ...f, check_issue_date: e.target.value })} />
+            <span>票面到期</span><input style={S.input} type="date" value={f.check_due_date} onChange={(e) => setF({ ...f, check_due_date: e.target.value })} />
+            <span>兌現日</span><input style={S.input} type="date" value={f.check_cashed_date} onChange={(e) => setF({ ...f, check_cashed_date: e.target.value })} />
+            <span>備註</span><input style={S.input} value={f.check_note} onChange={(e) => setF({ ...f, check_note: e.target.value })} />
+          </div>
+          <div style={{ marginTop: 6, display: 'flex', gap: 8 }}><button style={S.btn} onClick={save}>存</button><button style={S.btnLink} onClick={() => setOpen(false)}>關閉</button></div>
+          {msg && <div style={{ color: '#c53030', fontSize: 12 }}>{msg}</div>}
+        </div>
+      )}
+    </span>
+  );
+}
+
+// 合約的收款人（＝連動的固定支出）：把現有固定支出連過來，或新增一位收款人
+function ContractPayees({ contract, recurring, onDone }) {
+  const linked = recurring.filter((r) => r.contract_id === contract.id);
+  const free = recurring.filter((r) => !r.contract_id && r.is_active);
+  const [pick, setPick] = useState('');
+  const [add, setAdd] = useState(null);
+  const [msg, setMsg] = useState('');
+  const link = async () => { try { await contractsApi.linkExpense(contract.id, pick); setPick(''); onDone(); } catch (e) { setMsg(errMsg(e)); } };
+  const unlink = async (id) => { try { await contractsApi.unlinkExpense(id); onDone(); } catch (e) { setMsg(errMsg(e)); } };
+  const create = async () => { try { await contractsApi.addPayee(contract.id, { ...add, amount: Number(add.amount), cycle_day: Number(add.cycle_day) }); setAdd(null); onDone(); } catch (e) { setMsg(errMsg(e)); } };
+  const sum = linked.reduce((a, r) => a + Number(r.contract_share || 0), 0);
+  return (
+    <div style={{ marginTop: 6, padding: 8, background: '#f7fafc', borderRadius: 6 }} data-yaya="sp-payees">
+      <div style={{ fontSize: 13 }}><b>💳 付款連動</b> <span style={S.sub}>每月應付＝合約當月金額 × 比例（已扣代扣稅）；合約調漲自動跟著變、到期自動停</span></div>
+      {linked.length === 0 && <div style={S.sub}>還沒連動：把下面的固定支出連過來，或新增收款人。</div>}
+      {linked.map((r) => <div key={r.id} style={{ fontSize: 13 }}>{r.payee_name || r.name}｜{r.payment_method || '—'}｜{Math.round(Number(r.contract_share) * 10000) / 100}%（本月約 {fmt((contract.this_month && contract.this_month.amount || 0) * Number(r.contract_share))}）
+        <button style={{ ...S.btnLink, marginLeft: 6 }} onClick={() => unlink(r.id)}>取消連動</button></div>)}
+      {linked.length > 0 && <div style={S.sub}>比例合計 {Math.round(sum * 10000) / 100}%（剩下的是代扣稅、二代健保）</div>}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+        {free.length > 0 && <>
+          <select style={S.input} value={pick} onChange={(e) => setPick(e.target.value)}><option value="">— 把固定支出連過來 —</option>{free.map((r) => <option key={r.id} value={r.id}>{r.name}（{fmt(r.amount)}）</option>)}</select>
+          <button style={S.btn} disabled={!pick} onClick={link}>連動</button>
+        </>}
+        <button style={S.btn} onClick={() => setAdd(add ? null : { payee_name: '', amount: '', payment_method: '匯款', cycle_day: 5, bank_code: '', bank_branch: '', bank_account: '' })}>＋ 新增收款人</button>
+      </div>
+      {add && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+          <input style={{ ...S.input, width: 100 }} placeholder="收款人" value={add.payee_name} onChange={(e) => setAdd({ ...add, payee_name: e.target.value })} />
+          <input style={{ ...S.input, width: 110 }} placeholder="每月實拿金額" value={add.amount} onChange={(e) => setAdd({ ...add, amount: e.target.value })} />
+          <select style={S.input} value={add.payment_method} onChange={(e) => setAdd({ ...add, payment_method: e.target.value })}>{['匯款', '支票', '現金繳納', '其他'].map((m) => <option key={m}>{m}</option>)}</select>
+          <input style={{ ...S.input, width: 70 }} placeholder="每月幾號" value={add.cycle_day} onChange={(e) => setAdd({ ...add, cycle_day: e.target.value })} />
+          {add.payment_method === '匯款' && <>
+            <input style={{ ...S.input, width: 70 }} placeholder="銀行代碼" value={add.bank_code} onChange={(e) => setAdd({ ...add, bank_code: e.target.value })} />
+            <input style={{ ...S.input, width: 90 }} placeholder="分行" value={add.bank_branch} onChange={(e) => setAdd({ ...add, bank_branch: e.target.value })} />
+            <input style={{ ...S.input, width: 140 }} placeholder="帳號" value={add.bank_account} onChange={(e) => setAdd({ ...add, bank_account: e.target.value })} />
+          </>}
+          <button style={S.btn} disabled={!add.payee_name || !add.amount} onClick={create}>建立</button>
+        </div>
+      )}
+      {msg && <div style={{ color: '#c53030', fontSize: 12 }}>{msg}</div>}
+    </div>
+  );
+}
+
+// 全公司：開了還沒兌現的支票（票面到期日過了＝紅字）
+function OpenChecks({ stores, onPick }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => { recurringExpensesApi.openChecks().then((r) => setRows(r.data || [])).catch(() => setRows([])); }, []);
+  const name = (id) => (stores.find((s) => s.id === id) || {}).name || id || '—';
+  const today = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
+  if (!rows) return null;
+  return (
+    <div style={{ ...S.card, marginTop: 12 }} data-yaya="sp-checks">
+      <div style={S.h}>🧾 還沒兌現的支票（{rows.length}）</div>
+      {rows.length === 0 && <div style={S.sub}>沒有。</div>}
+      {rows.map((r) => { const e = r.recurring_expenses || {}; const late = r.check_due_date && r.check_due_date < today;
+        return <div key={r.id} style={{ fontSize: 13, color: late ? '#c53030' : undefined }}>
+          <a style={S.link} href="#" onClick={(ev) => { ev.preventDefault(); onPick(e.store_erpid); }}>{name(e.store_erpid)}</a>｜{e.payee_name || e.name}｜{r.year_month}｜{fmt(r.amount)}｜票號 {r.check_no}｜到期 {r.check_due_date || '—'}{late ? '（已過到期日）' : ''}</div>; })}
     </div>
   );
 }
