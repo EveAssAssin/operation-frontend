@@ -8,7 +8,7 @@ import CloseBar from './CloseBar';
 import { ledgerApi } from '../../services/api';
 
 const fmt = (n) => (n === null || n === undefined ? '—' : Math.round(n).toLocaleString('zh-TW'));
-const SRC_COLOR = { 開帳單: '#2b6cb0', 部門開帳: '#6b46c1', 營運費用: '#2f855a', 固定支出: '#975a16', 固定金額: '#975a16', 'ERP 費用單': '#c05621', 愛民支出: '#c05621', 手填: '#4a5568', 調帳: '#c53030' };
+const SRC_COLOR = { 開帳單: '#2b6cb0', 部門開帳: '#6b46c1', 營運費用: '#2f855a', 固定支出: '#975a16', 固定金額: '#975a16', 'ERP 費用單': '#c05621', 愛民支出: '#c05621', 企劃部開帳: '#6b46c1', 倉庫開帳: '#2c7a7b', 手填: '#4a5568', 調帳: '#c53030' };
 const VENDOR_GROUPS = ['misc', 'frame', 'lens', 'contact'];
 const CODE_NAME = { electricity: '電費', water: '水費', telecom: '電話網路', rent: '租金', golden_chicken: '金雞', ad_budget: '廣告費', repair: '工程修繕', edu_bonus: '教育訓練獎金' };
 
