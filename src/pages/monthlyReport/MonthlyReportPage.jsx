@@ -187,17 +187,17 @@ export default function MonthlyReportPage() {
           {ov.market_error && <div style={S.warn}>⚠ {ov.market_error}（ERP 帳上業績、門市費用單暫時拿不到）</div>}
           {ov.aimin_error && <div style={S.warn}>⚠ {ov.aimin_error}（愛民門市的眼鏡業績、門市支出暫時拿不到）</div>}
           <table style={S.table}>
-            <thead><tr>{['門市', '總業績', '眼鏡實收', '隱眼實收', '總實收', '實收差', '總支出', '總盈餘', '實收', '提醒', ''].map((h) => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <thead><tr>{['門市', '總業績', '總真實實收', '眼鏡業績', '隱眼業績', '總支出', '總呆帳', '總盈餘', '實收', '提醒', ''].map((h) => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
             <tbody>
               {ov.stores.map((s) => (
                 <tr key={s.store}>
                   <td style={S.td}>{s.store_name}<div style={S.sub}>{s.store}　<span style={S.tag(s.status === 'closed' ? '#2f855a' : s.status === 'review' ? '#b7791f' : '#a0aec0')}>{s.status === 'closed' ? '已關帳' : s.status === 'review' ? '月報完成・待關帳' : '整理中'}</span></div></td>
                   <td style={{ ...S.td, ...S.num }}>{fmt(s.sales_total)}</td>
-                  <td style={{ ...S.td, ...S.num }}>{fmt(s.glasses_receipt)}</td>
-                  <td style={{ ...S.td, ...S.num }}>{fmt(s.contact_receipt)}</td>
                   <td style={{ ...S.td, ...S.num }}>{fmt(s.receipt_total)}</td>
-                  <td style={{ ...S.td, ...S.num, color: s.gap_alert ? '#c53030' : '#718096', fontWeight: s.gap_alert ? 700 : 400 }}>{s.gap_pct == null ? '—' : `${s.gap_pct > 0 ? '+' : ''}${s.gap_pct}%`}{s.gap_alert ? ' ⚠' : ''}</td>
+                  <td style={{ ...S.td, ...S.num }}>{fmt(s.glasses_sales)}</td>
+                  <td style={{ ...S.td, ...S.num }}>{fmt(s.contact_sales)}</td>
                   <td style={{ ...S.td, ...S.num }}>{fmt(s.total_out)}</td>
+                  <td style={{ ...S.td, ...S.num, color: s.bad_debt > 0 ? '#c53030' : undefined }} title="總業績 − 帳面實收（ERP 收款，不含 API PAY）">{fmt(s.bad_debt)}</td>
                   <td style={{ ...S.td, ...S.num, color: s.profit < 0 ? '#c53030' : undefined }}>{fmt(s.profit)}</td>
                   <td style={S.td}>{s.error ? <span style={{ color: '#c53030' }}>{s.error}</span> : s.filled ? '✅ 已填' : <span style={{ color: '#c05621' }}>待填</span>}</td>
                   <td style={S.td}>{s.warnings ? `${s.warnings} 則` : ''}</td>
@@ -267,10 +267,24 @@ export default function MonthlyReportPage() {
                   card('contact_sales', R.contact_sales, { sales: true }),
                   card('sales_total', { name: '總業績', amount: T.sales_total }, { sales: true, total: true }),
                 ])}
-                {row(`實收（會計確認收到的錢，手填；實收差超過 ${G.alert_pct ?? 10}% 標紅）`, [
-                  card('glasses_receipt', R.glasses_receipt, { gap: G.glasses }),
-                  card('contact_receipt', R.contact_receipt, { gap: G.contact }),
-                  card('receipt_total', { name: '總實收', amount: T.receipt_filled ? T.receipt_total : null }, { total: true, gap: G.total }),
+                {row('實收（真實實收＝會計對銀行後手填；帳面＝ERP 收款，不含 API PAY）', [
+                  <div key="receipt_total" style={{ ...S.kpi, background: '#f7fafc', ...(G.total && G.total.alert ? { borderColor: '#fc8181' } : {}) }}>
+                    <div style={S.sub}>總真實實收<HelpTip title="總真實實收" body={REV_HELP.receipt_total} size={14} /></div>
+                    <div style={{ fontSize: 20, fontWeight: 700 }}>{T.receipt_total == null ? <span style={{ color: '#c05621' }}>待填</span> : fmt(T.receipt_total)}{T.receipt_total != null && !T.receipt_filled ? <span style={{ ...S.sub, color: '#c05621' }}>（還有一格沒填）</span> : null}</div>
+                    {[['glasses_receipt', '眼鏡'], ['contact_receipt', '隱眼']].map(([code, lb]) => (
+                      <div key={code} style={S.sub}>{lb} {R[code].amount == null ? <span style={{ color: '#c05621' }}>待填</span> : fmt(R[code].amount)}
+                        {!closed && <button style={S.linkBtn} onClick={() => startForm({ code, name: R[code].name, group: 'revenue' }, 'value')}>填寫</button>}</div>
+                    ))}
+                    {gapLine(G.total)}
+                  </div>,
+                  card('book_glasses_receipt', { name: '帳面眼鏡實收', amount: T.book_glasses_receipt, refs: R.glasses_receipt.refs }, { sales: true, total: true }),
+                  card('book_contact_receipt', { name: '帳面隱眼實收', amount: T.book_contact_receipt, refs: R.contact_receipt.refs }, { sales: true, total: true }),
+                  <div key="bad_debt" style={{ ...S.kpi, background: '#f7fafc', ...(T.bad_debt > 0 ? { borderColor: '#fc8181' } : {}) }}>
+                    <div style={S.sub}>帳面呆帳<HelpTip title="帳面呆帳" body={REV_HELP.bad_debt} size={14} /></div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: T.bad_debt > 0 ? '#c53030' : undefined }}>{T.bad_debt == null ? <span style={{ color: '#718096', fontSize: 14 }}>{T.book_receipt_total === undefined ? '這個月沒有帳面資料' : '拿不到'}</span> : fmt(T.bad_debt)}</div>
+                    {T.bad_debt != null && T.glasses_sales != null && T.book_glasses_receipt != null && <div style={S.sub}>眼鏡 {fmt(T.glasses_sales - T.book_glasses_receipt)}</div>}
+                    {T.bad_debt != null && T.contact_sales != null && T.book_contact_receipt != null && <div style={S.sub}>隱眼 {fmt(T.contact_sales - T.book_contact_receipt)}</div>}
+                  </div>,
                 ])}
                 {row('其他', [card('api_pay', R.api_pay), card('stored_value', R.stored_value),
                   ...Object.entries(R).filter(([, v]) => v && v.custom).map(([k, v]) => card(k, v))])}
