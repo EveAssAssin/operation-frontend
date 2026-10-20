@@ -13,6 +13,7 @@ import HelpTip from '../../components/help/HelpTip';
 import { useCoachMarks } from '../../components/help/CoachMarks';
 import { ROW_HELP, REV_HELP, SECTION_HELP, DEFAULT_ROW_HELP, TOUR_OVERVIEW, TOUR_STORE } from './helpTexts';
 import { ledgerApi } from '../../services/api';
+import VoucherBox from '../../components/vouchers/VoucherBox';
 
 const fmt = (n) => (n === null || n === undefined ? '—' : Math.round(n).toLocaleString('zh-TW'));
 const SRC_COLOR = { 刷卡費率: '#2b6cb0', 左手薪資: '#2f855a', 支票: '#975a16', 開帳單: '#2b6cb0', 部門開帳: '#6b46c1', 營運費用: '#2f855a', 固定支出: '#975a16', 固定金額: '#975a16', 'ERP 費用單': '#c05621', 愛民支出: '#c05621', 企劃部開帳: '#6b46c1', 倉庫開帳: '#2c7a7b', 合約: '#8b6f4e', 基本資料: '#718096', 手填: '#4a5568', 調帳: '#c53030', 分攤: '#805ad5' };
@@ -39,6 +40,8 @@ export default function MonthlyReportPage() {
   const [open, setOpen] = useState({});      // code → 展開明細
   const [form, setForm] = useState(null);    // { code, name, group, entry_type, amount, vendor, reason, fee_ym }
   const [msg, setMsg] = useState('');
+  const [vOpen, setVOpen] = useState({});   // 明細列 key → 展開憑證
+  const [formFiles, setFormFiles] = useState([]);   // 手填／調帳一起送的憑證
 
   const tourAll = useCoachMarks(TOUR_OVERVIEW, 'tour_monthly_report_v1', !store);
   const tourStore = useCoachMarks(TOUR_STORE, 'tour_monthly_report_store_v1', !!store);
@@ -61,14 +64,18 @@ export default function MonthlyReportPage() {
   const startForm = (row, entry_type = 'value', vendor = '') => {
     setMsg('');
     setForm({ code: row.code, name: row.name, group: row.group, entry_type, amount: '', vendor, reason: '', fee_ym: '' });
+    setFormFiles([]);
   };
   const submit = async () => {
     if (!form) return;
     if (form.amount === '' || !Number.isFinite(Number(form.amount))) { setMsg('請填金額'); return; }
     if (form.entry_type === 'adjust' && !form.reason.trim()) { setMsg('調帳一定要寫原因'); return; }
     try {
-      await ledgerApi.manual({ store, ym, ledger_code: form.code, entry_type: form.entry_type, amount: Number(form.amount), vendor: form.vendor, reason: form.reason, fee_ym: form.fee_ym || null });
-      setForm(null); await loadReport();
+      const r = await ledgerApi.manual({ store, ym, ledger_code: form.code, entry_type: form.entry_type, amount: Number(form.amount), vendor: form.vendor, reason: form.reason, fee_ym: form.fee_ym || null });
+      if (formFiles.length && r && r.data && r.data.id) {
+        try { await ledgerApi.voucherUpload('manual', r.data.id, formFiles); } catch (e) { setErr(`已記帳，但憑證上傳失敗：${errMsg(e)}（到那一格明細補傳）`); }
+      }
+      setForm(null); setFormFiles([]); await loadReport();
     } catch (e) { setMsg(errMsg(e)); }
   };
   const voidLine = async (id) => { try { await ledgerApi.voidManual(id); await loadReport(); } catch (e) { setErr(errMsg(e)); } };
@@ -85,6 +92,7 @@ export default function MonthlyReportPage() {
             {row.name}<HelpTip title={row.name} body={ROW_HELP[row.code] || DEFAULT_ROW_HELP(row)} size={15} />
             {row.fee_months.length > 0 && <span style={S.tag('#805ad5')}>{row.fee_months.map((m) => `${Number(m.slice(5))}月帳`).join('、')}</span>}
             {row.adjust_count > 0 && <span style={S.tag('#c53030')}>含調帳 {row.adjust_count} 筆</span>}
+            {rep.vouchers_visible && row.voucher_missing > 0 && <span style={S.tag('#dd6b20')}>缺憑證 {row.voucher_missing}</span>}
             {row.vendors.length > 0 && <div style={S.sub}>{row.vendors.map((v) => `${v.vendor} ${fmt(v.amount)}`).join('　')}</div>}
           </td>
           <td style={{ ...S.td, ...S.num }}>{row.has_data ? fmt(row.amount) : <span style={{ color: '#a0aec0' }}>—</span>}</td>
@@ -99,7 +107,17 @@ export default function MonthlyReportPage() {
                 {l.fee_ym && l.fee_ym !== ym && <span style={S.tag('#805ad5')}>{l.fee_ym} 帳</span>}
                 <span style={{ flex: 1 }}>{String(l.ref_title || '').replace(/^｜|｜$/g, '')}
                   {l.source === 'erp_cost' && l.receipt_status && l.receipt_status !== 'none' && <span style={S.tag(l.receipt_status === 'approved' ? '#2f855a' : l.receipt_status === 'rejected' ? '#c53030' : '#d69e2e')}>{l.receipt_status === 'approved' ? `憑證通過${l.receipt_reviewed_by ? '・' + l.receipt_reviewed_by : ''}` : l.receipt_status === 'rejected' ? '憑證退回' : '憑證待核'}</span>}
-                  {(l.receipt_photos || []).length > 0 && <span style={{ display: 'inline-flex', gap: 4, marginLeft: 6, verticalAlign: 'middle' }}>{l.receipt_photos.map((u, i) => <a key={i} href={u} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><img src={u} alt="憑證" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 4, border: '1px solid #e2e8f0' }} /></a>)}</span>}
+                  {rep.vouchers_visible && (l.voucher_ref || (l.vouchers || []).length > 0) && (
+                    <button style={{ ...S.linkBtn, marginLeft: 6, color: (l.vouchers || []).length ? '#2b6cb0' : '#dd6b20' }}
+                      onClick={(e) => { e.stopPropagation(); const k = l.source + l.ref_id; setVOpen((o) => ({ ...o, [k]: !o[k] })); }}>
+                      {(l.vouchers || []).length ? `📎 憑證 ${l.vouchers.length}` : '📎 缺憑證'}
+                    </button>
+                  )}
+                  {rep.vouchers_visible && vOpen[l.source + l.ref_id] && (
+                    <VoucherBox refType={l.voucher_ref && l.voucher_ref.type} refId={l.voucher_ref && l.voucher_ref.id}
+                      initial={l.vouchers || []} readOnly={!l.voucher_ref}
+                      onChange={(fl) => { l.vouchers = fl.concat((l.vouchers || []).filter((v) => !v.deletable && !fl.some((x) => x.id === v.id))); setVOpen((o) => ({ ...o })); }} />
+                  )}
                 </span>
                 <span style={S.num}>{fmt(l.amount)}</span>
                 {!closed && (l.source === 'manual_value' || l.source === 'manual_adjust') && <button style={S.linkBtn} onClick={(e) => { e.stopPropagation(); voidLine(l.ref_id); }}>作廢</button>}
@@ -202,6 +220,9 @@ export default function MonthlyReportPage() {
           {rep.warnings.length > 0 && <div style={S.warn}>{rep.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}</div>}
 
           <CloseBar ym={ym} store={store} status={rep.status} report={rep.report} onDone={loadReport} />
+          {rep.vouchers_visible && rep.voucher_stats && rep.voucher_stats.total > 0 && (
+            <div style={{ ...S.sub, margin: '-6px 0 10px' }}>📎 原始憑證：{rep.voucher_stats.total - rep.voucher_stats.missing}／{rep.voucher_stats.total} 筆有附{rep.voucher_stats.missing > 0 ? `，${rep.voucher_stats.missing} 筆缺（點開有「缺憑證」的格子補傳）` : ''}（只有營運部與超級管理員看得到）</div>
+          )}
           {rep.frozen && <div style={S.warn}>🔒 已關帳：下面是關帳當下的數字（{String(rep.snapshot_at || '').slice(0, 16).replace('T', ' ')}）。之後帳本再變也不會改到這份；要改請先重開。</div>}
           <AuditPanel ym={ym} store={store} canEdit={!closed} />
 
@@ -264,6 +285,9 @@ export default function MonthlyReportPage() {
                 <label style={{ flex: 1, minWidth: 220 }}>{form.entry_type === 'adjust' ? '原因（必填）' : '備註'} <input style={{ ...S.input, width: '100%' }} value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></label>
               </div>
               {form.entry_type === 'value' && <div style={S.sub}>同一格（同科目、同廠商）只留一筆手填值：再填一次會把舊的作廢、留紀錄。</div>}
+              {rep.vouchers_visible && <div style={{ marginTop: 6, fontSize: 13 }}>原始憑證（照片／PDF，建議一定要附）：
+                <input type="file" accept="image/*,application/pdf" multiple onChange={(e) => setFormFiles([...e.target.files])} />
+                {formFiles.length > 0 && <span style={S.sub}>　{formFiles.length} 個檔案，送出後一起上傳</span>}</div>}
               {msg && <div style={S.err}>{msg}</div>}
               <div style={{ marginTop: 8, display: 'flex', gap: 8 }}><button style={S.primary} onClick={submit}>送出</button><button style={S.btn} onClick={() => setForm(null)}>取消</button></div>
             </div>

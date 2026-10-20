@@ -9,6 +9,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import OperationalExpensesPanel from './OperationalExpensesPanel';
 import OperationalReportPanel   from './OperationalReportPanel';
 import { PostingFields, BillPosting, BookPanel } from './LedgerPosting';
+import VoucherBox, { canSeeVouchers } from '../../components/vouchers/VoucherBox';
+import { useAuth as useAuthV } from '../../contexts/AuthContext';
 
 // ── 廠商帳號管理面板 ──────────────────────────────────────────
 function VendorAccountsPanel({ sources, onSourceUpdate }) {
@@ -2031,6 +2033,18 @@ function CreateBillModal({ sources, departments, onClose, onCreated }) {
 }
 
 // ── 帳單詳情 Modal ────────────────────────────────────────────
+// 帳單原始憑證（2026-10-21）：營運部／超級管理員才看得到；廠商請款產生的帳單會一起列出廠商上傳的附件
+function BillVouchers({ billId }) {
+  const { user } = useAuthV();
+  if (!canSeeVouchers(user) || !billId) return null;
+  return (
+    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 12, marginTop: 16 }}>
+      <div style={{ fontWeight: 600, fontSize: 14 }}>🧾 原始憑證 <span style={{ fontSize: 12, color: '#718096', fontWeight: 400 }}>帳單照片／PDF，月報點開這一筆也看得到（只有營運部與超級管理員）</span></div>
+      <VoucherBox refType="bill" refId={billId} />
+    </div>
+  );
+}
+
 function BillDetailModal({ bill, onClose, onRefresh, userRole, departments }) {
   const [allocations, setAllocations] = useState(bill.bill_allocations || []);
   const [editAlloc, setEditAlloc] = useState(false);
@@ -2211,6 +2225,8 @@ function BillDetailModal({ bill, onClose, onRefresh, userRole, departments }) {
           {['confirmed', 'distributed'].includes(bill.status) && allocations.length > 0 && (
             <BillPosting key={allocations.map((x) => x.id || x.store_erpid).join(',')} billId={bill.id} canEdit={!editAlloc} />
           )}
+
+          <BillVouchers billId={bill.id} />
 
           {/* 明細列表（API 自動同步的帳單會有 items） */}
           {Array.isArray(bill.items) && bill.items.length > 0 && (

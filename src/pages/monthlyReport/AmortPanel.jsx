@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { ledgerApi } from '../../services/api';
 import HelpTip from '../../components/help/HelpTip';
+import VoucherBox, { canSeeVouchers } from '../../components/vouchers/VoucherBox';
+import { useAuth } from '../../contexts/AuthContext';
 
 const GROUPS = { opex: '營運支出', planning: '企劃品', ads: '廣告費', misc: '雜費', frame: '鏡框', lens: '鏡片', contact: '藥拋' };
 const errMsg = (e) => (e && e.response && e.response.data && e.response.data.message) || (e && e.message) || '失敗';
@@ -15,6 +17,10 @@ export default function AmortPanel({ ym, stores, store: fixedStore, onDone }) {
   const [list, setList] = useState([]);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [vg, setVg] = useState(null);   // 展開憑證的分攤組
+  const { user } = useAuth();
+  const showV = canSeeVouchers(user);
   const [f, setF] = useState({ store: fixedStore || '', ledger_code: '', total: '', from_ym: ym, months: 12, vendor: '', reason: '' });
   useEffect(() => { setF((x) => ({ ...x, store: fixedStore || x.store, from_ym: x.from_ym || ym })); }, [fixedStore, ym]);
 
@@ -33,7 +39,10 @@ export default function AmortPanel({ ym, stores, store: fixedStore, onDone }) {
     setBusy(true); setMsg('');
     try {
       const r = await ledgerApi.amortAdd({ ...f, total, months: n });
-      setMsg(`已建立：${r.data.months[0]}～${r.data.months[r.data.months.length - 1]}，每月 ${fmt(r.data.each)}${r.data.last !== r.data.each ? `（最後一個月 ${fmt(r.data.last)}）` : ''}`);
+      let up = '';
+      if (files.length && r.data.group) { try { await ledgerApi.voucherUpload('amort', r.data.group, files); up = `，憑證 ${files.length} 個已上傳`; } catch (e) { up = `，但憑證上傳失敗：${errMsg(e)}（在下面那列「📎」補傳）`; } }
+      setFiles([]);
+      setMsg(`已建立：${r.data.months[0]}～${r.data.months[r.data.months.length - 1]}，每月 ${fmt(r.data.each)}${r.data.last !== r.data.each ? `（最後一個月 ${fmt(r.data.last)}）` : ''}${up}`);
       setF({ ...f, total: '', vendor: '', reason: '' }); load(); onDone && onDone();
     } catch (e) { setMsg(errMsg(e)); }
     setBusy(false);
@@ -71,6 +80,7 @@ export default function AmortPanel({ ym, stores, store: fixedStore, onDone }) {
           <input style={{ ...S.input, minWidth: 200, flex: 1 }} placeholder="說明（必填，例：招牌更換）" value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} />
           <button style={S.btn} disabled={!ok || busy} onClick={save}>建立分攤</button>
         </div>
+        {showV && <div style={{ marginTop: 6, fontSize: 13 }}>原始憑證（照片／PDF）：<input type="file" accept="image/*,application/pdf" multiple onChange={(e) => setFiles([...e.target.files])} />{files.length > 0 && <span style={S.sub}>　{files.length} 個檔案，建立後一起上傳</span>}</div>}
         {n >= 2 && total ? <div style={{ ...S.sub, marginTop: 4 }}>{f.from_ym}～{/^\d{4}-\d{2}$/.test(f.from_ym) ? addYm(f.from_ym, n - 1) : '?'}，每月 {fmt(each)}{last !== each ? `，最後一個月 ${fmt(last)}` : ''}</div> : null}
         {list.length > 0 && <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 10 }}>
           <thead><tr>{[!fixedStore && '門市', '格子', '說明', '總額', '期間', '已關帳／作廢', ''].filter((h) => h !== false).map((h) => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
@@ -84,7 +94,11 @@ export default function AmortPanel({ ym, stores, store: fixedStore, onDone }) {
                 <td style={{ ...S.td, textAlign: 'right' }}>{fmt(g.total)}</td>
                 <td style={S.td}>{g.from_ym}～{g.to_ym}（{g.n} 期）</td>
                 <td style={S.td}>{live.length ? `剩 ${live.length} 期有效` : '已作廢'}</td>
-                <td style={S.td}>{live.length > 0 && <button style={S.link} onClick={() => voidG(g)}>作廢</button>}</td>
+                <td style={S.td}>
+                  {showV && <button style={{ ...S.link, marginRight: 8 }} onClick={() => setVg(vg === g.group ? null : g.group)}>📎 憑證</button>}
+                  {live.length > 0 && <button style={S.link} onClick={() => voidG(g)}>作廢</button>}
+                  {vg === g.group && <VoucherBox refType="amort" refId={g.group} />}
+                </td>
               </tr>
             );
           })}</tbody>

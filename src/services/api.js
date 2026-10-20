@@ -838,6 +838,10 @@ export const ledgerApi = {
   amortList: (store) => api.get('/ledger/amortize', { params: store ? { store } : {} }),
   amortAdd:  (body)  => api.post('/ledger/amortize', body),
   amortDel:  (group) => api.delete(`/ledger/amortize/${group}`),
+  // 原始憑證（2026-10-21；只有營運部／超級管理員）
+  vouchers:      (ref_type, ref_id) => api.get('/ledger/vouchers', { params: { ref_type, ref_id } }),
+  voucherUpload: (ref_type, ref_id, files, note) => { const fd = new FormData(); fd.append('ref_type', ref_type); fd.append('ref_id', ref_id); if (note) fd.append('note', note); [...files].forEach((f) => fd.append('files', f)); return api.post('/ledger/vouchers', fd, { timeout: 120000 }); },
+  voucherVoid:   (id) => api.delete(`/ledger/vouchers/${id}`),
   setStorehouseMap: (body) => api.put('/ledger/storehouse-map', body),
   // 2026-10-20：刷卡手續費費率、Excel 匯入
   cardFeeRates: (ym)      => api.get('/ledger/card-fee-rates', { params: { ym }, timeout: 120000 }),
