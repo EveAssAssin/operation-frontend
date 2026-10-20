@@ -27,8 +27,8 @@ import QuestsPage           from './pages/quests/QuestsPage';
 import AppointedUnitsPage   from './pages/appointedUnits/AppointedUnitsPage';
 import AppointedUnitBindLiff from './pages/appointedUnits/AppointedUnitBindLiff';
 import ProcessesHubPage    from './pages/processes/ProcessesHubPage';
-import HandoverPage        from './pages/processes/HandoverPage';
-import PublicHandoverPage  from './pages/handover/PublicHandoverPage';
+import HandoverListPage    from './pages/processes/HandoverListPage';   // 門市交接表＝市場部那套（2026-10-20 合併）
+import HrToolPage          from './pages/hrTool/HrToolPage';
 import PointRedeemPage      from './pages/pointRedemption/PointRedeemPage';
 import PointRedeemAdminPage from './pages/pointRedemption/PointRedeemAdminPage';
 import BasicDataPage        from './pages/basicData/BasicDataPage';
@@ -88,7 +88,7 @@ function AppRoutes() {
       <Route path="/liff/appointed-unit-bind" element={<AppointedUnitBindLiff />} />
 
       {/* 門市交接表填寫頁（QR 掃描，不需登入） */}
-      <Route path="/handover/:id" element={<PublicHandoverPage />} />
+      <Route path="/handover/:id" element={<div style={{ padding: 40, textAlign: 'center' }}>這個交接表連結已停用，請改用 App「樂活人員 → 營運工具 → 門市交接」。</div>} />
 
       {/* 分數兌換 — 員工自助頁（手機/LINE，不需登入，?app_number=） */}
       <Route path="/points" element={<PointRedeemPage />} />
@@ -114,7 +114,8 @@ function AppRoutes() {
       <Route path="/appointed-units"    element={<PrivateRoute><AppointedUnitsPage /></PrivateRoute>} />
       <Route path="/point-redemption"   element={<PrivateRoute><PointRedeemAdminPage /></PrivateRoute>} />
       <Route path="/processes"          element={<PrivateRoute><ProcessesHubPage /></PrivateRoute>} />
-      <Route path="/processes/handover" element={<PrivateRoute><HandoverPage /></PrivateRoute>} />
+      <Route path="/processes/handover" element={<PrivateRoute><HandoverListPage /></PrivateRoute>} />
+      <Route path="/hr-tool"            element={<PrivateRoute><HrToolPage /></PrivateRoute>} />
       <Route path="/basic-data"         element={<PrivateRoute><BasicDataPage /></PrivateRoute>} />
       <Route path="/scheduled-notify"   element={<PrivateRoute><ScheduledNotifyPage /></PrivateRoute>} />
       <Route path="/system/permissions" element={<PrivateRoute><PermissionsPage /></PrivateRoute>} />

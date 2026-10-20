@@ -749,6 +749,17 @@ export const vendorPaymentApi = {
   deleteInvoice:        (id)                  => api.delete(`/vendor-payment/invoices/${id}`),
 };
 
+// 人事工具：離職後續（2026-10-20；資料在市場部）
+export const hrToolApi = {
+  list:        (status = 'open') => api.get('/hr-tool/list', { params: { status } }),
+  get:         (id)              => api.get(`/hr-tool/${id}`),
+  action:      (id, body)        => api.post(`/hr-tool/${id}/action`, body),
+  settings:    ()                => api.get('/hr-tool/settings'),
+  saveSettings:(body)            => api.put('/hr-tool/settings', body),
+  handovers:   (params = {})     => api.get('/hr-tool/handovers', { params }),
+  handover:    (id)              => api.get(`/hr-tool/handovers/${id}`),
+};
+
 // 匯款批次（S2：元大格式 + 進項發票）
 export const paymentBatchApi = {
   // 批次
