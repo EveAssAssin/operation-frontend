@@ -749,6 +749,17 @@ export const vendorPaymentApi = {
   deleteInvoice:        (id)                  => api.delete(`/vendor-payment/invoices/${id}`),
 };
 
+// 營運管理 → 廠商管理（2026-10-20）：新建廠商＋帳號密碼＋出款資訊
+export const vendorManageApi = {
+  list:       ()                 => api.get('/vendor-manage'),
+  create:     (body)             => api.post('/vendor-manage', body),
+  update:     (id, body)         => api.patch(`/vendor-manage/${id}`, body),
+  account:    (id, body)         => api.put(`/vendor-manage/${id}/account`, body),
+  addBank:    (id, body)         => api.post(`/vendor-manage/${id}/banks`, body),
+  updateBank: (id, bankId, body) => api.patch(`/vendor-manage/${id}/banks/${bankId}`, body),
+  deleteBank: (id, bankId)       => api.delete(`/vendor-manage/${id}/banks/${bankId}`),
+};
+
 // 人事工具：離職後續（2026-10-20；資料在市場部）
 export const hrToolApi = {
   list:        (status = 'open') => api.get('/hr-tool/list', { params: { status } }),

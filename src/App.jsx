@@ -30,6 +30,7 @@ import AppointedUnitBindLiff from './pages/appointedUnits/AppointedUnitBindLiff'
 import ProcessesHubPage    from './pages/processes/ProcessesHubPage';
 import HandoverListPage    from './pages/processes/HandoverListPage';   // 門市交接表＝市場部那套（2026-10-20 合併）
 import HrToolPage          from './pages/hrTool/HrToolPage';
+import VendorManagePage    from './pages/vendorManage/VendorManagePage';
 import PointRedeemPage      from './pages/pointRedemption/PointRedeemPage';
 import PointRedeemAdminPage from './pages/pointRedemption/PointRedeemAdminPage';
 import BasicDataPage        from './pages/basicData/BasicDataPage';
@@ -118,6 +119,7 @@ function AppRoutes() {
       <Route path="/processes"          element={<PrivateRoute><ProcessesHubPage /></PrivateRoute>} />
       <Route path="/processes/handover" element={<PrivateRoute><HandoverListPage /></PrivateRoute>} />
       <Route path="/hr-tool"            element={<PrivateRoute><HrToolPage /></PrivateRoute>} />
+      <Route path="/vendor-manage"      element={<PrivateRoute><VendorManagePage /></PrivateRoute>} />
       <Route path="/basic-data"         element={<PrivateRoute><BasicDataPage /></PrivateRoute>} />
       <Route path="/scheduled-notify"   element={<PrivateRoute><ScheduledNotifyPage /></PrivateRoute>} />
       <Route path="/system/permissions" element={<PrivateRoute><PermissionsPage /></PrivateRoute>} />
