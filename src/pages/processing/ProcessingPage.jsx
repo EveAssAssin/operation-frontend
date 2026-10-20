@@ -157,10 +157,10 @@ function Prices() {
         {edit && (
           <div style={{ marginTop: 12, padding: 12, background: '#f0f4f8', borderRadius: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <b>{edit.name || edit.bind_id}</b>
-            <label>金額 <input style={{ ...C.input, width: 110 }} type="number" min="0" value={edit.amount} onChange={(e) => setEdit({ ...edit, amount: e.target.value })} /></label>
+            <label>金額 <input style={{ ...C.input, width: 110 }} type="number" value={edit.amount} onChange={(e) => setEdit({ ...edit, amount: e.target.value })} /></label>
             <label>從 <input style={{ ...C.input, width: 110 }} type="month" value={edit.effective_from} onChange={(e) => setEdit({ ...edit, effective_from: e.target.value })} /> 起</label>
             <input style={{ ...C.input, flex: 1, minWidth: 140 }} placeholder="備註（選填）" value={edit.note} onChange={(e) => setEdit({ ...edit, note: e.target.value })} />
-            <button style={C.btn('ok')} disabled={edit.amount === '' || Number(edit.amount) < 0} onClick={save}>存</button>
+            <button style={C.btn('ok')} disabled={edit.amount === '' || !Number.isFinite(Number(edit.amount))} onClick={save}>存</button>
             <button style={C.btn('g')} onClick={() => setEdit(null)}>取消</button>
           </div>
         )}
@@ -305,7 +305,7 @@ function Unpriced({ ym, items, onSaved }) {
   const [msg, setMsg] = useState('');
   const [open, setOpen] = useState(true);
   useEffect(() => { setVal({}); setMsg(''); }, [ym, items]);
-  const filled = items.filter((i) => val[i.bind_id] !== undefined && val[i.bind_id] !== '' && Number(val[i.bind_id]) >= 0);
+  const filled = items.filter((i) => val[i.bind_id] !== undefined && val[i.bind_id] !== '' && val[i.bind_id] !== '-' && Number.isFinite(Number(val[i.bind_id])));
   const saveAll = async () => {
     setBusy(true); setMsg('');
     const r = await call(() => http.post('/prices/batch', { items: filled.map((i) => ({
@@ -334,7 +334,7 @@ function Unpriced({ ym, items, onSaved }) {
                   <td style={{ ...C.td, ...C.num }}>{i.orders}</td>
                   <td style={{ ...C.td, fontSize: 13 }}>{i.store_count > 3 ? `${i.stores.slice(0, 3).join('、')} 等 ${i.store_count} 家` : i.stores.join('、')}</td>
                   <td style={{ ...C.td, whiteSpace: 'nowrap' }}>
-                    <input style={{ ...C.input, width: 100 }} type="number" min="0" inputMode="decimal" placeholder="填金額"
+                    <input style={{ ...C.input, width: 100 }} type="text" inputMode="decimal" placeholder="填金額（可負數）"
                       value={val[i.bind_id] ?? ''} onChange={(e) => setVal({ ...val, [i.bind_id]: e.target.value })} />
                     {' '}<button style={C.btn('g')} onClick={() => setVal({ ...val, [i.bind_id]: '0' })}>不收費</button>
                   </td>
