@@ -33,6 +33,7 @@ const NAV_ITEMS = [
       { path: '/billing-dept-summary', label: '部門開帳總表', icon: '📊', moduleKey: 'billing' },
       { path: '/billing',              label: '工程開帳',     icon: '🔧', moduleKey: 'billing' },
       { path: '/billing-ad',           label: '企劃開帳',     icon: '📣', moduleKey: 'billing' },
+      { path: '/processing',           label: '加工中心開帳', icon: '🔬', moduleKey: 'billing' },
       // 之後新增的部門開帳（美睫部 等）都加在這裡
     ],
   },

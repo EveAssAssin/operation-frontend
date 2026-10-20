@@ -44,6 +44,7 @@ import VendorRequestsPage from './pages/vendor/VendorRequestsPage';
 import VendorProfilePage  from './pages/vendor/VendorProfilePage';
 import VendorContractsPage from './pages/vendor/VendorContractsPage';
 import VendorLayout       from './pages/vendor/VendorLayout';
+import ProcessingPage     from './pages/processing/ProcessingPage';
 
 // 通用簽收頁面（LINE LIFF / Web，不需登入）
 import UniversalSignPage from './pages/sign/UniversalSignPage';
@@ -125,6 +126,9 @@ function AppRoutes() {
       <Route path="/system/permissions" element={<PrivateRoute><PermissionsPage /></PrivateRoute>} />
 
       {/* 廠商後台（獨立 JWT，獨立 Layout） */}
+      {/* 加工中心開帳：獨立入口（加工中心帳號／營運部帳號都可），不套 Layout */}
+      <Route path="/processing" element={<ProcessingPage />} />
+      <Route path="/processing/login" element={<ProcessingPage />} />
       <Route path="/vendor/login"    element={vendor ? <Navigate to="/vendor/requests" replace /> : <VendorLoginPage />} />
       <Route path="/vendor/bills"    element={<VendorPrivateRoute><VendorBillsPage /></VendorPrivateRoute>} />
       <Route path="/vendor/requests" element={<VendorPrivateRoute><VendorRequestsPage /></VendorPrivateRoute>} />
