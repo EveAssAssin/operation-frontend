@@ -46,7 +46,6 @@ export default function StoreProfilePage() {
       </div>
       {err && <div style={{ color: '#c53030' }}>{err}</div>}
       {!store && <div style={S.sub}>選一家門市，看它的房租合約、基本資料、固定支出付款狀態、行銷基金折舊和股東。</div>}
-      {!store && <OpenChecks stores={stores} onPick={(id) => setSp({ store: id, ym })} />}
 
       {d && <>
         <div style={S.card} data-yaya="sp-rent">
@@ -85,12 +84,14 @@ export default function StoreProfilePage() {
             <div key={r.id} style={S.row}>
               <div><b>{r.name}</b> <span style={S.sub}>{r.payment_method || ''}｜收款 {r.payee_name || '—'}｜每月 {r.cycle_day || '?'} 號｜{fmt(r.amount)}{r.is_active ? '' : '｜已停用'}{r.contract_id ? `｜🔗 連動合約（${Math.round(Number(r.contract_share) * 10000) / 100}%）` : ''}</span></div>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
-                {r.payments.map((p) => <PayChip key={p.year_month} p={p} method={r.payment_method} onDone={load} />)}
+                {r.payments.map((p) => <PayChip key={p.year_month} p={p} />)}
                 {r.payments.length === 0 && <span style={S.sub}>近 6 個月沒有付款紀錄</span>}
               </div>
             </div>
           ))}
         </div>
+
+        <CheckCard d={d} rentCons={rentCons} onDone={load} />
 
         <div style={S.card}>
           <div style={S.h}>📋 基本資料</div>
@@ -166,6 +167,7 @@ function HolderEditor({ store, ym, items, onDone }) {
   const [msg, setMsg] = useState('');
   const [ro, setRo] = useState(null);
   const [grp, setGrp] = useState('');
+  const [kw, setKw] = useState('');
   const loadRo = (force) => ledgerApi.holderRoster(force).then((r) => { setRo(r.data); setGrp((r.data && r.data.group) || ''); }).catch((e) => setMsg(errMsg(e)));
   useEffect(() => { loadRo(false); }, []);
   const active = items.filter((h) => h.from_ym <= ym && (!h.to_ym || h.to_ym >= ym));
@@ -177,6 +179,7 @@ function HolderEditor({ store, ym, items, onDone }) {
   const end = async (id) => { try { await ledgerApi.patchHolder(id, { to_ym: ym }); onDone(); } catch (e) { setMsg(errMsg(e)); } };
   const del = async (id) => { try { await ledgerApi.delHolder(id); onDone(); } catch (e) { setMsg(errMsg(e)); } };
   const list = (ro && ro.list) || [];
+  const shown = kw.trim() ? list.filter((x) => String(x.name).includes(kw.trim()) || x.erpid === f.erpid) : list;
   return (
     <div style={S.card} data-yaya="sp-holders">
       <div style={S.h}>👥 股東 <span style={S.sub}>{ym} 合計 {sum}%{sum !== 100 && items.length ? '（不是 100%）' : ''}</span></div>
@@ -186,9 +189,11 @@ function HolderEditor({ store, ym, items, onDone }) {
         {!h.to_ym && <button style={S.btnLink} onClick={() => end(h.id)}>到 {ym} 為止</button>}
         <button style={S.btnLink} onClick={() => del(h.id)}>刪除</button></div>)}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8, alignItems: 'center' }}>
+        <input style={{ ...S.input, width: 90 }} placeholder="找名字" value={kw} onChange={(e) => setKw(e.target.value)} />
         <select style={S.input} value={f.erpid} onChange={(e) => setF({ ...f, erpid: e.target.value })}>
-          <option value="">— 左手股東部門的人 —</option>
-          {list.map((x) => <option key={x.erpid} value={x.erpid}>{x.name}{x.app_number ? '' : '（沒有客編，看不到投資管理）'}</option>)}
+          <option value="">— 選股東 —</option>
+          <optgroup label="左手「股東」部門">{shown.filter((x) => x.in_dept).map((x) => <option key={x.erpid} value={x.erpid}>{x.name}{x.app_number ? '' : '（沒有客編）'}</option>)}</optgroup>
+          <optgroup label="在職人員">{shown.filter((x) => !x.in_dept).map((x) => <option key={x.erpid} value={x.erpid}>{x.name}{x.app_number ? '' : '（沒有客編）'}</option>)}</optgroup>
         </select>
         <input style={{ ...S.input, width: 70 }} placeholder="持股%" value={f.shares} onChange={(e) => setF({ ...f, shares: e.target.value })} />
         <input style={S.input} type="month" value={f.from_ym} onChange={(e) => setF({ ...f, from_ym: e.target.value })} />
@@ -197,7 +202,7 @@ function HolderEditor({ store, ym, items, onDone }) {
         <button style={S.btnLink} onClick={() => loadRo(true)}>重抓左手名單</button>
       </div>
       <div style={{ ...S.sub, marginTop: 6 }}>
-        名單來源：左手「股東」部門{ro && ro.group ? `（部門編號 ${ro.group}，${list.length} 人）` : ''}。{ro && ro.error ? <span style={{ color: '#c53030' }}>{ro.error}</span> : ''}
+        名單＝左手「股東」部門{ro && ro.group ? `（部門編號 ${ro.group}，${ro.dept_count} 人）` : ''}＋在職人員；有股份的人 App「樂活人員」會出現「投資管理」。{ro && ro.error ? <span style={{ color: '#c53030' }}>{ro.error}</span> : ''}
         {' '}左手部門編號 <input style={{ ...S.input, width: 100, padding: 2 }} value={grp} onChange={(e) => setGrp(e.target.value)} /> <button style={S.btnLink} onClick={saveGrp}>設定</button>
       </div>
       {msg && <div style={S.sub}>{msg}</div>}
@@ -205,35 +210,50 @@ function HolderEditor({ store, ym, items, onDone }) {
   );
 }
 
-const isCheck = (m) => /支票|票/.test(String(m || ''));
-// 一期應付：點開可填支票（票號、開票日、票面到期日、兌現日）
-function PayChip({ p, method, onDone }) {
-  const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ check_no: p.check_no || '', check_issue_date: p.check_issue_date || '', check_due_date: p.check_due_date || '', check_cashed_date: p.check_cashed_date || '', check_note: p.check_note || '' });
-  const [msg, setMsg] = useState('');
+// 一期固定支出：已付／未付（支票改看下面「支票」那張卡＝既有支票紀錄系統）
+function PayChip({ p }) {
   const today = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
-  const overdue = p.check_no && !p.check_cashed_date && p.check_due_date && p.check_due_date < today;
-  const color = p.check_no ? (p.check_cashed_date ? '#2f855a' : overdue ? '#c53030' : '#b7791f') : p.status === 'paid' ? '#2f855a' : (p.due_date && p.due_date < today) ? '#c53030' : '#a0aec0';
-  const label = p.check_no ? (p.check_cashed_date ? '已兌現' : overdue ? '票到期未兌現' : '已開票') : p.status === 'paid' ? '已付' : '未付';
-  const save = async () => { try { await recurringExpensesApi.updateCheck(p.id, f); setOpen(false); onDone(); } catch (e) { setMsg(errMsg(e)); } };
+  const color = p.status === 'paid' ? '#2f855a' : (p.due_date && p.due_date < today) ? '#c53030' : '#a0aec0';
+  return <span title={p.paid_at ? `付款 ${String(p.paid_at).slice(0, 10)}` : `到期 ${p.due_date || ''}`} style={S.tag(color)}>{p.year_month.slice(5)} 月 {p.status === 'paid' ? '已付' : '未付'}</span>;
+}
+
+// 支票（既有「支票紀錄」系統）：這家店的房租科目＋連到這家店合約的批次；批次可指定付哪份合約
+const CK_ST = { pending: ['待出款', '#b7791f'], paid: ['已出款', '#2f855a'], voided: ['作廢', '#a0aec0'], bounced: ['退票', '#c53030'] };
+function CheckCard({ d, rentCons, onDone }) {
+  const ck = d.checks || { batches: [], subjects: [], unmapped_rent: [] };
+  const [msg, setMsg] = useState('');
+  const [pick, setPick] = useState('');
+  const mapSub = async () => { try { await ledgerApi.mapCheckSubject(pick, d.store); setPick(''); onDone(); } catch (e) { setMsg(errMsg(e)); } };
+  const linkBatch = async (id, cid) => { try { await ledgerApi.linkCheckBatch(id, cid || null); onDone(); } catch (e) { setMsg(errMsg(e)); } };
   return (
-    <span style={{ display: 'inline-block', position: 'relative' }}>
-      <span style={{ ...S.tag(color), cursor: 'pointer' }} onClick={() => setOpen(!open)} title={`${fmt(p.amount)}｜到期 ${p.due_date || ''}${p.check_no ? `｜票號 ${p.check_no}` : ''}`}>{p.year_month.slice(5)} 月 {label}</span>
-      {open && (
-        <div style={{ ...S.card, position: 'absolute', zIndex: 10, padding: 10, marginTop: 4, width: 300 }}>
-          <div style={S.sub}>{p.year_month}｜應付 {fmt(p.amount)}｜{p.status === 'paid' ? '已付' : '未付'}{isCheck(method) ? '' : `｜付款方式 ${method || '—'}`}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 4, marginTop: 6, fontSize: 13 }}>
-            <span>票號</span><input style={S.input} value={f.check_no} onChange={(e) => setF({ ...f, check_no: e.target.value })} />
-            <span>開票日</span><input style={S.input} type="date" value={f.check_issue_date} onChange={(e) => setF({ ...f, check_issue_date: e.target.value })} />
-            <span>票面到期</span><input style={S.input} type="date" value={f.check_due_date} onChange={(e) => setF({ ...f, check_due_date: e.target.value })} />
-            <span>兌現日</span><input style={S.input} type="date" value={f.check_cashed_date} onChange={(e) => setF({ ...f, check_cashed_date: e.target.value })} />
-            <span>備註</span><input style={S.input} value={f.check_note} onChange={(e) => setF({ ...f, check_note: e.target.value })} />
+    <div style={S.card} data-yaya="sp-checks">
+      <div style={S.h}>🏦 支票 <span style={S.sub}>（「應付帳款 → 支票紀錄」裡的資料；{ck.subjects.length ? `科目：${ck.subjects.map((x) => x.name).join('、')}` : '還沒有支票科目對到這家店'}）</span></div>
+      {ck.batches.length === 0 && <div style={S.sub}>前後 6 個月沒有這家店的支票。</div>}
+      {ck.batches.map((b) => (
+        <div key={b.id} style={S.row}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', fontSize: 13 }}>
+            <b>{b.subject}</b><span style={S.sub}>{b.batch_no}｜開票 {b.drawer_name || '—'}｜{b.bank_name || ''}｜還有 {b.pending} 張待出款{b.last_due ? `（最後一張 ${b.last_due}）` : ''}</span>
+            <select style={{ ...S.input, fontSize: 12, padding: 2 }} value={b.contract_id || ''} onChange={(e) => linkBatch(b.id, e.target.value)}>
+              <option value="">— 付哪份合約 —</option>
+              {rentCons.map((c) => <option key={c.id} value={c.id}>{c.name}{c.status === 'archived' ? '（已封存）' : ''}</option>)}
+            </select>
           </div>
-          <div style={{ marginTop: 6, display: 'flex', gap: 8 }}><button style={S.btn} onClick={save}>存</button><button style={S.btnLink} onClick={() => setOpen(false)}>關閉</button></div>
-          {msg && <div style={{ color: '#c53030', fontSize: 12 }}>{msg}</div>}
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+            {b.checks.map((c) => { const st = CK_ST[c.status] || [c.status, '#a0aec0'];
+              return <span key={c.id} style={S.tag(st[1])} title={`票號 ${c.check_no || '—'}｜${fmt(c.amount)}`}>{String(c.due_date).slice(2, 7)} {fmt(c.amount)} {st[0]}</span>; })}
+          </div>
+        </div>
+      ))}
+      {ck.unmapped_rent.length > 0 && (
+        <div style={{ marginTop: 8, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={S.sub}>還沒對到門市的房租支票科目：</span>
+          <select style={S.input} value={pick} onChange={(e) => setPick(e.target.value)}><option value="">— 選 —</option>{ck.unmapped_rent.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+          <button style={S.btn} disabled={!pick} onClick={mapSub}>歸到這家店</button>
         </div>
       )}
-    </span>
+      <div style={{ ...S.sub, marginTop: 6 }}>月報房租「實付」＝固定支出（匯款）＋這裡票面到期在當月的支票（作廢不算、退票會在查帳提醒跳出來）。</div>
+      {msg && <div style={{ color: '#c53030', fontSize: 12 }}>{msg}</div>}
+    </div>
   );
 }
 
@@ -277,24 +297,6 @@ function ContractPayees({ contract, recurring, onDone }) {
         </div>
       )}
       {msg && <div style={{ color: '#c53030', fontSize: 12 }}>{msg}</div>}
-    </div>
-  );
-}
-
-// 全公司：開了還沒兌現的支票（票面到期日過了＝紅字）
-function OpenChecks({ stores, onPick }) {
-  const [rows, setRows] = useState(null);
-  useEffect(() => { recurringExpensesApi.openChecks().then((r) => setRows(r.data || [])).catch(() => setRows([])); }, []);
-  const name = (id) => (stores.find((s) => s.id === id) || {}).name || id || '—';
-  const today = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
-  if (!rows) return null;
-  return (
-    <div style={{ ...S.card, marginTop: 12 }} data-yaya="sp-checks">
-      <div style={S.h}>🧾 還沒兌現的支票（{rows.length}）</div>
-      {rows.length === 0 && <div style={S.sub}>沒有。</div>}
-      {rows.map((r) => { const e = r.recurring_expenses || {}; const late = r.check_due_date && r.check_due_date < today;
-        return <div key={r.id} style={{ fontSize: 13, color: late ? '#c53030' : undefined }}>
-          <a style={S.link} href="#" onClick={(ev) => { ev.preventDefault(); onPick(e.store_erpid); }}>{name(e.store_erpid)}</a>｜{e.payee_name || e.name}｜{r.year_month}｜{fmt(r.amount)}｜票號 {r.check_no}｜到期 {r.check_due_date || '—'}{late ? '（已過到期日）' : ''}</div>; })}
     </div>
   );
 }
