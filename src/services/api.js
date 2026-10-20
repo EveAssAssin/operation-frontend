@@ -828,6 +828,8 @@ export const ledgerApi = {
   mapSource:  (id, code)  => api.patch(`/ledger/mapping/source/${id}`, { ledger_code: code }),
   mapCategory:(id, code)  => api.patch(`/ledger/mapping/category/${id}`, { ledger_code: code }),
   addAccount: (body)      => api.post('/ledger/accounts', body),
+  storehouseMap:    ()     => api.get('/ledger/storehouse-map'),
+  setStorehouseMap: (body) => api.put('/ledger/storehouse-map', body),
   // 2026-10-20：刷卡手續費費率、Excel 匯入
   cardFeeRates: (ym)      => api.get('/ledger/card-fee-rates', { params: { ym }, timeout: 120000 }),
   saveCardFeeRates: (rates) => api.put('/ledger/card-fee-rates', { rates }),
