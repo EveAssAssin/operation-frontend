@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AuditPanel from './AuditPanel';
 import CloseBar from './CloseBar';
+import AccountsPanel from './AccountsPanel';
 import { ledgerApi } from '../../services/api';
 
 const fmt = (n) => (n === null || n === undefined ? '—' : Math.round(n).toLocaleString('zh-TW'));
@@ -131,6 +132,7 @@ export default function MonthlyReportPage() {
       {err && <div style={S.err}>{err}</div>}
 
       {!store && <CloseBar ym={ym} onDone={loadOverview} />}
+      {!store && <AccountsPanel />}
       {!store && <AuditPanel ym={ym} onPickStore={(id) => setStore(id)} />}
 
       {/* ── 全部門市一覽 ── */}

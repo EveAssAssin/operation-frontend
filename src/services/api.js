@@ -753,6 +753,7 @@ export const permissionsApi = {
 
 // 門市月報（營運部帳本，2026-10-20）
 export const ledgerApi = {
+  accounts:   ()          => api.get('/ledger/accounts'),
   overview:   (ym)        => api.get('/ledger/overview', { params: { ym }, timeout: 180000 }),
   report:     (ym, store) => api.get('/ledger/report', { params: { ym, store }, timeout: 120000 }),
   manual:     (body)      => api.post('/ledger/manual', body),
@@ -765,6 +766,11 @@ export const ledgerApi = {
   auditExplain: (body)    => api.post('/ledger/audit/explain', body, { timeout: 120000 }),
   status:     (body)      => api.post('/ledger/report/status', body, { timeout: 240000 }),
   reviewerNote: (body)    => api.post('/ledger/report/reviewer-note', body),
+  mapping:    ()          => api.get('/ledger/mapping'),
+  mapSource:  (id, code)  => api.patch(`/ledger/mapping/source/${id}`, { ledger_code: code }),
+  mapCategory:(id, code)  => api.patch(`/ledger/mapping/category/${id}`, { ledger_code: code }),
+  addAccount: (body)      => api.post('/ledger/accounts', body),
+  patchAccount:(code, b)  => api.patch(`/ledger/accounts/${code}`, b),
 };
 
 export default api;
