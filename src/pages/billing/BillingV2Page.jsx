@@ -8,6 +8,7 @@ import VendorPayoutPanel, { PayoutScheduler } from './VendorPayoutPanel';
 import { useAuth } from '../../contexts/AuthContext';
 import OperationalExpensesPanel from './OperationalExpensesPanel';
 import OperationalReportPanel   from './OperationalReportPanel';
+import { PostingFields, BillPosting, BookPanel } from './LedgerPosting';
 
 // ── 廠商帳號管理面板 ──────────────────────────────────────────
 function VendorAccountsPanel({ sources, onSourceUpdate }) {
@@ -698,21 +699,30 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
   const [rejectReason, setRejectReason] = useState('');
   const [showAddInvoice, setShowAddInvoice] = useState(false);
   const [invForm, setInvForm] = useState({ invoice_no: '', invoice_date: '', amount: '', pre_tax_amount: '', tax_amount: '', vendor_tax_id: '' });
+  const [acct, setAcct] = useState({});
+  const [acctDirty, setAcctDirty] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const r = await vendorPaymentApi.getRequest(requestId);
       setData(r?.data || null);
+      if (r?.data) { setAcct({ report_ym: r.data.report_ym || null, ledger_code: r.data.ledger_code || null, amort_months: r.data.amort_months || 1 }); setAcctDirty(false); }
     } catch (e) { console.error(e); }
   }, [requestId]);
 
   useEffect(() => { load(); }, [load]);
 
   async function doApprove() {
-    if (!window.confirm('確定通過此請款？')) return;
+    if (!window.confirm(`確定通過此請款？${acct.report_ym ? `\n入帳月份：${acct.report_ym}` : ''}${Number(acct.amort_months) > 1 ? `\n分攤 ${acct.amort_months} 個月` : ''}`)) return;
     setBusy(true);
-    try { await vendorPaymentApi.approveRequest(requestId); load(); }
+    try { await vendorPaymentApi.approveRequest(requestId, acct); load(); }
     catch (e) { alert('失敗：' + e.message); }
+    finally { setBusy(false); }
+  }
+  async function saveAcct() {
+    setBusy(true);
+    try { await vendorPaymentApi.setAccounting(requestId, acct); load(); }
+    catch (e) { alert('失敗：' + (e?.response?.data?.message || e.message)); }
     finally { setBusy(false); }
   }
   async function doReject() {
@@ -939,6 +949,19 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
             </table>
           )}
         </div>
+
+        {/* 入帳設定（2026-10-20：會計按「通過」前就能設定入帳月份／格子／分攤） */}
+        {data.linked_bill_id ? (
+          <BillPosting billId={data.linked_bill_id} />
+        ) : ['submitted', 'approved'].includes(data.status) && (
+          <div>
+            <PostingFields value={acct} onChange={(v) => { setAcct(v); setAcctDirty(true); }} feeYm={data.period}
+              stores={[...new Set([...(data.allocations || []).map((x) => x.store_erpid), ...(Array.isArray(data.ticket_details) ? data.ticket_details.map((x) => x.store_erpid) : [])].filter(Boolean).map(String))]} />
+            {data.status === 'approved' && acctDirty && (
+              <div style={{ textAlign: 'right', marginTop: 6 }}><button onClick={saveAcct} disabled={busy} style={primaryBtn}>儲存入帳設定</button></div>
+            )}
+          </div>
+        )}
 
         {/* 退回原因 input */}
         {showReject && (
@@ -2185,6 +2208,10 @@ function BillDetailModal({ bill, onClose, onRefresh, userRole, departments }) {
             )}
           </div>
 
+          {['confirmed', 'distributed'].includes(bill.status) && allocations.length > 0 && (
+            <BillPosting key={allocations.map((x) => x.id || x.store_erpid).join(',')} billId={bill.id} canEdit={!editAlloc} />
+          )}
+
           {/* 明細列表（API 自動同步的帳單會有 items） */}
           {Array.isArray(bill.items) && bill.items.length > 0 && (
             <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 12, marginTop: 16 }}>
@@ -2945,6 +2972,7 @@ export default function BillingV2Page() {
     { key: 'vendor_payment',  label: '廠商請款審核' },
     { key: 'payout',          label: '💸 廠商出款' },
     { key: 'input_invoice',   label: '進項發票' },
+    { key: 'book',            label: '📒 帳本明細' },
     { key: 'sources',         label: '來源單位',     hidden: !canManage(user?.role) },
     { key: 'categories',      label: '會計科目管理', hidden: !canManage(user?.role) },
     { key: 'vendors',         label: '廠商帳號管理', hidden: !canManage(user?.role) },
@@ -3129,6 +3157,7 @@ export default function BillingV2Page() {
       )}
 
       {/* 營運費用（電費 / 水費 / 電話 ...） */}
+      {tab === 'book' && <BookPanel />}
       {tab === 'operational' && <OperationalExpensesPanel />}
 
       {/* 營運報表（分析 + 匯出） */}
