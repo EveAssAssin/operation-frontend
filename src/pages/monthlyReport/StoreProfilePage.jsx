@@ -195,7 +195,7 @@ function HolderEditor({ store, ym, items, onDone }) {
           <optgroup label="左手「股東」部門">{shown.filter((x) => x.in_dept).map((x) => <option key={x.erpid} value={x.erpid}>{x.name}{x.app_number ? '' : '（沒有客編）'}</option>)}</optgroup>
           <optgroup label="在職人員">{shown.filter((x) => !x.in_dept).map((x) => <option key={x.erpid} value={x.erpid}>{x.name}{x.app_number ? '' : '（沒有客編）'}</option>)}</optgroup>
         </select>
-        <input style={{ ...S.input, width: 70 }} placeholder="持股%" value={f.shares} onChange={(e) => setF({ ...f, shares: e.target.value })} />
+        <input style={{ ...S.input, width: 70 }} placeholder="持股%（可小數）" type="number" step="0.001" value={f.shares} onChange={(e) => setF({ ...f, shares: e.target.value })} />
         <input style={S.input} type="month" value={f.from_ym} onChange={(e) => setF({ ...f, from_ym: e.target.value })} />
         <input style={S.input} type="month" value={f.to_ym} onChange={(e) => setF({ ...f, to_ym: e.target.value })} title="結束月份（空白＝至今）" />
         <button style={S.btn} disabled={!f.erpid || !f.shares} onClick={add}>新增</button>
