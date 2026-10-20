@@ -838,6 +838,12 @@ export const ledgerApi = {
   amortList: (store) => api.get('/ledger/amortize', { params: store ? { store } : {} }),
   amortAdd:  (body)  => api.post('/ledger/amortize', body),
   amortDel:  (group) => api.delete(`/ledger/amortize/${group}`),
+  // 會計科目（2026-10-21）
+  subjects:      (all) => api.get('/ledger/subjects', { params: all ? { all: 1 } : {} }),
+  subjectAdd:    (body) => api.post('/ledger/subjects', body),
+  subjectPatch:  (id, body) => api.patch(`/ledger/subjects/${id}`, body),
+  manualSubject: (id, subject_id) => api.patch(`/ledger/manual/${id}/subject`, { subject_id }),
+  billSubject:   (id, subject_id) => api.patch(`/ledger/bill/${id}/subject`, { subject_id }),
   // 原始憑證（2026-10-21；只有營運部／超級管理員）
   vouchers:      (ref_type, ref_id) => api.get('/ledger/vouchers', { params: { ref_type, ref_id } }),
   voucherUpload: (ref_type, ref_id, files, note) => { const fd = new FormData(); fd.append('ref_type', ref_type); fd.append('ref_id', ref_id); if (note) fd.append('note', note); [...files].forEach((f) => fd.append('files', f)); return api.post('/ledger/vouchers', fd, { timeout: 120000 }); },

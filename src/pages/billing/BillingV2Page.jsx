@@ -10,6 +10,7 @@ import OperationalExpensesPanel from './OperationalExpensesPanel';
 import OperationalReportPanel   from './OperationalReportPanel';
 import { PostingFields, BillPosting, BookPanel } from './LedgerPosting';
 import VoucherBox, { canSeeVouchers } from '../../components/vouchers/VoucherBox';
+import SubjectSelect from '../../components/ledger/SubjectSelect';
 import { useAuth as useAuthV } from '../../contexts/AuthContext';
 
 // ── 廠商帳號管理面板 ──────────────────────────────────────────
@@ -708,7 +709,7 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
     try {
       const r = await vendorPaymentApi.getRequest(requestId);
       setData(r?.data || null);
-      if (r?.data) { setAcct({ report_ym: r.data.report_ym || null, ledger_code: r.data.ledger_code || null, amort_months: r.data.amort_months || 1 }); setAcctDirty(false); }
+      if (r?.data) { setAcct({ report_ym: r.data.report_ym || null, ledger_code: r.data.ledger_code || null, subject_id: r.data.subject_id || null, amort_months: r.data.amort_months || 1 }); setAcctDirty(false); }
     } catch (e) { console.error(e); }
   }, [requestId]);
 
@@ -1800,6 +1801,7 @@ function CreateBillModal({ sources, departments, onClose, onCreated }) {
   const [form, setForm] = useState({
     source_id: '',
     accounting_category_id: '',
+    subject_id: '',
     period: currentMonth(),
     title: '',
     description: '',
@@ -1846,6 +1848,7 @@ function CreateBillModal({ sources, departments, onClose, onCreated }) {
       setError('請填寫：來源單位、月份、標題、金額');
       return;
     }
+    if (!form.subject_id) { setError('請選會計科目（決定列在月報哪一格，之後也用來歸類分析）'); return; }
     const allocs = allocMode === 'single'
       ? []
       : allocations.filter(a => a.store_erpid && a.allocated_amount);
@@ -1901,7 +1904,11 @@ function CreateBillModal({ sources, departments, onClose, onCreated }) {
               </select>
             </div>
             <div style={formField}>
-              <label style={labelStyle}>會計科目</label>
+              <label style={labelStyle}>會計科目 *</label>
+              <SubjectSelect value={form.subject_id} onChange={(sj) => set('subject_id', sj ? sj.id : '')} style={{ width: '100%' }} />
+            </div>
+            <div style={formField}>
+              <label style={labelStyle}>廠商分類（選填）</label>
               {(() => {
                 const parentsOnly = categories.filter(c => !c.parent_id);
                 const selCat = categories.find(c => c.id === form.accounting_category_id);

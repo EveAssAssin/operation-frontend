@@ -14,6 +14,7 @@ import { useCoachMarks } from '../../components/help/CoachMarks';
 import { ROW_HELP, REV_HELP, SECTION_HELP, DEFAULT_ROW_HELP, TOUR_OVERVIEW, TOUR_STORE } from './helpTexts';
 import { ledgerApi } from '../../services/api';
 import VoucherBox from '../../components/vouchers/VoucherBox';
+import SubjectSelect from '../../components/ledger/SubjectSelect';
 
 const fmt = (n) => (n === null || n === undefined ? '—' : Math.round(n).toLocaleString('zh-TW'));
 const SRC_COLOR = { 刷卡費率: '#2b6cb0', 左手薪資: '#2f855a', 支票: '#975a16', 開帳單: '#2b6cb0', 部門開帳: '#6b46c1', 營運費用: '#2f855a', 固定支出: '#975a16', 固定金額: '#975a16', 'ERP 費用單': '#c05621', 愛民支出: '#c05621', 企劃部開帳: '#6b46c1', 倉庫開帳: '#2c7a7b', 合約: '#8b6f4e', 基本資料: '#718096', 手填: '#4a5568', 調帳: '#c53030', 分攤: '#805ad5' };
@@ -63,15 +64,17 @@ export default function MonthlyReportPage() {
   const closed = rep && rep.status === 'closed';
   const startForm = (row, entry_type = 'value', vendor = '') => {
     setMsg('');
-    setForm({ code: row.code, name: row.name, group: row.group, entry_type, amount: '', vendor, reason: '', fee_ym: '' });
+    setForm({ code: row.code, name: row.name, group: row.group, entry_type, amount: '', vendor, reason: '', fee_ym: '', subject_id: '' });
     setFormFiles([]);
   };
   const submit = async () => {
     if (!form) return;
     if (form.amount === '' || !Number.isFinite(Number(form.amount))) { setMsg('請填金額'); return; }
     if (form.entry_type === 'adjust' && !form.reason.trim()) { setMsg('調帳一定要寫原因'); return; }
+    const isExpense = !['revenue', 'info'].includes(form.group);
+    if (isExpense && !form.subject_id) { setMsg('請選會計科目（之後才能歸類分析）'); return; }
     try {
-      const r = await ledgerApi.manual({ store, ym, ledger_code: form.code, entry_type: form.entry_type, amount: Number(form.amount), vendor: form.vendor, reason: form.reason, fee_ym: form.fee_ym || null });
+      const r = await ledgerApi.manual({ store, ym, ledger_code: form.code, entry_type: form.entry_type, amount: Number(form.amount), vendor: form.vendor, reason: form.reason, fee_ym: form.fee_ym || null, subject_id: form.subject_id || null });
       if (formFiles.length && r && r.data && r.data.id) {
         try { await ledgerApi.voucherUpload('manual', r.data.id, formFiles); } catch (e) { setErr(`已記帳，但憑證上傳失敗：${errMsg(e)}（到那一格明細補傳）`); }
       }
@@ -106,6 +109,11 @@ export default function MonthlyReportPage() {
                 <span style={S.tag(SRC_COLOR[l.source_name] || '#718096')}>{l.source_name}</span>
                 {l.fee_ym && l.fee_ym !== ym && <span style={S.tag('#805ad5')}>{l.fee_ym} 帳</span>}
                 <span style={{ flex: 1 }}>{String(l.ref_title || '').replace(/^｜|｜$/g, '')}
+                  {l.subject_name && <span style={S.tag(l.subject_set ? '#2c7a7b' : '#a0aec0')} title={l.subject_set ? '會計科目' : '沒選過，暫用這格的預設科目'}>{l.subject_set ? '' : '預設・'}{l.subject_name}</span>}
+                  {!closed && !l.subject_set && (l.source === 'bill' || String(l.source || '').startsWith('manual_')) && (
+                    <SubjectSelect ledgerCode={l.source === 'bill' ? undefined : (l.ledger_code || row.code)} value="" placeholder="補選科目" style={{ fontSize: 12, padding: 2 }}
+                      onChange={async (sj) => { if (!sj) return; try { if (l.source === 'bill') await ledgerApi.billSubject(l.ref_id, sj.id); else await ledgerApi.manualSubject(l.ref_id, sj.id); await loadReport(); } catch (e) { setErr(errMsg(e)); } }} />
+                  )}
                   {l.source === 'erp_cost' && l.receipt_status && l.receipt_status !== 'none' && <span style={S.tag(l.receipt_status === 'approved' ? '#2f855a' : l.receipt_status === 'rejected' ? '#c53030' : '#d69e2e')}>{l.receipt_status === 'approved' ? `憑證通過${l.receipt_reviewed_by ? '・' + l.receipt_reviewed_by : ''}` : l.receipt_status === 'rejected' ? '憑證退回' : '憑證待核'}</span>}
                   {rep.vouchers_visible && (l.voucher_ref || (l.vouchers || []).length > 0) && (
                     <button style={{ ...S.linkBtn, marginLeft: 6, color: (l.vouchers || []).length ? '#2b6cb0' : '#dd6b20' }}
@@ -279,6 +287,7 @@ export default function MonthlyReportPage() {
             <div style={{ ...S.card, borderColor: '#3182ce' }}>
               <div style={S.cardTitle}>{form.entry_type === 'adjust' ? '調帳' : '手填'}：{form.name}</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                {!['revenue', 'info'].includes(form.group) && <label>會計科目 <SubjectSelect ledgerCode={form.code} value={form.subject_id} onChange={(sj) => setForm({ ...form, subject_id: sj ? sj.id : '' })} /></label>}
                 <label>金額 <input style={S.input} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder={form.entry_type === 'adjust' ? '可填負數' : ''} /></label>
                 {(VENDOR_GROUPS.includes(form.group)) && <label>廠商 <input style={S.input} value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })} placeholder="例 HOYA、晶碩" /></label>}
                 <label>費用月 <select style={S.input} value={form.fee_ym} onChange={(e) => setForm({ ...form, fee_ym: e.target.value })}><option value="">同月報月份</option>{months(6).map((m) => <option key={m} value={m}>{m}</option>)}</select></label>

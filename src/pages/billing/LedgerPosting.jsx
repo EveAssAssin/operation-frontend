@@ -4,6 +4,7 @@
 //   BookPanel：帳單管理「📒 帳本明細」— 全部門市每一筆支出，依科目／門市／來源篩選與逐月比較
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { ledgerApi } from '../../services/api';
+import SubjectSelect from '../../components/ledger/SubjectSelect';
 import HelpTip from '../../components/help/HelpTip';
 
 const GROUPS = { opex: '營運支出', planning: '企劃品', ads: '廣告費', misc: '雜費', frame: '鏡框', lens: '鏡片', contact: '藥拋' };
@@ -42,12 +43,12 @@ export function PostingFields({ value, onChange, feeYm, stores, disabled }) {
     <div style={{ padding: 12, background: '#f0f7ff', border: '1px solid #bee3f8', borderRadius: 6 }} data-yaya="vp-posting">
       <div style={{ fontSize: 12, fontWeight: 700, color: '#2c5282', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
         📒 入帳設定（列入門市月報）
-        <HelpTip title="入帳設定" body={'入帳月份：這筆帳列在哪個月的門市月報。預設＝費用月份；如果過了下個月 ' + ((pv && pv.cutoff) || 26) + ' 號才收到，會列下個月。\n月報格子：沒選就照「⚙ 科目與廠商」裡這個廠商的設定。\n分攤：要分好幾個月算就填月數，每月平均、零頭放最後一個月。\n任何一個門市那個月已關帳，會自動改列下一個沒關帳的月份。\n廠商入口的請款是「標記已撥款」後才進月報；市場部等系統送來的請款是「通過」就進月報。'} />
+        <HelpTip title="入帳設定" body={'入帳月份：這筆帳列在哪個月的門市月報。預設＝費用月份；如果過了下個月 ' + ((pv && pv.cutoff) || 26) + ' 號才收到，會列下個月。\n會計科目：一定要選，選了就決定列在月報哪一格（之後也用來歸類分析）；沒有適合的可以當場新增。\n分攤：要分好幾個月算就填月數，每月平均、零頭放最後一個月。\n任何一個門市那個月已關帳，會自動改列下一個沒關帳的月份。\n廠商入口的請款是「標記已撥款」後才進月報；市場部等系統送來的請款是「通過」就進月報。'} />
       </div>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', fontSize: 13 }}>
         <label>入帳月份 <input type="month" disabled={disabled} style={S.input} value={ym} onChange={(e) => onChange({ ...v, report_ym: e.target.value || null })} /></label>
         {pv && pv.default_ym && v.report_ym && v.report_ym !== pv.default_ym && <button style={S.link} disabled={disabled} onClick={() => onChange({ ...v, report_ym: null })}>改回預設 {pv.default_ym}</button>}
-        <label>月報格子 <CodeSelect accs={accs} value={v.ledger_code} onChange={(c) => onChange({ ...v, ledger_code: c })} style={{ maxWidth: 200 }} /></label>
+        <label>會計科目 <SubjectSelect disabled={disabled} value={v.subject_id} onChange={(sj) => onChange({ ...v, subject_id: sj ? sj.id : null, ledger_code: sj ? sj.ledger_code : null })} /></label>
         <label>分攤 <input type="number" min="1" max="60" disabled={disabled} style={{ ...S.input, width: 56 }} value={n} onChange={(e) => onChange({ ...v, amort_months: Number(e.target.value) || 1 })} /> 個月</label>
       </div>
       <div style={{ fontSize: 12, color: '#4a5568', marginTop: 6 }}>
@@ -84,6 +85,11 @@ export function BillPosting({ billId, canEdit = true, onChanged }) {
         <HelpTip title="列入門市月報" body={'每一家門市這筆帳列在哪個月、哪一格。\n「自動」＝照費用月份＋收到日算（過了下個月 ' + d.bill.cutoff + ' 號才收到就列下個月）；已關帳的月份會自動往後順延。\n要改就直接選月份或格子；要分好幾個月算按「分攤」。\n已關帳的月份不能改（要修正請在之後的月份記調帳）。'} />
       </div>
       {msg && <div style={{ color: '#c53030', fontSize: 12, marginBottom: 4 }}>{msg}</div>}
+      <div style={{ fontSize: 12, marginBottom: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        會計科目：<b style={{ color: d.bill.subject_set ? '#2c7a7b' : '#dd6b20' }}>{d.bill.subject_name || '（沒有）'}{d.bill.subject_set ? '' : '（沒選過，暫用預設）'}</b>
+        {canEdit && <SubjectSelect value="" placeholder={d.bill.subject_set ? '換科目' : '選科目'} style={{ fontSize: 12, padding: 2 }}
+          onChange={async (sj) => { if (!sj) return; setMsg(''); try { await ledgerApi.billSubject(billId, sj.id); await load(); onChanged && onChanged(); } catch (e) { setMsg(errMsg(e)); } }} />}
+      </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead><tr>{['門市', '金額', '列入月份', '月報格子', '分攤'].map((h) => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
         <tbody>{d.allocations.map((a) => (
@@ -112,7 +118,7 @@ export function BillPosting({ billId, canEdit = true, onChanged }) {
 /** 📒 帳本明細 */
 export function BookPanel() {
   const accs = useAccounts();
-  const [f, setF] = useState({ from: addYm(tpeYm(), -2), to: tpeYm(), store: '', code: '', group: '', source: '', q: '' });
+  const [f, setF] = useState({ from: addYm(tpeYm(), -2), to: tpeYm(), store: '', code: '', group: '', source: '', subject: '', q: '' });
   const [d, setD] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -132,8 +138,8 @@ export function BookPanel() {
   });
   const exportCsv = () => {
     if (!d) return;
-    const head = ['月份', '門市', '區', '科目', '金額', '來源', '說明', '費用月', '已關帳'];
-    const rows = d.lines.map((l) => [l.ym, l.store_name, l.group_name, l.name, l.amount, l.source_name, l.ref_title || '', l.fee_ym || '', l.closed ? '是' : '']);
+    const head = ['月份', '門市', '區', '月報格子', '會計科目', '金額', '來源', '說明', '費用月', '已關帳'];
+    const rows = d.lines.map((l) => [l.ym, l.store_name, l.group_name, l.name, `${l.subject_name || ''}${l.subject_set ? '' : '（預設）'}`, l.amount, l.source_name, l.ref_title || '', l.fee_ym || '', l.closed ? '是' : '']);
     const csv = '﻿' + [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = `帳本明細_${f.from}_${f.to}.csv`; a.click();
   };
@@ -161,13 +167,13 @@ export function BookPanel() {
           {d.errors.length > 0 && <span style={{ color: '#c05621' }}>⚠ {d.errors.length} 家店有月份算不出來（{d.errors.slice(0, 3).map((e) => `${e.store_name} ${e.ym}`).join('、')}）</span>}
         </div>
         <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-          {[['code', '依科目'], ['store', '依門市'], ['lines', '明細']].map(([k, n]) => <button key={k} onClick={() => setView(k)} style={{ ...S.tab, ...(view === k ? S.tabOn : {}) }}>{n}</button>)}
+          {[['code', '依月報格子'], ['subject', '依會計科目'], ['store', '依門市'], ['lines', '明細']].map(([k, n]) => <button key={k} onClick={() => setView(k)} style={{ ...S.tab, ...(view === k ? S.tabOn : {}) }}>{n}</button>)}
         </div>
         {view !== 'lines' && <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead><tr><th style={S.th}>{view === 'code' ? '科目' : '門市'}</th>{months.map((m) => <th key={m} style={{ ...S.th, textAlign: 'right' }}>{m}</th>)}<th style={{ ...S.th, textAlign: 'right' }}>合計</th><th style={{ ...S.th, textAlign: 'right' }}>占比</th></tr></thead>
-          <tbody>{(view === 'code' ? d.by_code : d.by_store).map((r) => (
-            <tr key={r.code || r.store} style={{ cursor: 'pointer' }} onClick={() => { setF({ ...f, [view === 'code' ? 'code' : 'store']: r.code || r.store }); setView('lines'); }}>
-              <td style={S.td}>{view === 'code' ? <>{r.name} <span style={S.sub}>{r.group_name}</span></> : r.store_name}</td>
+          <thead><tr><th style={S.th}>{view === 'code' ? '月報格子' : view === 'subject' ? '會計科目' : '門市'}</th>{months.map((m) => <th key={m} style={{ ...S.th, textAlign: 'right' }}>{m}</th>)}<th style={{ ...S.th, textAlign: 'right' }}>合計</th><th style={{ ...S.th, textAlign: 'right' }}>占比</th></tr></thead>
+          <tbody>{(view === 'code' ? d.by_code : view === 'subject' ? (d.by_subject || []) : d.by_store).map((r) => (
+            <tr key={(r.subject_id || '') + (r.code || r.store)} style={{ cursor: 'pointer' }} onClick={() => { if (view === 'subject') setF({ ...f, subject: r.subject_id || '' }); else setF({ ...f, [view === 'code' ? 'code' : 'store']: r.code || r.store }); setView('lines'); }}>
+              <td style={S.td}>{view === 'code' ? <>{r.name} <span style={S.sub}>{r.group_name}</span></> : view === 'subject' ? <>{r.name} <span style={S.sub}>{r.code_name}{r.unset ? `・其中 ${fmt(r.unset)} 沒選過科目` : ''}</span></> : r.store_name}</td>
               {trend(r)}
               <td style={{ ...S.td, textAlign: 'right', fontWeight: 600 }}>{fmt(r.total)}</td>
               <td style={{ ...S.td, textAlign: 'right' }}>{d.total ? `${Math.round((r.total / d.total) * 1000) / 10}%` : ''}</td>
@@ -180,18 +186,18 @@ export function BookPanel() {
 }
 function LinesTable({ d, f, setF }) {
   const [open, setOpen] = useState(null);
-  const lines = d.lines.filter((l) => (!f.store || l.store === f.store) && (!f.code || l.code === f.code));
+  const lines = d.lines.filter((l) => (!f.store || l.store === f.store) && (!f.code || l.code === f.code) && (!f.subject || l.subject_id === f.subject));
   return (
     <div style={{ overflowX: 'auto' }}>
-      {(f.store || f.code) && <div style={{ fontSize: 12, marginBottom: 4 }}>篩選中 <button style={S.link} onClick={() => setF({ ...f, store: '', code: '' })}>清除門市／科目</button>（改了篩選要按「查詢」）</div>}
+      {(f.store || f.code || f.subject) && <div style={{ fontSize: 12, marginBottom: 4 }}>篩選中 <button style={S.link} onClick={() => setF({ ...f, store: '', code: '', subject: '' })}>清除門市／格子／科目</button>（改了篩選要按「查詢」）</div>}
       {d.truncated && <div style={{ fontSize: 12, color: '#c05621' }}>筆數太多，只列前 3000 筆，請縮小範圍</div>}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-        <thead><tr>{['月份', '門市', '科目', '金額', '來源', '說明', ''].map((h) => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+        <thead><tr>{['月份', '門市', '月報格子／會計科目', '金額', '來源', '說明', ''].map((h) => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
         <tbody>{lines.map((l, i) => [
           <tr key={i}>
             <td style={S.td}>{l.ym}{l.closed ? ' 🔒' : ''}{l.fee_ym && l.fee_ym !== l.ym ? <div style={S.sub}>費用 {l.fee_ym}</div> : null}</td>
             <td style={S.td}>{l.store_name}</td>
-            <td style={S.td}>{l.name}</td>
+            <td style={S.td}>{l.name}<div style={{ ...S.sub, color: l.subject_set ? '#2c7a7b' : '#a0aec0' }}>{l.subject_name}{l.subject_set ? '' : '（預設）'}</div></td>
             <td style={{ ...S.td, textAlign: 'right' }}>{fmt(l.amount)}</td>
             <td style={S.td}>{l.source_name}</td>
             <td style={{ ...S.td, maxWidth: 360 }}>{l.ref_title}</td>
