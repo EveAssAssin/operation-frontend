@@ -1,6 +1,6 @@
 // pages/processing/ProcessingPage.jsx — 加工中心開帳（2026-10-20）
 // 獨立入口 /processing：加工中心主管用獨立帳密登入（proc_token）；營運部帳號（operation_token）也能直接進
-// 流程：主檔金額 → 選月份看各店 → 點店看逐單、追加金額 → 正確就「開帳」（寫進門市月報 代工中心代工費）
+// 流程：選月份 → 填這個月收到、還沒設金額的品項 → 看各店 → 點店看逐單、追加金額 → 正確就「開帳」（寫進門市月報 代工中心代工費）
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 
@@ -91,7 +91,7 @@ function Guide({ onClose }) {
     <div style={{ ...C.card, background: '#fffbea', border: '1px solid #f0d78c' }}>
       <div style={{ fontWeight: 700, marginBottom: 6 }}>📖 怎麼用（第一次使用請看一下）</div>
       <div style={C.help}>
-        ① <b>主檔金額</b>：搜尋商品（例：陽光有氧套餐、聯名刻字）→ 填金額 → 存。從「生效月份」起的月份用這個價；改價不影響已開帳的月份。<br />
+        ① <b>填金額</b>：選開帳月份後，上方會列出「這個月收到、還沒設定金額的品項」，直接在每一列填金額（不收費就按「不收費」＝0 元）→ 按「全部存」。存過的品項之後的月份都會自動帶入，不用再填；要改價到「主檔金額」分頁。<br />
         ② <b>開帳</b>：選月份 → 看每家店的張數與金額。算法＝這個月在加工站第一次到「品管消毒完待返回」的單；一張單同一個品項只算一次；沒設金額的品項不算錢。<br />
         ③ 點一家店 → 逐單看品項與金額；要多收或沖銷就按「追加金額」（減少填負數，一定要寫原因）。<br />
         ④ 確認正確 → 按「開帳」，金額就進那家店的門市月報（代工中心代工費）。開帳後要改先按「重新開帳」（門市月報那個月已關帳就只能記在下個月）。<br />
@@ -132,7 +132,8 @@ function Prices() {
     <>
       {dlg}
       <div style={C.card}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>新增／修改主檔金額</div>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>另外搜尋商品設定金額（通常不用）</div>
+        <div style={{ ...C.help, marginBottom: 8 }}>每月收到的品項會自動列在「開帳」頁上方等你填金額；這裡只在想先設定還沒收到的商品時才用。</div>
         <form onSubmit={search} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input style={{ ...C.input, flex: 1, minWidth: 220 }} placeholder="搜尋商品名稱、品牌、系列、型號或商品編號" value={q} onChange={(e) => setQ(e.target.value)} />
           <button style={C.btn('p')} disabled={busy}>{busy ? '搜尋中…' : '搜尋'}</button>
@@ -170,7 +171,7 @@ function Prices() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr><th style={C.th}>商品</th><th style={{ ...C.th, ...C.num }}>金額</th><th style={C.th}>生效月份</th><th style={C.th}>備註</th><th style={C.th}>最後修改</th><th style={C.th}></th></tr></thead>
           <tbody>
-            {list.length === 0 && <tr><td style={C.td} colSpan={6}>還沒有設定，先在上面搜尋商品</td></tr>}
+            {list.length === 0 && <tr><td style={C.td} colSpan={6}>還沒有設定 —— 到「開帳」選月份，上方會列出要填金額的品項</td></tr>}
             {list.map((p) => (
               <tr key={p.id}>
                 <td style={C.td}>{p.name || p.bind_id}<div style={{ fontSize: 12, color: '#9aa5b1' }}>#{p.bind_id} {[p.brand, p.catena].filter(Boolean).join('／')}</div></td>
@@ -297,6 +298,60 @@ function StoreDetail({ ym, store, onBack }) {
   );
 }
 
+// 這個月實際收到、還沒設定金額的品項：直接填，不用自己搜尋主檔（營運 10-20）
+function Unpriced({ ym, items, onSaved }) {
+  const [val, setVal] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [open, setOpen] = useState(true);
+  useEffect(() => { setVal({}); setMsg(''); }, [ym, items]);
+  const filled = items.filter((i) => val[i.bind_id] !== undefined && val[i.bind_id] !== '' && Number(val[i.bind_id]) >= 0);
+  const saveAll = async () => {
+    setBusy(true); setMsg('');
+    const r = await call(() => http.post('/prices/batch', { items: filled.map((i) => ({
+      bind_id: i.bind_id, name: i.name, brand: i.brand, catena: i.catena, model: i.model, amount: Number(val[i.bind_id]), effective_from: ym })) }));
+    setBusy(false);
+    if (!r.success) return setMsg('⚠ ' + r.message);
+    setMsg(`✅ 已存 ${r.data.saved} 個品項（${ym} 起）`); onSaved();
+  };
+  if (!items.length) return <div style={{ ...C.card, background: '#ecfdf3' }}>✅ 這個月收到的品項都已經設定金額了。</div>;
+  return (
+    <div style={{ ...C.card, border: '2px solid #f0a020' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <b>⚠ 這個月收到、還沒設定金額的品項（{items.length}）</b>
+        <span style={C.help}>沒設金額的品項不會算錢。填好按「全部存」，{ym} 起的月份都會用這個價。</span>
+        <div style={{ flex: 1 }} />
+        <button style={C.btn('g')} onClick={() => setOpen(!open)}>{open ? '收起' : '展開'}</button>
+      </div>
+      {open && (
+        <>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+            <thead><tr><th style={C.th}>品項</th><th style={{ ...C.th, ...C.num }}>張數</th><th style={C.th}>門市</th><th style={C.th}>金額（元）</th></tr></thead>
+            <tbody>
+              {items.map((i) => (
+                <tr key={i.bind_id}>
+                  <td style={C.td}>{i.name || `#${i.bind_id}`}<div style={{ fontSize: 12, color: '#9aa5b1' }}>{[i.materiel, i.brand, i.catena].filter(Boolean).join('／')} #{i.bind_id}</div></td>
+                  <td style={{ ...C.td, ...C.num }}>{i.orders}</td>
+                  <td style={{ ...C.td, fontSize: 13 }}>{i.store_count > 3 ? `${i.stores.slice(0, 3).join('、')} 等 ${i.store_count} 家` : i.stores.join('、')}</td>
+                  <td style={{ ...C.td, whiteSpace: 'nowrap' }}>
+                    <input style={{ ...C.input, width: 100 }} type="number" min="0" inputMode="decimal" placeholder="填金額"
+                      value={val[i.bind_id] ?? ''} onChange={(e) => setVal({ ...val, [i.bind_id]: e.target.value })} />
+                    {' '}<button style={C.btn('g')} onClick={() => setVal({ ...val, [i.bind_id]: '0' })}>不收費</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
+            <button style={C.btn('ok')} disabled={busy || !filled.length} onClick={saveAll}>{busy ? '存檔中…' : `全部存（${filled.length}）`}</button>
+            {msg && <span style={C.help}>{msg}</span>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Months() {
   const [ym, setYm] = useState(lastYm());
   const [d, setD] = useState(null);
@@ -321,7 +376,7 @@ function Months() {
       </div>
       {err && <div style={{ ...C.card, color: '#e5484d' }}>⚠ {err}</div>}
       {!d && !err && <div style={C.card}>讀取加工站資料中…</div>}
-      {d && d.priced_items === 0 && <div style={{ ...C.card, background: '#fff4e5' }}>還沒有設定任何主檔金額，所有單都會是 0 元 —— 先到「主檔金額」設定。</div>}
+      {d && d.unpriced && <Unpriced ym={ym} items={d.unpriced} onSaved={() => load()} />}
       {d && (
         <div style={C.card}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
