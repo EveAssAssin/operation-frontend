@@ -3,7 +3,7 @@
 //   - 列表 + 新增 + 編輯（含 type_data JSONB 動態欄位）
 
 import { useEffect, useState, useMemo } from 'react';
-import { contractsApi, filesApi, docLibraryApi } from '../../services/api';
+import { contractsApi, filesApi, docLibraryApi, recurringExpensesApi } from '../../services/api';
 
 const C = {
   dark:    '#50422d', gold: '#8b6f4e', sand: '#cdbea2',
@@ -91,7 +91,18 @@ function currentRentFromSchedule(schedule) {
 }
 
 
+// 門市清單（合約綁門市用；2026-10-20）
+const STORES = { list: [], byId: {} };
+function storeName(id) { return STORES.byId[id] || id; }
+
 export default function ContractsPage() {
+  const [, setStoresReady] = useState(0);
+  useEffect(() => {
+    if (STORES.list.length) return;
+    recurringExpensesApi.getStores().then((r) => {
+      STORES.list = r.data || []; STORES.byId = Object.fromEntries(STORES.list.map((o) => [o.id, o.name])); setStoresReady((x) => x + 1);
+    }).catch(() => {});
+  }, []);
   const [type, setType] = useState('rent');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -192,7 +203,8 @@ export default function ContractsPage() {
                         {c.note && <div style={{ fontSize: 11, color: C.textLight, marginTop: 2 }}>{c.note.slice(0, 60)}</div>}
                       </td>
                       <td style={S.td}>
-                        <div>{c.our_side_name || '—'}</div>
+                        <div>{c.store_erpid ? <b>{storeName(c.store_erpid)}</b> : (c.our_side_name || '—')}{c.purpose === 'tax' && <span style={{ fontSize: 11, marginLeft: 6, padding: '1px 6px', borderRadius: 10, background: '#fff3cd', color: '#b7791f' }}>報稅版</span>}</div>
+                        {c.type === 'rent' && !c.store_erpid && <div style={{ fontSize: 11, color: '#c53030' }}>⚠ 沒選門市，月報引用不到</div>}
                         {c.party_name && <div style={{ fontSize: 11, color: C.textLight }}>對方：{c.party_name}</div>}
                       </td>
                       <td style={S.td}>
@@ -613,6 +625,8 @@ function ContractEditModal({ contract, onClose, onSaved }) {
     status:         contract?.status         || 'active',
     note:           contract?.note           || '',
     type_data:      contract?.type_data      || {},
+    store_erpid:    contract?.store_erpid    || '',
+    purpose:        contract?.purpose        || 'actual',
   }));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -627,7 +641,7 @@ function ContractEditModal({ contract, onClose, onSaved }) {
     try {
       const payload = { ...form };
       // 空字串轉 null
-      ['start_date','end_date','signed_date','party_name','our_side_name','note'].forEach(k => {
+      ['start_date','end_date','signed_date','party_name','our_side_name','note','store_erpid'].forEach(k => {
         if (payload[k] === '') payload[k] = null;
       });
       ['total_amount','monthly_amount'].forEach(k => {
@@ -687,9 +701,16 @@ function ContractEditModal({ contract, onClose, onSaved }) {
         <div style={S.formGroup}>
           <div style={S.row2}>
             <div>
-              <label style={S.label}>{type === 'rent' ? '門市（我方）' : type === 'employee' ? '員工姓名' : '我方部門'}</label>
-              <input style={S.input} value={form.our_side_name} onChange={e => up('our_side_name', e.target.value)}
-                     placeholder={type === 'rent' ? '北屯店' : type === 'employee' ? '王小明' : '營運部'} />
+              <label style={S.label}>{type === 'rent' ? '門市（月報房租引用這份合約）*' : type === 'employee' ? '員工姓名' : '我方部門'}</label>
+              {type === 'rent' ? (
+                <select style={S.input} value={form.store_erpid} onChange={e => up('store_erpid', e.target.value)}>
+                  <option value="">— 選門市 —</option>
+                  {STORES.list.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              ) : (
+                <input style={S.input} value={form.our_side_name} onChange={e => up('our_side_name', e.target.value)}
+                       placeholder={type === 'employee' ? '王小明' : '營運部'} />
+              )}
             </div>
             <div>
               <label style={S.label}>{type === 'rent' ? '房東' : type === 'vendor' ? '廠商' : '雇主'}</label>
@@ -698,6 +719,15 @@ function ContractEditModal({ contract, onClose, onSaved }) {
             </div>
           </div>
         </div>
+        {type === 'rent' && (
+          <div style={S.formGroup}>
+            <label style={S.label}>這份合約是</label>
+            <select style={S.input} value={form.purpose} onChange={e => up('purpose', e.target.value)}>
+              <option value="actual">實際合約（月報房租用這份）</option>
+              <option value="tax">報稅使用（只存檔，月報不用；同門市沒有實際合約時才暫用）</option>
+            </select>
+          </div>
+        )}
 
         <div style={S.formGroup}>
           <div style={S.row3}>
