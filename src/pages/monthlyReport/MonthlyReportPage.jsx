@@ -6,10 +6,15 @@ import { useState, useEffect, useCallback } from 'react';
 import AuditPanel from './AuditPanel';
 import CloseBar from './CloseBar';
 import AccountsPanel from './AccountsPanel';
+import CardFeePanel from './CardFeePanel';
+import ImportPanel from './ImportPanel';
+import HelpTip from '../../components/help/HelpTip';
+import { useCoachMarks } from '../../components/help/CoachMarks';
+import { ROW_HELP, REV_HELP, SECTION_HELP, DEFAULT_ROW_HELP, TOUR_OVERVIEW, TOUR_STORE } from './helpTexts';
 import { ledgerApi } from '../../services/api';
 
 const fmt = (n) => (n === null || n === undefined ? '—' : Math.round(n).toLocaleString('zh-TW'));
-const SRC_COLOR = { 開帳單: '#2b6cb0', 部門開帳: '#6b46c1', 營運費用: '#2f855a', 固定支出: '#975a16', 固定金額: '#975a16', 'ERP 費用單': '#c05621', 愛民支出: '#c05621', 企劃部開帳: '#6b46c1', 倉庫開帳: '#2c7a7b', 合約: '#8b6f4e', 基本資料: '#718096', 手填: '#4a5568', 調帳: '#c53030' };
+const SRC_COLOR = { 刷卡費率: '#2b6cb0', 左手薪資: '#2f855a', 支票: '#975a16', 開帳單: '#2b6cb0', 部門開帳: '#6b46c1', 營運費用: '#2f855a', 固定支出: '#975a16', 固定金額: '#975a16', 'ERP 費用單': '#c05621', 愛民支出: '#c05621', 企劃部開帳: '#6b46c1', 倉庫開帳: '#2c7a7b', 合約: '#8b6f4e', 基本資料: '#718096', 手填: '#4a5568', 調帳: '#c53030' };
 const VENDOR_GROUPS = ['misc', 'frame', 'lens', 'contact'];
 const CODE_NAME = { electricity: '電費', water: '水費', telecom: '電話網路', rent: '租金', golden_chicken: '金雞', ad_budget: '廣告費', repair: '工程修繕', edu_bonus: '教育訓練獎金' };
 
@@ -33,6 +38,9 @@ export default function MonthlyReportPage() {
   const [open, setOpen] = useState({});      // code → 展開明細
   const [form, setForm] = useState(null);    // { code, name, group, entry_type, amount, vendor, reason, fee_ym }
   const [msg, setMsg] = useState('');
+
+  const tourAll = useCoachMarks(TOUR_OVERVIEW, 'tour_monthly_report_v1', !store);
+  const tourStore = useCoachMarks(TOUR_STORE, 'tour_monthly_report_store_v1', !!store);
 
   const loadOverview = useCallback(async () => {
     setLoading(true); setErr('');
@@ -73,7 +81,7 @@ export default function MonthlyReportPage() {
       <>
         <tr style={{ cursor: 'pointer', background: isOpen ? '#f7fafc' : undefined }} onClick={() => setOpen((o) => ({ ...o, [row.code]: !o[row.code] }))}>
           <td style={S.td}>
-            {row.name}
+            {row.name}<HelpTip title={row.name} body={ROW_HELP[row.code] || DEFAULT_ROW_HELP(row)} size={15} />
             {row.fee_months.length > 0 && <span style={S.tag('#805ad5')}>{row.fee_months.map((m) => `${Number(m.slice(5))}月帳`).join('、')}</span>}
             {row.adjust_count > 0 && <span style={S.tag('#c53030')}>含調帳 {row.adjust_count} 筆</span>}
             {row.vendors.length > 0 && <div style={S.sub}>{row.vendors.map((v) => `${v.vendor} ${fmt(v.amount)}`).join('　')}</div>}
@@ -105,9 +113,9 @@ export default function MonthlyReportPage() {
     );
   };
 
-  const Section = ({ groups, title }) => (
-    <div style={S.card}>
-      <div style={S.cardTitle}>{title}</div>
+  const Section = ({ groups, title, help, tour }) => (
+    <div style={S.card} data-yaya={tour}>
+      <div style={S.cardTitle}>{title}<HelpTip title="說明" body={help} /></div>
       <table style={S.table}><tbody>
         {groups.map((g) => (
           <FragmentGroup key={g.group} g={g} />
@@ -126,21 +134,25 @@ export default function MonthlyReportPage() {
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0 }}>📒 門市月報</h2>
-        <select value={ym} onChange={(e) => setYm(e.target.value)} style={S.input}>{months().map((m) => <option key={m} value={m}>{m}</option>)}</select>
+        <select data-yaya="mr-month" value={ym} onChange={(e) => setYm(e.target.value)} style={S.input}>{months().map((m) => <option key={m} value={m}>{m}</option>)}</select>
         {store && <button style={S.btn} onClick={() => setStore('')}>‹ 全部門市</button>}
         {store && <a style={{ fontSize: 13, color: '#3182ce' }} href={`/store-profile?store=${store}&ym=${ym}`}>🏪 門市基礎設定（合約、付款狀態）</a>}
-        {store && rep && <span style={{ fontWeight: 600 }}>{rep.store_name || store}　<span style={S.tag(closed ? '#2f855a' : '#718096')}>{closed ? '已關帳' : rep.status === 'review' ? '待審閱' : '整理中'}</span></span>}
+        {store && rep && <span style={{ fontWeight: 600 }}>{rep.store_name || store}　<span style={S.tag(closed ? '#2f855a' : '#718096')}>{closed ? '已關帳' : rep.status === 'review' ? '月報完成・待關帳' : '整理中'}</span></span>}
         <button style={S.btn} onClick={() => (store ? loadReport() : loadOverview())} disabled={loading}>{loading ? '讀取中…' : '重新整理'}</button>
+        <button style={S.btn} onClick={() => (store ? tourStore.start() : tourAll.start())}>📖 使用說明</button>
       </div>
+      {tourAll.overlay}{tourStore.overlay}
       {err && <div style={S.err}>{err}</div>}
 
       {!store && <CloseBar ym={ym} onDone={loadOverview} />}
+      {!store && <CardFeePanel ym={ym} />}
+      {!store && <ImportPanel onDone={loadOverview} />}
       {!store && <AccountsPanel />}
       {!store && <AuditPanel ym={ym} onPickStore={(id) => setStore(id)} />}
 
       {/* ── 全部門市一覽 ── */}
       {!store && ov && (
-        <div style={S.card}>
+        <div style={S.card} data-yaya="mr-list">
           {ov.market_error && <div style={S.warn}>⚠ {ov.market_error}（ERP 帳上業績、門市費用單暫時拿不到）</div>}
           {ov.aimin_error && <div style={S.warn}>⚠ {ov.aimin_error}（愛民門市的眼鏡業績、門市支出暫時拿不到）</div>}
           <table style={S.table}>
@@ -148,7 +160,7 @@ export default function MonthlyReportPage() {
             <tbody>
               {ov.stores.map((s) => (
                 <tr key={s.store}>
-                  <td style={S.td}>{s.store_name}<div style={S.sub}>{s.store}　<span style={S.tag(s.status === 'closed' ? '#2f855a' : s.status === 'review' ? '#b7791f' : '#a0aec0')}>{s.status === 'closed' ? '已關帳' : s.status === 'review' ? '待審閱' : '整理中'}</span></div></td>
+                  <td style={S.td}>{s.store_name}<div style={S.sub}>{s.store}　<span style={S.tag(s.status === 'closed' ? '#2f855a' : s.status === 'review' ? '#b7791f' : '#a0aec0')}>{s.status === 'closed' ? '已關帳' : s.status === 'review' ? '月報完成・待關帳' : '整理中'}</span></div></td>
                   <td style={{ ...S.td, ...S.num }}>{fmt(s.sales_total)}</td>
                   <td style={{ ...S.td, ...S.num }}>{fmt(s.receipt_total)}</td>
                   <td style={{ ...S.td, ...S.num, color: s.gap_alert ? '#c53030' : '#718096', fontWeight: s.gap_alert ? 700 : 400 }}>{s.gap_pct == null ? '—' : `${s.gap_pct > 0 ? '+' : ''}${s.gap_pct}%`}{s.gap_alert ? ' ⚠' : ''}</td>
@@ -188,8 +200,8 @@ export default function MonthlyReportPage() {
           {rep.frozen && <div style={S.warn}>🔒 已關帳：下面是關帳當下的數字（{String(rep.snapshot_at || '').slice(0, 16).replace('T', ' ')}）。之後帳本再變也不會改到這份；要改請先重開。</div>}
           <AuditPanel ym={ym} store={store} canEdit={!closed} />
 
-          <div style={S.card}>
-            <div style={S.cardTitle}>業績與實收</div>
+          <div style={S.card} data-yaya="mr-revenue">
+            <div style={S.cardTitle}>業績與實收<HelpTip title="業績與實收" body={SECTION_HELP.revenue} /></div>
             {(() => {
               const R = rep.revenue, T = rep.totals, G = rep.gap || {};
               const gapLine = (g) => (!g || g.diff == null ? null : (
@@ -198,7 +210,7 @@ export default function MonthlyReportPage() {
                 </div>));
               const card = (code, r, opt = {}) => (
                 <div key={code} style={{ ...S.kpi, ...(opt.total ? { background: '#f7fafc' } : {}), ...(opt.gap && opt.gap.alert ? { borderColor: '#fc8181' } : {}) }}>
-                  <div style={S.sub}>{r.name}{r.from === 'system' ? '（系統）' : r.from === 'system_adjusted' ? '（系統＋調帳）' : ''}</div>
+                  <div style={S.sub}>{r.name}{r.from === 'system' ? '（系統）' : r.from === 'system_adjusted' ? '（系統＋調帳）' : ''}<HelpTip title={r.name} body={REV_HELP[code] || (r.custom ? REV_HELP.custom : '')} size={14} /></div>
                   <div style={{ fontSize: 20, fontWeight: 700 }}>{r.amount == null ? <span style={{ color: '#c05621' }}>{opt.sales ? '拿不到' : '待填'}</span> : fmt(r.amount)}</div>
                   {(r.refs || []).map((x) => <div key={x.label} style={S.sub}>{x.label} {fmt(x.amount)}</div>)}
                   {!opt.sales && r.erp != null && r.amount != null && r.erp !== r.amount && <div style={S.sub}>跟帳上參考差 {fmt(r.amount - r.erp)}</div>}
@@ -224,10 +236,11 @@ export default function MonthlyReportPage() {
                   card('contact_receipt', R.contact_receipt, { gap: G.contact }),
                   card('receipt_total', { name: '總實收', amount: T.receipt_filled ? T.receipt_total : null }, { total: true, gap: G.total }),
                 ])}
-                {row('其他', [card('api_pay', R.api_pay), card('stored_value', R.stored_value)])}
+                {row('其他', [card('api_pay', R.api_pay), card('stored_value', R.stored_value),
+                  ...Object.entries(R).filter(([, v]) => v && v.custom).map(([k, v]) => card(k, v))])}
               </>);
             })()}
-            <div style={{ marginTop: 4, fontWeight: 600 }}>算獲利用的實收（總實收＋API 支付）{fmt(rep.totals.total_in)}</div>
+            <div style={{ marginTop: 4, fontWeight: 600 }}>算獲利用的實收（總實收＋API 支付{rep.totals.extra_in ? '＋自訂收入' : ''}）{fmt(rep.totals.total_in)}</div>
             {rep.aimin && rep.aimin.closings && (
               <div style={{ ...S.sub, marginTop: 6 }}>
                 愛民系統（{rep.aimin.name}）：訂單 {rep.aimin.orders} 張、業績 {fmt(rep.aimin.sales)}、收款 {fmt(rep.aimin.paid)}；
@@ -252,13 +265,13 @@ export default function MonthlyReportPage() {
           )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 16 }}>
-            <Section title={`營運支出　合計 ${fmt(rep.totals.left_total)}`} groups={rep.left} />
-            <Section title={`費用支出　合計 ${fmt(rep.totals.right_total)}`} groups={rep.right} />
+            <Section title={`營運支出　合計 ${fmt(rep.totals.left_total)}`} groups={rep.left} help={SECTION_HELP.left} tour="mr-left" />
+            <Section title={`費用支出　合計 ${fmt(rep.totals.right_total)}`} groups={rep.right} help={SECTION_HELP.right} tour="mr-right" />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-            <div style={S.card}>
-              <div style={S.cardTitle}>盈餘</div>
+            <div style={S.card} data-yaya="mr-profit">
+              <div style={S.cardTitle}>盈餘<HelpTip title="盈餘與成本率" body={SECTION_HELP.profit} /></div>
               <table style={S.table}><tbody>
                 {[['眼鏡支出', rep.totals.glasses_out], ['眼鏡盈餘', rep.totals.glasses_profit], ['藥拋支出', rep.totals.contact_out], ['藥拋盈餘（含 API 支付）', rep.totals.contact_profit], ['總支出', rep.totals.total_out], ['總盈餘', rep.totals.profit]].map(([k, v]) => (
                   <tr key={k}><td style={S.td}>{k}</td><td style={{ ...S.td, ...S.num, color: v < 0 ? '#c53030' : undefined, fontWeight: k === '總盈餘' ? 700 : 400 }}>{fmt(v)}</td></tr>
@@ -272,8 +285,8 @@ export default function MonthlyReportPage() {
                 })}
               </div>
             </div>
-            <div style={S.card}>
-              <div style={S.cardTitle}>分紅{rep.dividend.cash_label ? `　· ${rep.dividend.cash_label}` : ''}</div>
+            <div style={S.card} data-yaya="mr-dividend">
+              <div style={S.cardTitle}>分紅<HelpTip title="分紅" body={SECTION_HELP.dividend} />{rep.dividend.cash_label ? `　· ${rep.dividend.cash_label}` : ''}</div>
               <table style={S.table}><tbody>
                 <tr><td style={S.td}>行銷基金（本月／累計）</td><td style={{ ...S.td, ...S.num }}>{fmt(rep.dividend.marketing_fund)}／{fmt(rep.dividend.marketing_fund_cum)}</td></tr>
                 <tr><td style={S.td}>固定資產折舊（本月／累計）</td><td style={{ ...S.td, ...S.num }}>{fmt(rep.dividend.depreciation)}／{fmt(rep.dividend.depreciation_cum)}</td></tr>
@@ -288,7 +301,7 @@ export default function MonthlyReportPage() {
                 <tr><td style={{ ...S.td, fontWeight: 700 }}>可分配（總分紅）</td><td style={{ ...S.td, ...S.num, fontWeight: 700, color: rep.dividend.distributable < 0 ? '#c53030' : undefined }}>{fmt(rep.dividend.distributable)}</td></tr>
               </tbody></table>
               <div style={{ ...S.sub, marginTop: 8 }}>股東（{rep.dividend.total_shares} 股）</div>
-              {rep.shareholders.length === 0 && <div style={S.sub}>還沒設定股東群（第四期：從左手「股東群」匯入）</div>}
+              {rep.shareholders.length === 0 && <div style={S.sub}>還沒設定股東（到「🏪 門市基礎設定 → 股東」設定）</div>}
               {rep.shareholders.map((h) => <div key={h.id} style={S.line}><span style={{ flex: 1 }}>{h.name}　{h.shares} 股</span><span style={{ ...S.num, color: h.amount < 0 ? '#c53030' : undefined }}>{fmt(h.amount)}</span></div>)}
             </div>
           </div>

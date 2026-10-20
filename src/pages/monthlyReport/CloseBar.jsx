@@ -2,6 +2,7 @@
 // 關帳後店長才在市場部「店長評核」看得到月報、寫心得
 import { useState } from 'react';
 import { ledgerApi } from '../../services/api';
+import HelpTip from '../../components/help/HelpTip';
 
 const errMsg = (e) => (e && e.response && e.response.data && e.response.data.message) || (e && e.message) || '失敗';
 
@@ -31,13 +32,14 @@ export default function CloseBar({ ym, store, status, report, onDone }) {
   };
 
   const btns = store
-    ? [status === 'draft' && ['submit', '送審閱'], status !== 'closed' && ['close', '關帳'], status === 'closed' && ['reopen', '重開']].filter(Boolean)
-    : [['submit', '全部送審閱'], ['close', '全部關帳'], ['reopen', '全部重開']];
+    ? [status === 'draft' && ['submit', '✅ 月報完成'], status !== 'closed' && ['close', '🔒 關帳'], status === 'closed' && ['reopen', '重開']].filter(Boolean)
+    : [['submit', '✅ 全部月報完成'], ['close', '🔒 全部關帳'], ['reopen', '全部重開']];
   return (
     <div style={S.card} data-yaya="mr-close">
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <b>🔒 關帳</b>
-        <span style={S.sub}>整理中 → 送審閱（會計）→ 關帳（最高管理者；數字凍結、店長才看得到）</span>
+        <b>🔒 月報完成與關帳</b>
+        <HelpTip title="月報完成與關帳" body={'流程：整理中 → 會計按「月報完成」（＝送主管審閱）→ 主管看過按「關帳」。\n關帳會把整份數字存成快照凍結，之後帳本再變也不影響；關帳後店長（店長評核）和股東（App 投資管理）才看得到。\n只有最高管理者能關帳、重開；重開一定要寫原因。\n在全部門市一覽按，是一次處理所有門市；在單店月報按，只處理那一家。'} />
+        <span style={S.sub}>整理中 → 月報完成（會計）→ 關帳（主管；數字凍結、店長與股東才看得到）</span>
         {btns.map(([a, l]) => <button key={a} style={S.btn} disabled={busy} onClick={() => { setAsk({ action: a, label: l }); setMsg(''); }}>{l}</button>)}
       </div>
       {ask && (

@@ -795,6 +795,11 @@ export const ledgerApi = {
   mapSource:  (id, code)  => api.patch(`/ledger/mapping/source/${id}`, { ledger_code: code }),
   mapCategory:(id, code)  => api.patch(`/ledger/mapping/category/${id}`, { ledger_code: code }),
   addAccount: (body)      => api.post('/ledger/accounts', body),
+  // 2026-10-20：刷卡手續費費率、Excel 匯入
+  cardFeeRates: (ym)      => api.get('/ledger/card-fee-rates', { params: { ym }, timeout: 120000 }),
+  saveCardFeeRates: (rates) => api.put('/ledger/card-fee-rates', { rates }),
+  importTemplate: ()      => api.get('/ledger/import/template', { responseType: 'blob' }),
+  importExcel: (file, dry) => { const fd = new FormData(); fd.append('file', file); return api.post(`/ledger/import${dry ? '?dry=1' : ''}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
   patchAccount:(code, b)  => api.patch(`/ledger/accounts/${code}`, b),
 };
 

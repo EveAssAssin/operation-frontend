@@ -4,6 +4,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { ledgerApi } from '../../services/api';
 
+const NEW_GROUPS = { revenue: '收入（手填，算進獲利用的實收）', opex: '營運支出', planning: '企劃品', ads: '廣告費', misc: '雜費', frame: '鏡框', lens: '鏡片', contact: '藥拋' };
 const GROUPS = { opex: '營運支出', planning: '企劃品', ads: '廣告費', misc: '雜費', frame: '鏡框', lens: '鏡片', contact: '藥拋' };
 const RATIO = ['營運費用', '人事', '鏡框', '鏡片', '藥拋', '包裝'];
 const errMsg = (e) => (e && e.response && e.response.data && e.response.data.message) || (e && e.message) || '失敗';
@@ -24,7 +25,7 @@ export default function AccountsPanel() {
   useEffect(() => { if (open) load(); }, [open, load]);
 
   const addAcc = async () => {
-    try { await ledgerApi.addAccount(nw); setMsg(`已新增「${nw.name}」，月報「${GROUPS[nw.group_code]}」區會多這一格`); setNw({ ...nw, name: '' }); load(); }
+    try { await ledgerApi.addAccount(nw); setMsg(nw.group_code === 'revenue' ? `已新增收入科目「${nw.name}」，單店月報「業績與實收 → 其他」會多這一格（每月手填或 Excel 匯入）` : `已新增「${nw.name}」，月報「${GROUPS[nw.group_code]}」區會多這一格`); setNw({ ...nw, name: '' }); load(); }
     catch (e) { setMsg(errMsg(e)); }
   };
   const setSrc = async (id, code) => { try { await ledgerApi.mapSource(id, code); load(); } catch (e) { setMsg(errMsg(e)); } };
@@ -52,11 +53,11 @@ export default function AccountsPanel() {
           <div style={S.h}>① 新增月報科目</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
             <input style={{ ...S.input, minWidth: 180 }} placeholder="科目名稱，例：清潔外包" value={nw.name} onChange={(e) => setNw({ ...nw, name: e.target.value })} />
-            放在 <select style={S.input} value={nw.group_code} onChange={(e) => setNw({ ...nw, group_code: e.target.value })}>{Object.entries(GROUPS).map(([g, n]) => <option key={g} value={g}>{n}</option>)}</select>
-            成本率算進 <select style={S.input} value={nw.ratio_group} onChange={(e) => setNw({ ...nw, ratio_group: e.target.value })}>{RATIO.map((r) => <option key={r}>{r}</option>)}</select>
+            放在 <select style={S.input} value={nw.group_code} onChange={(e) => setNw({ ...nw, group_code: e.target.value })}>{Object.entries(NEW_GROUPS).map(([g, n]) => <option key={g} value={g}>{n}</option>)}</select>
+            {nw.group_code !== 'revenue' && <>成本率算進 <select style={S.input} value={nw.ratio_group} onChange={(e) => setNw({ ...nw, ratio_group: e.target.value })}>{RATIO.map((r) => <option key={r}>{r}</option>)}</select>
             <select style={S.input} value={nw.auto_source} onChange={(e) => setNw({ ...nw, auto_source: e.target.value })}>
               <option value="bill">金額從帳單來</option><option value="manual">每月手填</option>
-            </select>
+            </select></>}
             <button style={S.btn} disabled={!nw.name.trim()} onClick={addAcc}>新增</button>
           </div>
         </div>
