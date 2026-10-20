@@ -26,17 +26,17 @@ export default function VendorLayout({ children }) {
         </div>
 
         <nav style={styles.nav}>
-          <NavLink to="/vendor/bills" style={({ isActive }) => ({
-            ...styles.navLink,
-            ...(isActive ? styles.navLinkActive : {}),
-          })}>
-            帳單管理
-          </NavLink>
           <NavLink to="/vendor/requests" style={({ isActive }) => ({
             ...styles.navLink,
             ...(isActive ? styles.navLinkActive : {}),
           })}>
             我的請款
+          </NavLink>
+          <NavLink to="/vendor/contracts" style={({ isActive }) => ({
+            ...styles.navLink,
+            ...(isActive ? styles.navLinkActive : {}),
+          })}>
+            我的合約
           </NavLink>
           <NavLink to="/vendor/profile" style={({ isActive }) => ({
             ...styles.navLink,

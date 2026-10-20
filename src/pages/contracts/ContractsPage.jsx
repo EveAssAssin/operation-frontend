@@ -3,7 +3,7 @@
 //   - 列表 + 新增 + 編輯（含 type_data JSONB 動態欄位）
 
 import { useEffect, useState, useMemo } from 'react';
-import { contractsApi, filesApi, docLibraryApi, recurringExpensesApi } from '../../services/api';
+import { contractsApi, filesApi, docLibraryApi, recurringExpensesApi, billingV2Api } from '../../services/api';
 
 const C = {
   dark:    '#50422d', gold: '#8b6f4e', sand: '#cdbea2',
@@ -93,11 +93,13 @@ function currentRentFromSchedule(schedule) {
 
 // 門市清單（合約綁門市用；2026-10-20）
 const STORES = { list: [], byId: {} };
+const VENDORS = { list: [] };   // 廠商（開帳系統的 billing_sources）：合約連廠商、廠商登入看得到
 function storeName(id) { return STORES.byId[id] || id; }
 
 export default function ContractsPage() {
   const [, setStoresReady] = useState(0);
   useEffect(() => {
+    if (!VENDORS.list.length) billingV2Api.getSources({ source_type: 'vendor' }).then((r) => { VENDORS.list = (r.data || []).filter((v) => v.is_active !== false); setStoresReady((x) => x + 1); }).catch(() => {});
     if (STORES.list.length) return;
     recurringExpensesApi.getStores().then((r) => {
       STORES.list = r.data || []; STORES.byId = Object.fromEntries(STORES.list.map((o) => [o.id, o.name])); setStoresReady((x) => x + 1);
@@ -627,6 +629,8 @@ function ContractEditModal({ contract, onClose, onSaved }) {
     type_data:      contract?.type_data      || {},
     store_erpid:    contract?.store_erpid    || '',
     purpose:        contract?.purpose        || 'actual',
+    source_id:      contract?.source_id      || '',
+    vendor_visible: contract?.vendor_visible !== false,
   }));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -641,7 +645,7 @@ function ContractEditModal({ contract, onClose, onSaved }) {
     try {
       const payload = { ...form };
       // 空字串轉 null
-      ['start_date','end_date','signed_date','party_name','our_side_name','note','store_erpid'].forEach(k => {
+      ['start_date','end_date','signed_date','party_name','our_side_name','note','store_erpid','source_id'].forEach(k => {
         if (payload[k] === '') payload[k] = null;
       });
       ['total_amount','monthly_amount'].forEach(k => {
@@ -719,6 +723,22 @@ function ContractEditModal({ contract, onClose, onSaved }) {
             </div>
           </div>
         </div>
+        {type === 'vendor' && (
+          <div style={S.formGroup}>
+            <label style={S.label}>對應廠商帳號（廠商登入「我的合約」看得到這份）</label>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <select style={{ ...S.input, flex: 1 }} value={form.source_id} onChange={e => {
+                const v = VENDORS.list.find((x) => x.id === e.target.value);
+                setForm(f => ({ ...f, source_id: e.target.value, party_name: f.party_name && !/樂活/.test(f.party_name) ? f.party_name : (v ? v.name : f.party_name) }));
+              }}>
+                <option value="">— 不連廠商 —</option>
+                {VENDORS.list.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+              <label style={{ fontSize: 13, whiteSpace: 'nowrap' }}><input type="checkbox" checked={form.vendor_visible} onChange={e => up('vendor_visible', e.target.checked)} /> 廠商看得到</label>
+            </div>
+            <div style={{ fontSize: 11, color: '#9a8878', marginTop: 4 }}>清單是「帳單管理 → 來源單位」裡的廠商；新廠商先在那裡建、再建廠商帳號。</div>
+          </div>
+        )}
         {type === 'rent' && (
           <div style={S.formGroup}>
             <label style={S.label}>這份合約是</label>

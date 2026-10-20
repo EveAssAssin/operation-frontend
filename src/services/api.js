@@ -209,7 +209,12 @@ export const vendorApi = {
   submitRequest:     (id)             => vendorApi_base.post(`/requests/${id}/submit`),
   // 附件
   addFile:           (id, body)       => vendorApi_base.post(`/requests/${id}/files`, body),
+  uploadFile:        (id, file, file_type) => { const fd = new FormData(); fd.append('file', file); return vendorApi_base.post(`/requests/${id}/upload?file_type=${file_type}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
   deleteFile:        (id)             => vendorApi_base.delete(`/files/${id}`),
+  // 分配門市（2026-10-20）／我的合約
+  targets:           ()               => vendorApi_base.get('/targets'),
+  saveAllocations:   (id, rows)       => vendorApi_base.put(`/requests/${id}/allocations`, { rows }),
+  contracts:         ()               => vendorApi_base.get('/contracts'),
 };
 
 // Checks API（支票紀錄系統 v2）
@@ -701,6 +706,10 @@ export const scheduledNotifyApi = {
 
 // 廠商請款（系統人員端）
 export const vendorPaymentApi = {
+  // 廠商入口 V1（2026-10-20）：分配門市（會計可調整）、上傳附件
+  targets:         ()          => api.get('/vendor-payment/targets'),
+  saveAllocations: (id, rows)  => api.put(`/vendor-payment/requests/${id}/allocations`, { rows }),
+  uploadFile:      (id, file, file_type) => { const fd = new FormData(); fd.append('file', file); return api.post(`/vendor-payment/requests/${id}/upload?file_type=${file_type}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
   // 公司付款方資料
   getCompanyProfile:    ()           => api.get('/vendor-payment/company-profile'),
   upsertCompanyProfile: (body)       => api.put('/vendor-payment/company-profile', body),

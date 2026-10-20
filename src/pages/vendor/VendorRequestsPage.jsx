@@ -63,7 +63,7 @@ export default function VendorRequestsPage() {
     <div>
       <h1 style={{ margin: 0, fontSize: 22, color: C.textDark, marginBottom: 4 }}>📋 我的請款</h1>
       <p style={{ marginTop: 0, color: C.textLight, fontSize: 13 }}>
-        建立請款單 → 上傳總表/明細/發票 → 送審。樂活審核通過後安排撥款。
+        建立請款單 → 上傳帳單照片或 Excel → 填「項目名稱／金額／門市」→ 送審。樂活會計確認（必要時會調整分配）後安排付款。
       </p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -140,12 +140,12 @@ function CreateRequestModal({ onClose }) {
   const [busy, setBusy] = useState(false);
 
   async function save() {
-    if (!form.period || !form.title || !form.total_amount) return alert('月份 / 標題 / 金額 必填');
+    if (!form.period || !form.title) return alert('月份 / 標題 必填');
     setBusy(true);
     try {
       await vendorApi.createRequest({
         ...form,
-        total_amount: Number(form.total_amount),
+        total_amount: 0,
       });
       onClose();
     } catch (e) { alert('失敗：' + e.message); }
@@ -163,16 +163,12 @@ function CreateRequestModal({ onClose }) {
           <input style={inputStyle} placeholder="例：2026 年 4 月貨款" value={form.title}
                  onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
         </Field>
-        <Field label="總金額（含稅）*">
-          <input type="number" style={inputStyle} placeholder="50000" value={form.total_amount}
-                 onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} />
-        </Field>
         <Field label="說明（選填）">
           <textarea rows={3} style={{ ...inputStyle, resize: 'vertical' }} value={form.description}
                     onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
         </Field>
         <div style={{ padding: 10, background: '#fff8ec', border: '1px solid #e5c99a', borderRadius: 6, fontSize: 12, color: C.textMid }}>
-          💡 建立後可以再上傳發票、總表、明細表
+          💡 建立後上傳帳單照片或 Excel，再填每個項目的金額與門市（請款總額＝各項目合計）
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button onClick={onClose} style={btn.ghost}>取消</button>
@@ -216,20 +212,10 @@ function DetailModal({ requestId, onClose }) {
   async function handleFileUpload(file_type, e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    // ⚠️ MVP：不接 Supabase Storage，先用 data URL 存 metadata（檔案會超大，僅供測試）
-    // 之後改為走 Supabase Storage upload，這裡只記 metadata。
-    alert('附件上傳尚未串接 Supabase Storage，這個版本只記錄檔名。實際上傳功能將在下一階段（S1.5）加入。');
+    if (file.size > 20 * 1024 * 1024) { alert('檔案太大（最多 20MB）'); e.target.value = ''; return; }
     setBusy(true);
-    try {
-      await vendorApi.addFile(requestId, {
-        file_type,
-        file_name: file.name,
-        file_url:  '(pending-upload)',  // placeholder
-        file_size: file.size,
-        mime_type: file.type,
-      });
-      load();
-    } catch (e) { alert('失敗：' + e.message); }
+    try { await vendorApi.uploadFile(requestId, file, file_type); load(); }
+    catch (err) { alert('上傳失敗：' + (err.message || err)); }
     finally { setBusy(false); e.target.value = ''; }
   }
   async function delFile(id) {
@@ -278,7 +264,7 @@ function DetailModal({ requestId, onClose }) {
               <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: '#fff', color: C.textMid, border: `1px solid ${C.border}` }}>
                 {({ summary: '總表', detail: '明細', invoice: '發票', other: '其他' })[f.file_type]}
               </span>
-              <span style={{ flex: 1 }}>{f.file_name}</span>
+              <span style={{ flex: 1 }}>{f.url ? <a href={f.url} target="_blank" rel="noreferrer">{f.file_name}</a> : f.file_name}</span>
               {canEdit && <button onClick={() => delFile(f.id)} style={btn.danger}>刪</button>}
             </div>
           ))}
@@ -286,19 +272,20 @@ function DetailModal({ requestId, onClose }) {
           {canEdit && (
             <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {[
-                { t: 'summary', l: '📑 上傳總表' },
-                { t: 'detail',  l: '📋 上傳明細' },
+                { t: 'summary', l: '📑 上傳帳單（照片／Excel）' },
                 { t: 'invoice', l: '🧾 上傳發票' },
                 { t: 'other',   l: '📎 其他附件' },
               ].map(opt => (
                 <label key={opt.t} style={{ ...btn.small, cursor: 'pointer', display: 'inline-block' }}>
                   {opt.l}
-                  <input type="file" style={{ display: 'none' }} onChange={e => handleFileUpload(opt.t, e)} />
+                  <input type="file" accept="image/*,.pdf,.xls,.xlsx,.csv" style={{ display: 'none' }} onChange={e => handleFileUpload(opt.t, e)} />
                 </label>
               ))}
             </div>
           )}
         </div>
+
+        <AllocEditor data={data} canEdit={canEdit} onSaved={load} save={(rows) => vendorApi.saveAllocations(requestId, rows)} loadTargets={() => vendorApi.targets()} />
 
         {/* 操作 */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
@@ -349,3 +336,56 @@ function Modal({ title, children, onClose, width = 700 }) {
 
 const th = { padding: '10px 12px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: C.textDark, borderBottom: `1px solid ${C.border}` };
 const td = { padding: '10px 12px', fontSize: 14, color: C.textDark, borderTop: `1px solid ${C.border}` };
+
+// ────────────────────────────────────────────────
+//  項目／金額／門市（請款總額＝合計；會計確認時可能調整，畫面會標出）
+// ────────────────────────────────────────────────
+export function AllocEditor({ data, canEdit, onSaved, save, loadTargets, accountant }) {
+  const [targets, setTargets] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [dirty, setDirty] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { loadTargets().then((r) => setTargets(r?.data || r || [])).catch(() => {}); }, [loadTargets]);
+  useEffect(() => { setRows((data.allocations || []).map((a) => ({ id: a.id, item_name: a.item_name, store_erpid: a.store_erpid, amount: a.amount, vendor_amount: a.vendor_amount, vendor_store: a.vendor_store, adjusted_by: a.adjusted_by }))); setDirty(false); }, [data]);
+  const total = rows.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+  const set = (i, k, v) => { setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r))); setDirty(true); };
+  const add = () => { setRows([...rows, { item_name: '', store_erpid: rows.length ? rows[rows.length - 1].store_erpid : '', amount: '' }]); setDirty(true); };
+  const del = (i) => { setRows(rows.filter((_, j) => j !== i)); setDirty(true); };
+  const doSave = async () => {
+    setMsg('');
+    try { await save(rows.map((r) => ({ id: r.id, item_name: r.item_name, store_erpid: r.store_erpid, amount: Number(r.amount) }))); setMsg('已存'); setDirty(false); onSaved && onSaved(); }
+    catch (e) { setMsg(e.message || '存檔失敗'); }
+  };
+  const name = (id) => (targets.find((t) => String(t.store_erpid) === String(id)) || {}).store_name || id;
+  const stores = targets.filter((t) => t.kind === 'store'), depts = targets.filter((t) => t.kind !== 'store');
+  return (
+    <div>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>🏪 項目與分配門市 <span style={{ fontWeight: 400, fontSize: 12, color: C.textLight }}>合計 NT$ {total.toLocaleString()}（＝請款總額）</span></div>
+      {rows.length === 0 && <div style={{ fontSize: 12, color: C.textLight, marginBottom: 6 }}>{canEdit ? '按「＋ 加一列」填項目名稱、金額、門市' : '沒有分配'}</div>}
+      {rows.map((r, i) => {
+        const adj = r.adjusted_by && (r.vendor_amount == null || Number(r.vendor_amount) !== Number(r.amount) || (r.vendor_store && r.vendor_store !== r.store_erpid));
+        return (
+          <div key={r.id || 'n' + i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+            <input style={{ ...inputStyle, flex: 2, minWidth: 140 }} placeholder="項目名稱" value={r.item_name} disabled={!canEdit} onChange={(e) => set(i, 'item_name', e.target.value)} />
+            <input style={{ ...inputStyle, width: 120 }} type="number" placeholder="金額" value={r.amount} disabled={!canEdit} onChange={(e) => set(i, 'amount', e.target.value)} />
+            <select style={{ ...inputStyle, width: 150 }} value={r.store_erpid} disabled={!canEdit} onChange={(e) => set(i, 'store_erpid', e.target.value)}>
+              <option value="">— 門市 —</option>
+              <optgroup label="門市">{stores.map((t) => <option key={t.store_erpid} value={t.store_erpid}>{t.store_name}</option>)}</optgroup>
+              <optgroup label="部門">{depts.map((t) => <option key={t.store_erpid} value={t.store_erpid}>{t.store_name}</option>)}</optgroup>
+            </select>
+            {canEdit && <button onClick={() => del(i)} style={btn.danger}>刪</button>}
+            {adj && <span style={{ fontSize: 11, color: '#b7791f' }}>會計已調整{r.vendor_amount != null ? `（原 ${Number(r.vendor_amount).toLocaleString()}${r.vendor_store && r.vendor_store !== r.store_erpid ? `、${name(r.vendor_store)}` : ''}）` : '（會計新增）'}</span>}
+          </div>
+        );
+      })}
+      {canEdit && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button onClick={add} style={btn.small}>＋ 加一列</button>
+          <button onClick={doSave} disabled={!dirty} style={dirty ? btn.primary : btn.ghost}>{accountant ? '存調整' : '存分配'}</button>
+          {dirty && <span style={{ fontSize: 12, color: '#c53030' }}>還沒存</span>}
+          {msg && <span style={{ fontSize: 12, color: C.textMid }}>{msg}</span>}
+        </div>
+      )}
+    </div>
+  );
+}

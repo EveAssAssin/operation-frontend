@@ -23,7 +23,7 @@ export default function VendorLoginPage() {
     try {
       const res = await login(form.username, form.password);
       if (res.success) {
-        navigate('/vendor/bills');
+        navigate('/vendor/requests');
       } else {
         setError(res.message || '帳號或密碼錯誤');
       }

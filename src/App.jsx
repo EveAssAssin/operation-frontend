@@ -40,6 +40,7 @@ import VendorLoginPage    from './pages/vendor/VendorLoginPage';
 import VendorBillsPage    from './pages/vendor/VendorBillsPage';
 import VendorRequestsPage from './pages/vendor/VendorRequestsPage';
 import VendorProfilePage  from './pages/vendor/VendorProfilePage';
+import VendorContractsPage from './pages/vendor/VendorContractsPage';
 import VendorLayout       from './pages/vendor/VendorLayout';
 
 // 通用簽收頁面（LINE LIFF / Web，不需登入）
@@ -119,10 +120,11 @@ function AppRoutes() {
       <Route path="/system/permissions" element={<PrivateRoute><PermissionsPage /></PrivateRoute>} />
 
       {/* 廠商後台（獨立 JWT，獨立 Layout） */}
-      <Route path="/vendor/login"    element={vendor ? <Navigate to="/vendor/bills" replace /> : <VendorLoginPage />} />
+      <Route path="/vendor/login"    element={vendor ? <Navigate to="/vendor/requests" replace /> : <VendorLoginPage />} />
       <Route path="/vendor/bills"    element={<VendorPrivateRoute><VendorBillsPage /></VendorPrivateRoute>} />
       <Route path="/vendor/requests" element={<VendorPrivateRoute><VendorRequestsPage /></VendorPrivateRoute>} />
       <Route path="/vendor/profile"  element={<VendorPrivateRoute><VendorProfilePage /></VendorPrivateRoute>} />
+      <Route path="/vendor/contracts" element={<VendorPrivateRoute><VendorContractsPage /></VendorPrivateRoute>} />
       <Route path="/vendor"          element={<Navigate to="/vendor/login" replace />} />
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

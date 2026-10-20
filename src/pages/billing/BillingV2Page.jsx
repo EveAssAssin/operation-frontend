@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { billingV2Api, personnelApi, billingApi, vendorPaymentApi, paymentBatchApi, chiVendorsApi } from '../../services/api';
+import { AllocEditor } from '../vendor/VendorRequestsPage';
 import { useAuth } from '../../contexts/AuthContext';
 import OperationalExpensesPanel from './OperationalExpensesPanel';
 import OperationalReportPanel   from './OperationalReportPanel';
@@ -857,13 +858,22 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
                 padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700,
                 background: '#fff', color: '#6b5640', border: '1px solid #cdbea2',
               }}>{({ summary: '總表', detail: '明細', invoice: '發票', other: '其他' })[f.file_type]}</span>
-              <a href={f.file_url} target="_blank" rel="noreferrer" style={{ color: '#3b5bdb', textDecoration: 'underline', flex: 1 }}>
+              <a href={f.url || f.file_url} target="_blank" rel="noreferrer" style={{ color: '#3b5bdb', textDecoration: 'underline', flex: 1 }}>
                 {f.file_name}
               </a>
               <span style={{ color: '#a0aec0' }}>{new Date(f.uploaded_at).toLocaleString('zh-TW', { dateStyle: 'short', timeStyle: 'short' })}</span>
             </div>
           ))}
         </div>
+
+        {/* 分配門市（廠商入口 V1：廠商填、會計接收時可調整；付款後自動產生帳單進門市月報） */}
+        {(data.allocations?.length > 0 || data.source_system === 'internal') && (
+          <div style={{ padding: 10, border: '1px solid #e2e8f0', borderRadius: 6 }}>
+            <AllocEditor data={data} accountant canEdit={data.status !== 'paid'} onSaved={load}
+              save={(rows) => vendorPaymentApi.saveAllocations(requestId, rows)} loadTargets={vendorPaymentApi.targets} />
+            <div style={{ fontSize: 11, color: '#a0aec0', marginTop: 4 }}>{data.status === 'paid' ? (data.linked_bill_id ? '已付款，已產生帳單進門市月報' : '已付款') : '標記已撥款時會依這裡的分配產生帳單、進門市月報（列入哪個月看付款日與截止日）'}</div>
+          </div>
+        )}
 
         {/* 發票 */}
         <div>
