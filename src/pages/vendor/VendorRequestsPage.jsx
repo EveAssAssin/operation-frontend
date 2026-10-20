@@ -4,6 +4,30 @@
 import { useState, useEffect, useCallback } from 'react';
 import { vendorApi } from '../../services/api';
 import { useVendorAuth } from '../../contexts/VendorAuthContext';
+import HelpTip from '../../components/help/HelpTip';
+import { useCoachMarks } from '../../components/help/CoachMarks';
+
+// 廠商入口說明（2026-10-20）：列表頁一套、請款詳情一套矇版導覽，每個區塊旁有「?」
+const VHELP = {
+  flow: '流程：①新增請款（月份＋標題）②在請款裡上傳帳單照片或 Excel ③填每個項目的名稱、金額、門市 ④送審。\n樂活會計確認後會安排出款日；付款完成狀態會變「已撥款」。\n被退回的請款可以改完再送。',
+  status: '草稿＝還沒送出，可以改；審核中＝樂活會計在看，不能改；已通過＝會計確認了，等出款日；已撥款＝已匯款；已退回＝請看退回原因，改好重新送審。',
+  bank: '樂活付款會匯到您在「我的資料 → 銀行帳號」設定的預設帳號。沒有設定的話樂活無法匯款，請先設定。',
+  files: '請上傳這次請款的帳單：手機拍照、掃描 PDF、或 Excel／CSV 都可以，一個檔案最多 20MB。\n有發票也請一起上傳。送審前至少要有一個帳單檔案。',
+  alloc: '把請款金額拆到樂活各門市（或部門）：每一列填「項目名稱、金額、門市」，同一門市多個項目可以分多列。\n請款總額＝各列合計。填完按「存分配」。\n樂活會計確認時如果發現分錯會幫您調整，畫面會標「會計已調整」並列出您原本填的。',
+  submit: '送審後就不能修改，除非被退回。送審前請確認：帳單檔案已上傳、每列都有門市與金額、合計＝這次要請的金額。',
+  payout: '樂活會計排定的出款日期。實際入帳時間依銀行作業為準。',
+};
+const TOUR_LIST = [
+  { sel: '[data-tour="vr-new"]', title: '新增請款', body: '每一次請款建一張：選月份、寫標題（例：2026 年 10 月貨款）。' },
+  { sel: '[data-tour="vr-list"]', title: '請款列表', body: '按「檢視」打開請款：上傳帳單、填門市分配、送審都在裡面。狀態會顯示審核進度。' },
+  { sel: '[data-tour="vr-filter"]', title: '篩選', body: '依狀態或月份找以前的請款。' },
+  { sel: null, title: '收款帳號', body: '第一次使用請先到上方「我的資料 → 銀行帳號」設定收款帳號，樂活才能匯款給您。' },
+];
+const TOUR_DETAIL = [
+  { sel: '[data-tour="vd-files"]', title: '① 上傳帳單', body: '按「上傳帳單（照片／Excel）」選檔案，手機可以直接拍照。有發票也請上傳。' },
+  { sel: '[data-tour="vd-alloc"]', title: '② 填項目與門市', body: '按「＋ 加一列」，填項目名稱、金額、選門市；多家門市就多加幾列。填完按「存分配」。' },
+  { sel: '[data-tour="vd-submit"]', title: '③ 送審', body: '確認帳單和分配都好了再按送審。送審後要等樂活會計確認，不能再改。' },
+];
 
 const C = {
   dark: '#50422d', mid: '#8b6f4e', bg: '#f5f0ea',
@@ -36,6 +60,7 @@ const STATUS_COLOR = {
   rejected:  ['#fff0f0', '#c53030', '#feb2b2'],
 };
 
+const vendorTargets = () => vendorApi.targets();
 const fmtMoney = (v) => v == null ? '—' : `NT$ ${Number(v).toLocaleString()}`;
 
 export default function VendorRequestsPage() {
@@ -58,15 +83,25 @@ export default function VendorRequestsPage() {
     finally { setLoading(false); }
   }, [filter]);
   useEffect(() => { load(); }, [load]);
+  const [noBank, setNoBank] = useState(false);
+  useEffect(() => { vendorApi.listBankAccounts().then(r => setNoBank(Array.isArray(r?.data) && r.data.length === 0)).catch(() => {}); }, []);
+  const { start: startTour, overlay: tourOverlay } = useCoachMarks(TOUR_LIST, 'tour_vendor_requests_v1', true);
 
   return (
     <div>
-      <h1 style={{ margin: 0, fontSize: 22, color: C.textDark, marginBottom: 4 }}>📋 我的請款</h1>
+      {tourOverlay}
+      <h1 style={{ margin: 0, fontSize: 22, color: C.textDark, marginBottom: 4 }}>📋 我的請款<HelpTip title="請款流程" body={VHELP.flow} />
+        <button onClick={startTour} style={{ ...btn.small, marginLeft: 10, verticalAlign: 'middle' }}>📖 使用說明</button></h1>
       <p style={{ marginTop: 0, color: C.textLight, fontSize: 13 }}>
         建立請款單 → 上傳帳單照片或 Excel → 填「項目名稱／金額／門市」→ 送審。樂活會計確認（必要時會調整分配）後安排付款。
       </p>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+      {noBank && (
+        <div style={{ padding: 10, marginBottom: 12, background: '#fff0f0', border: '1px solid #feb2b2', borderRadius: 6, fontSize: 13, color: '#c53030' }}>
+          ⚠ 您還沒有設定收款銀行帳號，樂活無法匯款。請到上方「我的資料 → 銀行帳號」新增。<HelpTip title="收款帳號" body={VHELP.bank} />
+        </div>
+      )}
+      <div data-tour="vr-filter" style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
         <select style={{ ...inputStyle, width: 130 }} value={filter.status}
                 onChange={e => setFilter(f => ({ ...f, status: e.target.value }))}>
           <option value="">全部狀態</option>
@@ -75,17 +110,17 @@ export default function VendorRequestsPage() {
         <input type="month" style={{ ...inputStyle, width: 150 }} value={filter.period}
                onChange={e => setFilter(f => ({ ...f, period: e.target.value }))} />
         <div style={{ flex: 1 }} />
-        <button onClick={() => setCreating(true)} style={btn.primary}>+ 新增請款</button>
+        <button data-tour="vr-new" onClick={() => setCreating(true)} style={btn.primary}>+ 新增請款</button>
       </div>
 
-      <div style={{ background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+      <div data-tour="vr-list" style={{ background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead style={{ background: C.bg }}>
             <tr>
               <th style={th}>單號 / 月份</th>
               <th style={th}>標題</th>
               <th style={{ ...th, textAlign: 'right' }}>金額</th>
-              <th style={th}>狀態</th>
+              <th style={th}>狀態<HelpTip title="狀態" body={VHELP.status} size={14} /></th>
               <th style={th}>建立</th>
               <th style={th}>操作</th>
             </tr>
@@ -193,6 +228,8 @@ function DetailModal({ requestId, onClose }) {
     } catch (e) { console.error(e); }
   }, [requestId]);
   useEffect(() => { load(); }, [load]);
+  const editableForTour = !!data && (data.status === 'draft' || data.status === 'rejected');
+  const { start: startTour, overlay: tourOverlay } = useCoachMarks(TOUR_DETAIL, 'tour_vendor_request_detail_v1', editableForTour);
 
   async function submit() {
     if (!window.confirm('送出後將無法編輯，確定送審？')) return;
@@ -231,7 +268,9 @@ function DetailModal({ requestId, onClose }) {
 
   return (
     <Modal title={`📝 ${data.request_no} — ${data.title}`} onClose={onClose} width={700}>
+      {tourOverlay}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ textAlign: 'right' }}><button onClick={startTour} style={btn.small}>📖 怎麼填</button></div>
         <div style={{ padding: 12, background: C.bg, borderRadius: 6, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
           <div><span style={{ color: C.textLight }}>月份：</span>{data.period}</div>
           <div><span style={{ color: C.textLight }}>金額：</span><b>{fmtMoney(data.total_amount)}</b></div>
@@ -241,6 +280,9 @@ function DetailModal({ requestId, onClose }) {
             </span>
           </div>
           <div><span style={{ color: C.textLight }}>附言：</span><code>{data.remit_memo || '—'}</code></div>
+          {data.status === 'approved' && data.payout_date && (
+            <div style={{ gridColumn: '1 / -1', color: '#2d6a4f' }}>💸 預計出款日：<b>{data.payout_date}</b><HelpTip title="預計出款日" body={VHELP.payout} size={14} /></div>
+          )}
         </div>
 
         {data.description && (
@@ -256,8 +298,8 @@ function DetailModal({ requestId, onClose }) {
         )}
 
         {/* 附件 */}
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>📎 附件</div>
+        <div data-tour="vd-files">
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>📎 附件<HelpTip title="上傳帳單" body={VHELP.files} /></div>
           {(!data.files || data.files.length === 0) && <div style={{ fontSize: 12, color: C.textLight, marginBottom: 6 }}>尚無附件</div>}
           {(data.files || []).map(f => (
             <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8, background: C.bg, borderRadius: 4, marginBottom: 4, fontSize: 12 }}>
@@ -285,10 +327,14 @@ function DetailModal({ requestId, onClose }) {
           )}
         </div>
 
-        <AllocEditor data={data} canEdit={canEdit} onSaved={load} save={(rows) => vendorApi.saveAllocations(requestId, rows)} loadTargets={() => vendorApi.targets()} />
+        <div data-tour="vd-alloc">
+          <AllocEditor data={data} canEdit={canEdit} onSaved={load} save={(rows) => vendorApi.saveAllocations(requestId, rows)} loadTargets={vendorTargets} />
+          <HelpTip title="項目與分配門市" body={VHELP.alloc} />
+        </div>
 
         {/* 操作 */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+        <div data-tour="vd-submit" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: `1px solid ${C.border}`, paddingTop: 12, alignItems: 'center' }}>
+          {canEdit && <HelpTip title="送審" body={VHELP.submit} />}
           <button onClick={onClose} style={btn.ghost}>關閉</button>
           {data.status === 'draft' && (
             <>

@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { vendorApi } from '../../services/api';
+import HelpTip from '../../components/help/HelpTip';
 
 const C = {
   dark: '#50422d', mid: '#8b6f4e', bg: '#f5f0ea',
@@ -168,7 +169,7 @@ function BankTab({ banks, onChanged }) {
   return (
     <div style={{ background: C.bgCard, padding: 20, borderRadius: 8, border: `1px solid ${C.border}` }}>
       <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontSize: 13, color: C.textMid }}>樂活付款給您時會匯到「預設」的帳號</div>
+        <div style={{ fontSize: 13, color: C.textMid }}>樂活付款給您時會匯到「預設」的帳號<HelpTip title="銀行帳號怎麼填" body={'總行代碼＝銀行 3 碼代號（例：元大 806、台新 812）；分行代碼＝4 碼（存摺封面或網銀可查）。\n帳號只填數字，戶名要跟存摺一模一樣，不然匯款會被退回。\n有多個帳號時請勾一個「預設」。改帳號後，還沒匯出的請款會用新的預設帳號。'} /></div>
         {!editing && <button onClick={startNew} style={btn.primary}>+ 新增銀行帳號</button>}
       </div>
 

@@ -2,6 +2,7 @@
 // 樂活在合約管理裡把合約對應到這家廠商、且勾「廠商看得到」才會出現；檔案是 1 小時有效的連結
 import { useEffect, useState } from 'react';
 import { vendorApi } from '../../services/api';
+import HelpTip from '../../components/help/HelpTip';
 
 const C = { dark: '#50422d', border: '#e0d5c8', bg: '#f5f0ea', textMid: '#6b5640', textLight: '#9a8878' };
 const fmt = (v) => (v == null || v === '' ? '—' : Number(v).toLocaleString());
@@ -12,7 +13,7 @@ export default function VendorContractsPage() {
   useEffect(() => { vendorApi.contracts().then((r) => setList(r?.data || [])).catch((e) => setErr(e.message || '讀取失敗')); }, []);
   return (
     <div>
-      <h1 style={{ margin: 0, fontSize: 22, color: C.dark, marginBottom: 4 }}>📄 我的合約</h1>
+      <h1 style={{ margin: 0, fontSize: 22, color: C.dark, marginBottom: 4 }}>📄 我的合約<HelpTip title="我的合約" body={'這裡列出樂活與貴公司簽的合約（樂活設定成「廠商看得到」的）。\n點檔案名稱可以下載，連結 1 小時內有效，過期重新整理頁面即可。\n合約內容有疑問請聯絡樂活營運部。'} /></h1>
       <p style={{ marginTop: 0, color: C.textLight, fontSize: 13 }}>與樂活簽訂的合約。有疑問請聯絡樂活營運部。</p>
       {err && <div style={{ color: '#c53030' }}>{err}</div>}
       {!list && !err && <div style={{ color: C.textLight }}>載入中…</div>}
