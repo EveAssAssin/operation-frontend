@@ -123,6 +123,14 @@ export default function AccountsPanel() {
                   <tr key={'w' + x.name}><td style={S.td}>└ {x.name}</td><td style={S.td}>{x.amount.toLocaleString()}</td>
                     <td style={S.td}>{shSel((sh.ledger.warehouses || {})[x.name], (v) => saveSh({ warehouses: { ...(sh.ledger.warehouses || {}), [x.name]: v } }), true)}</td></tr>
                 ))}
+                <tr style={{ background: '#f7fafc' }}><td style={S.td}><b>鏡框調撥</b> <span style={S.sub}>ERP 調撥單（倉庫→門市）、型號解碼價</span></td><td style={S.td} />
+                  <td style={S.td}>{shSel(sh.ledger.frame, (v) => saveSh({ frame: v || 'frame_hq' }), false)}</td></tr>
+                <tr style={{ background: '#f7fafc' }}><td style={S.td}><b>鏡框特例開帳</b> <span style={S.sub}>愛民體系一口價、開帳大平台 1～9 月匯入</span></td><td style={S.td} />
+                  <td style={S.td}>{shSel(sh.ledger.manual_frame, (v) => saveSh({ manual_frame: v || 'frame_hq' }), false)}</td></tr>
+                <tr style={{ background: '#f7fafc' }}><td style={S.td}><b>雜費（開帳大平台匯入）</b> <span style={S.sub}>只有 1～8 月；名稱「工程修繕」另歸</span></td><td style={S.td} />
+                  <td style={S.td}>{shSel(sh.ledger.manual_misc, (v) => saveSh({ manual_misc: v || 'consumables' }), false)}</td></tr>
+                <tr><td style={S.td}>└ 工程修繕</td><td style={S.td} />
+                  <td style={S.td}>{shSel((sh.ledger.misc_names || {})['工程修繕'], (v) => saveSh({ misc_names: { ...(sh.ledger.misc_names || {}), '工程修繕': v } }), true)}</td></tr>
               </tbody>
             </table>
             <div style={S.sub}>倉庫系統的常備品撥補分「店用商品、護理產品、配件組合…」區塊，可以各自放不同格子；同一張撥補單裡不同區塊會照品項拆開。要新的格子（例：營運雜貨）先在 ① 新增。</div>
