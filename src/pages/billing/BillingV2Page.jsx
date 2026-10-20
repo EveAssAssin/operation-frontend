@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { billingV2Api, personnelApi, billingApi, vendorPaymentApi, paymentBatchApi, chiVendorsApi } from '../../services/api';
 import { AllocEditor } from '../vendor/VendorRequestsPage';
+import VendorPayoutPanel, { PayoutScheduler } from './VendorPayoutPanel';
 import { useAuth } from '../../contexts/AuthContext';
 import OperationalExpensesPanel from './OperationalExpensesPanel';
 import OperationalReportPanel   from './OperationalReportPanel';
@@ -874,6 +875,9 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
             <div style={{ fontSize: 11, color: '#a0aec0', marginTop: 4 }}>{data.status === 'paid' ? (data.linked_bill_id ? '已付款，已產生帳單進門市月報' : '已付款') : '標記已撥款時會依這裡的分配產生帳單、進門市月報（列入哪個月看付款日與截止日）'}</div>
           </div>
         )}
+
+        {/* 排出款（2026-10-20）：通過後選出款日期＋出款銀行，當天提醒、匯出元大 */}
+        <PayoutScheduler data={data} onSaved={load} />
 
         {/* 發票 */}
         <div>
@@ -2859,7 +2863,10 @@ export default function BillingV2Page() {
     } catch { return { market_pr_id: null, chi_lens_pr_id: null }; }
   })();
   const hasAutoOpen = !!(initialAutoOpen.market_pr_id || initialAutoOpen.chi_lens_pr_id);
-  const [tab, setTab] = useState(hasAutoOpen ? 'vendor_payment' : 'bills');
+  const initialTab = (() => { try { return new URLSearchParams(window.location.search).get('tab'); } catch { return null; } })();
+  const [tab, setTab] = useState(hasAutoOpen ? 'vendor_payment' : (initialTab === 'payout' ? 'payout' : 'bills'));
+  const [payoutDetail, setPayoutDetail] = useState(null);
+  const [payoutReload, setPayoutReload] = useState(0);
   const [autoOpenPrId, setAutoOpenPrId] = useState(initialAutoOpen);
 
   // ─── 廠商請款審核 tab 上的紅點（同 Layout 邏輯，60 秒 poll）───
@@ -2936,7 +2943,7 @@ export default function BillingV2Page() {
     { key: 'operational',     label: '營運費用' },
     { key: 'op_report',       label: '營運報表' },
     { key: 'vendor_payment',  label: '廠商請款審核' },
-    { key: 'payment_batch',   label: '匯款批次' },
+    { key: 'payout',          label: '💸 廠商出款' },
     { key: 'input_invoice',   label: '進項發票' },
     { key: 'sources',         label: '來源單位',     hidden: !canManage(user?.role) },
     { key: 'categories',      label: '會計科目管理', hidden: !canManage(user?.role) },
@@ -3141,9 +3148,13 @@ export default function BillingV2Page() {
         />
       )}
 
-      {/* 匯款批次 */}
-      {tab === 'payment_batch' && (
-        <PaymentBatchPanel />
+      {/* 廠商出款（2026-10-20）：原「匯款批次」的 payment_batches 表從沒建過，改成請款自帶出款日 */}
+      {tab === 'payout' && (
+        <>
+          <VendorPayoutPanel key={payoutReload} canManageBanks={['operation_accounting', 'operation_lead', 'super_admin'].includes(user?.role)}
+            onOpenRequest={(id) => setPayoutDetail(id)} />
+          {payoutDetail && <VendorPaymentDetailModal requestId={payoutDetail} onClose={() => { setPayoutDetail(null); setPayoutReload(x => x + 1); }} />}
+        </>
       )}
 
       {/* 進項發票 */}

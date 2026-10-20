@@ -710,6 +710,17 @@ export const vendorPaymentApi = {
   targets:         ()          => api.get('/vendor-payment/targets'),
   saveAllocations: (id, rows)  => api.put(`/vendor-payment/requests/${id}/allocations`, { rows }),
   uploadFile:      (id, file, file_type) => { const fd = new FormData(); fd.append('file', file); return api.post(`/vendor-payment/requests/${id}/upload?file_type=${file_type}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
+  // 排出款（2026-10-20）：出款日期＋出款銀行 → 今日出款 → 元大 Excel → 已出款
+  payoutBanks:      (all = false) => api.get('/vendor-payment/payout-banks', { params: all ? { all: 1 } : {} }),
+  savePayoutBank:   (id, body)    => (id ? api.patch(`/vendor-payment/payout-banks/${id}`, body) : api.post('/vendor-payment/payout-banks', body)),
+  setPayout:        (id, body)    => api.put(`/vendor-payment/requests/${id}/payout`, body),
+  payoutDay:        (date)        => api.get('/vendor-payment/payouts/day', { params: date ? { date } : {} }),
+  payoutUpcoming:   (days = 14)   => api.get('/vendor-payment/payouts/upcoming', { params: { days } }),
+  payoutUnscheduled: ()           => api.get('/vendor-payment/payouts/unscheduled'),
+  payoutExportLog:  ()            => api.get('/vendor-payment/payouts/export-log'),
+  exportPayout:     (body)        => api.post('/vendor-payment/payouts/export', body, { responseType: 'blob' }),
+  markPayoutsPaid:  (ids)         => api.post('/vendor-payment/payouts/mark-paid', { ids }),
+  payoutNotifyTest: ()            => api.post('/vendor-payment/payouts/notify-test'),
   // 公司付款方資料
   getCompanyProfile:    ()           => api.get('/vendor-payment/company-profile'),
   upsertCompanyProfile: (body)       => api.put('/vendor-payment/company-profile', body),

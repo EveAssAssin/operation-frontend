@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { checksApi, dashboardApi } from '../../services/api';
+import { checksApi, dashboardApi, vendorPaymentApi } from '../../services/api';
 import SalesHighlightCard        from './SalesHighlightCard';
 import TrainingHighlightCard     from './TrainingHighlightCard';
 import EngineeringHighlightCard  from './EngineeringHighlightCard';
@@ -108,6 +108,38 @@ function ChecksHighlightCard({ onClick }) {
   );
 }
 
+
+// 廠商出款卡片（2026-10-20）：今天要出的廠商款＋之前排了還沒出的
+function VendorPayoutHighlightCard({ onClick }) {
+  const [st, setSt] = useState({ loading: true, total: 0, amount: 0, overdue: 0 });
+  useEffect(() => {
+    vendorPaymentApi.payoutDay()
+      .then(res => { const d = res.data || {}; setSt({ loading: false, total: d.total || 0, amount: d.amount || 0, overdue: d.overdue_count || 0 }); })
+      .catch(() => setSt({ loading: false, total: 0, amount: 0, overdue: 0, err: true }));
+  }, []);
+  if (st.err) return null;
+  const urgent = st.total > 0;
+  const accent = urgent ? '#c53030' : '#2d6a4f';
+  return (
+    <div onClick={onClick} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e0d5c8', overflow: 'hidden', cursor: 'pointer', marginTop: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
+        <div style={{ width: 4, borderRadius: 2, alignSelf: 'stretch', background: st.loading ? '#cbd5e0' : accent, minHeight: 28, flexShrink: 0 }} />
+        <div style={{ fontSize: 20 }}>💸</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: '#1a202c' }}>廠商出款</div>
+          {st.loading ? <div style={{ fontSize: 12, color: '#a0aec0', marginTop: 4 }}>載入中...</div> : (
+            <div style={{ marginTop: 5 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: accent }}>{urgent ? `本日應出 ${fmtAmt(st.amount)}` : '本日無待辦'}</span>
+              {urgent && <span style={{ fontSize: 12, color: '#9a8878', marginLeft: 8 }}>共 {st.total} 筆{st.overdue > 0 ? `，逾期 ${st.overdue} 筆` : ''}</span>}
+            </div>
+          )}
+        </div>
+        <div style={{ color: C.light, fontSize: 16, flexShrink: 0 }}>›</div>
+      </div>
+    </div>
+  );
+}
+
 // ════════════════════════════════════════════════════════════
 // 主頁面
 // ════════════════════════════════════════════════════════════
@@ -157,6 +189,7 @@ export default function DashboardPage() {
 
           {/* 支票出款 */}
           <ChecksHighlightCard onClick={() => navigate('/checks')} />
+          <VendorPayoutHighlightCard onClick={() => navigate('/billing-v2?tab=payout')} />
 
           {/* 工務部 */}
           <EngineeringHighlightCard
