@@ -319,7 +319,7 @@ function Unpriced({ ym, items, onSaved }) {
     <div style={{ ...C.card, border: '2px solid #f0a020' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <b>⚠ 這個月收到、還沒設定金額的品項（{items.length}）</b>
-        <span style={C.help}>沒設金額的品項不會算錢。填好按「全部存」，{ym} 起的月份都會用這個價。</span>
+        <span style={C.help}>沒設金額的品項不會算錢；鏡框不列入。填好按「全部存」，{ym} 起的月份都會用這個價。</span>
         <div style={{ flex: 1 }} />
         <button style={C.btn('g')} onClick={() => setOpen(!open)}>{open ? '收起' : '展開'}</button>
       </div>
