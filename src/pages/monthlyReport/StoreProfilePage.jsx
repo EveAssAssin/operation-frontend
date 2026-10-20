@@ -103,16 +103,8 @@ export default function StoreProfilePage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div style={S.card}>
-            <div style={S.h}>📈 行銷基金／折舊（每月固定）</div>
-            {d.fixed.length === 0 && <div style={S.sub}>還沒設（在門市月報頁設定）。</div>}
-            {d.fixed.map((f) => <div key={f.id} style={{ fontSize: 13 }}>{f.ledger_code === 'marketing_fund' ? '行銷基金' : '折舊'} {fmt(f.amount)}／月｜{f.from_ym} ～ {f.to_ym || '至今'}{f.note ? `｜${f.note}` : ''}</div>)}
-          </div>
-          <div style={S.card}>
-            <div style={S.h}>👥 股東</div>
-            {d.shareholders.length === 0 && <div style={S.sub}>還沒設。</div>}
-            {d.shareholders.map((h) => <div key={h.id} style={{ fontSize: 13 }}>{h.name} {h.shares}%</div>)}
-          </div>
+          <FixedEditor store={store} items={d.fixed} onDone={load} />
+          <HolderEditor store={store} ym={ym} items={d.shareholders} onDone={load} />
         </div>
 
         {otherCons.length > 0 && (
@@ -135,4 +127,65 @@ const S = {
   tag: (c) => ({ fontSize: 11, color: '#fff', background: c, borderRadius: 10, padding: '1px 8px' }),
   input: { padding: 6, border: '1px solid #cbd5e0', borderRadius: 6, fontSize: 14 },
   link: { fontSize: 13, color: '#3182ce' },
+  btn: { padding: '4px 10px', border: '1px solid #cbd5e0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 },
+  btnLink: { border: 'none', background: 'none', color: '#3182ce', cursor: 'pointer', padding: 0, fontSize: 12 },
 };
+
+// 行銷基金／折舊：每月固定金額（月報「可分配盈餘」先扣這兩項）
+function FixedEditor({ store, items, onDone }) {
+  const [f, setF] = useState({ ledger_code: 'marketing_fund', amount: '', from_ym: thisYm(), to_ym: '', note: '' });
+  const [msg, setMsg] = useState('');
+  const add = async () => {
+    try { await ledgerApi.addFixed({ store, ...f, amount: Number(f.amount) }); setF({ ...f, amount: '', note: '' }); setMsg('已新增'); onDone(); } catch (e) { setMsg(errMsg(e)); }
+  };
+  const del = async (id) => { try { await ledgerApi.delFixed(id); onDone(); } catch (e) { setMsg(errMsg(e)); } };
+  return (
+    <div style={S.card} data-yaya="sp-fixed">
+      <div style={S.h}>📈 行銷基金／折舊（每月固定）</div>
+      {items.length === 0 && <div style={S.sub}>還沒設。</div>}
+      {items.map((x) => <div key={x.id} style={{ fontSize: 13, display: 'flex', gap: 8 }}>
+        <span>{x.ledger_code === 'marketing_fund' ? '行銷基金' : '折舊'} {fmt(x.amount)}／月｜{x.from_ym} ～ {x.to_ym || '至今'}{x.note ? `｜${x.note}` : ''}</span>
+        <button style={S.btnLink} onClick={() => del(x.id)}>刪除</button></div>)}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+        <select style={S.input} value={f.ledger_code} onChange={(e) => setF({ ...f, ledger_code: e.target.value })}><option value="marketing_fund">行銷基金</option><option value="depreciation">折舊</option></select>
+        <input style={{ ...S.input, width: 100 }} placeholder="每月金額" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
+        <input style={S.input} type="month" value={f.from_ym} onChange={(e) => setF({ ...f, from_ym: e.target.value })} />
+        <input style={S.input} type="month" value={f.to_ym} onChange={(e) => setF({ ...f, to_ym: e.target.value })} title="結束月份（空白＝至今）" />
+        <input style={{ ...S.input, minWidth: 120 }} placeholder="備註" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
+        <button style={S.btn} disabled={!f.amount} onClick={add}>新增</button>
+      </div>
+      {msg && <div style={S.sub}>{msg}</div>}
+    </div>
+  );
+}
+
+// 股東：姓名＋持股 %＋起訖月份；同一期間合計不能超過 100%；比例變了＝舊的設結束月份、再新增一筆（保留歷史）
+function HolderEditor({ store, ym, items, onDone }) {
+  const [f, setF] = useState({ name: '', shares: '', from_ym: ym, to_ym: '' });
+  const [msg, setMsg] = useState('');
+  const active = items.filter((h) => h.from_ym <= ym && (!h.to_ym || h.to_ym >= ym));
+  const sum = active.reduce((a, h) => a + h.shares, 0);
+  const add = async () => {
+    try { await ledgerApi.addHolder({ store, ...f, shares: Number(f.shares) }); setF({ ...f, name: '', shares: '' }); setMsg('已新增'); onDone(); } catch (e) { setMsg(errMsg(e)); }
+  };
+  const end = async (id) => { try { await ledgerApi.patchHolder(id, { to_ym: ym }); onDone(); } catch (e) { setMsg(errMsg(e)); } };
+  const del = async (id) => { try { await ledgerApi.delHolder(id); onDone(); } catch (e) { setMsg(errMsg(e)); } };
+  return (
+    <div style={S.card} data-yaya="sp-holders">
+      <div style={S.h}>👥 股東 <span style={S.sub}>{ym} 合計 {sum}%{sum !== 100 && items.length ? '（不是 100%）' : ''}</span></div>
+      {items.length === 0 && <div style={S.sub}>還沒設。月報的可分配盈餘會依這裡的持股比例分給股東。</div>}
+      {items.map((h) => <div key={h.id} style={{ fontSize: 13, display: 'flex', gap: 8, opacity: active.includes(h) ? 1 : 0.5 }}>
+        <span>{h.name} {h.shares}%｜{h.from_ym} ～ {h.to_ym || '至今'}</span>
+        {!h.to_ym && <button style={S.btnLink} onClick={() => end(h.id)}>到 {ym} 為止</button>}
+        <button style={S.btnLink} onClick={() => del(h.id)}>刪除</button></div>)}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+        <input style={{ ...S.input, width: 110 }} placeholder="姓名" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+        <input style={{ ...S.input, width: 70 }} placeholder="持股%" value={f.shares} onChange={(e) => setF({ ...f, shares: e.target.value })} />
+        <input style={S.input} type="month" value={f.from_ym} onChange={(e) => setF({ ...f, from_ym: e.target.value })} />
+        <input style={S.input} type="month" value={f.to_ym} onChange={(e) => setF({ ...f, to_ym: e.target.value })} title="結束月份（空白＝至今）" />
+        <button style={S.btn} disabled={!f.name || !f.shares} onClick={add}>新增</button>
+      </div>
+      {msg && <div style={S.sub}>{msg}</div>}
+    </div>
+  );
+}
