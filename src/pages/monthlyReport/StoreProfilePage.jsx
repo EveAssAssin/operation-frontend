@@ -162,29 +162,43 @@ function FixedEditor({ store, items, onDone }) {
 
 // 股東：姓名＋持股 %＋起訖月份；同一期間合計不能超過 100%；比例變了＝舊的設結束月份、再新增一筆（保留歷史）
 function HolderEditor({ store, ym, items, onDone }) {
-  const [f, setF] = useState({ name: '', shares: '', from_ym: ym, to_ym: '' });
+  const [f, setF] = useState({ erpid: '', shares: '', from_ym: ym, to_ym: '' });
   const [msg, setMsg] = useState('');
+  const [ro, setRo] = useState(null);
+  const [grp, setGrp] = useState('');
+  const loadRo = (force) => ledgerApi.holderRoster(force).then((r) => { setRo(r.data); setGrp((r.data && r.data.group) || ''); }).catch((e) => setMsg(errMsg(e)));
+  useEffect(() => { loadRo(false); }, []);
   const active = items.filter((h) => h.from_ym <= ym && (!h.to_ym || h.to_ym >= ym));
   const sum = active.reduce((a, h) => a + h.shares, 0);
   const add = async () => {
-    try { await ledgerApi.addHolder({ store, ...f, shares: Number(f.shares) }); setF({ ...f, name: '', shares: '' }); setMsg('已新增'); onDone(); } catch (e) { setMsg(errMsg(e)); }
+    try { await ledgerApi.addHolder({ store, ...f, shares: Number(f.shares) }); setF({ ...f, erpid: '', shares: '' }); setMsg('已新增'); onDone(); } catch (e) { setMsg(errMsg(e)); }
   };
+  const saveGrp = async () => { try { const r = await ledgerApi.setHolderGroup(grp); setRo(r.data); setMsg('已設定左手股東部門'); } catch (e) { setMsg(errMsg(e)); } };
   const end = async (id) => { try { await ledgerApi.patchHolder(id, { to_ym: ym }); onDone(); } catch (e) { setMsg(errMsg(e)); } };
   const del = async (id) => { try { await ledgerApi.delHolder(id); onDone(); } catch (e) { setMsg(errMsg(e)); } };
+  const list = (ro && ro.list) || [];
   return (
     <div style={S.card} data-yaya="sp-holders">
       <div style={S.h}>👥 股東 <span style={S.sub}>{ym} 合計 {sum}%{sum !== 100 && items.length ? '（不是 100%）' : ''}</span></div>
-      {items.length === 0 && <div style={S.sub}>還沒設。月報的可分配盈餘會依這裡的持股比例分給股東。</div>}
+      {items.length === 0 && <div style={S.sub}>還沒設。月報的可分配盈餘會依這裡的持股比例分給股東；股東在 App「樂活人員 → 投資管理」看得到自己門市已關帳的月報。</div>}
       {items.map((h) => <div key={h.id} style={{ fontSize: 13, display: 'flex', gap: 8, opacity: active.includes(h) ? 1 : 0.5 }}>
-        <span>{h.name} {h.shares}%｜{h.from_ym} ～ {h.to_ym || '至今'}</span>
+        <span>{h.name} {h.shares}%｜{h.from_ym} ～ {h.to_ym || '至今'}{h.erpid ? '' : '｜⚠ 沒對到左手'}</span>
         {!h.to_ym && <button style={S.btnLink} onClick={() => end(h.id)}>到 {ym} 為止</button>}
         <button style={S.btnLink} onClick={() => del(h.id)}>刪除</button></div>)}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-        <input style={{ ...S.input, width: 110 }} placeholder="姓名" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8, alignItems: 'center' }}>
+        <select style={S.input} value={f.erpid} onChange={(e) => setF({ ...f, erpid: e.target.value })}>
+          <option value="">— 左手股東部門的人 —</option>
+          {list.map((x) => <option key={x.erpid} value={x.erpid}>{x.name}{x.app_number ? '' : '（沒有客編，看不到投資管理）'}</option>)}
+        </select>
         <input style={{ ...S.input, width: 70 }} placeholder="持股%" value={f.shares} onChange={(e) => setF({ ...f, shares: e.target.value })} />
         <input style={S.input} type="month" value={f.from_ym} onChange={(e) => setF({ ...f, from_ym: e.target.value })} />
         <input style={S.input} type="month" value={f.to_ym} onChange={(e) => setF({ ...f, to_ym: e.target.value })} title="結束月份（空白＝至今）" />
-        <button style={S.btn} disabled={!f.name || !f.shares} onClick={add}>新增</button>
+        <button style={S.btn} disabled={!f.erpid || !f.shares} onClick={add}>新增</button>
+        <button style={S.btnLink} onClick={() => loadRo(true)}>重抓左手名單</button>
+      </div>
+      <div style={{ ...S.sub, marginTop: 6 }}>
+        名單來源：左手「股東」部門{ro && ro.group ? `（部門編號 ${ro.group}，${list.length} 人）` : ''}。{ro && ro.error ? <span style={{ color: '#c53030' }}>{ro.error}</span> : ''}
+        {' '}左手部門編號 <input style={{ ...S.input, width: 100, padding: 2 }} value={grp} onChange={(e) => setGrp(e.target.value)} /> <button style={S.btnLink} onClick={saveGrp}>設定</button>
       </div>
       {msg && <div style={S.sub}>{msg}</div>}
     </div>

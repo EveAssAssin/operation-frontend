@@ -20,7 +20,6 @@ const NAV_ITEMS = [
     children: [
       { path: '/personnel',  label: '人員管理', icon: '👥', moduleKey: 'personnel' },
       { path: '/basic-data', label: '基本資料', icon: '📚', moduleKey: 'basic_data' },
-      { path: '/contracts',  label: '合約管理', icon: '📜', moduleKey: 'contracts' },
     ],
   },
   {
@@ -40,6 +39,7 @@ const NAV_ITEMS = [
   { path: '/billing-report',  label: '帳單月報', icon: '📊', minRole: 'operation_staff', moduleKey: 'billing_report' },
   { path: '/monthly-report',  label: '門市月報', icon: '📒', minRole: 'operation_staff', moduleKey: 'billing' },
   { path: '/store-profile',   label: '門市基礎設定', icon: '🏪', minRole: 'operation_staff', moduleKey: 'billing' },
+  { path: '/contracts',       label: '合約管理', icon: '📜', minRole: 'operation_staff', moduleKey: 'contracts' },
   {
     key:   'payable',
     label: '應付帳款',
