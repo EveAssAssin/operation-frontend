@@ -8,6 +8,7 @@ import { ledgerApi } from '../../services/api';
 const fmt = (n) => (n === null || n === undefined ? '—' : Math.round(n).toLocaleString('zh-TW'));
 const SRC_COLOR = { 開帳單: '#2b6cb0', 部門開帳: '#6b46c1', 營運費用: '#2f855a', 固定支出: '#975a16', 固定金額: '#975a16', 'ERP 費用單': '#c05621', 手填: '#4a5568', 調帳: '#c53030' };
 const VENDOR_GROUPS = ['misc', 'frame', 'lens', 'contact'];
+const CODE_NAME = { electricity: '電費', water: '水費', telecom: '電話網路', rent: '租金', golden_chicken: '金雞', ad_budget: '廣告費', repair: '工程修繕', edu_bonus: '教育訓練獎金' };
 
 function months(n = 18) {
   const out = []; const d = new Date(); d.setDate(1);
@@ -148,6 +149,21 @@ export default function MonthlyReportPage() {
               ))}
             </tbody>
           </table>
+          {(ov.others || []).length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div style={S.cardTitle}>部門與其他單位（不出門市月報，這個月帳上有費用）</div>
+              <div style={S.sub}>營運部系統的電費、電話、開帳也會分到部門；這裡列出來，確認沒有錢跑錯單位。要把某個單位改成門市，請跟我說。</div>
+              <table style={S.table}><tbody>
+                {ov.others.map((o) => (
+                  <tr key={o.store}>
+                    <td style={S.td}>{o.name}<div style={S.sub}>{o.store}</div></td>
+                    <td style={{ ...S.td, ...S.num }}>{fmt(o.total)}</td>
+                    <td style={S.td}><span style={S.sub}>{Object.entries(o.codes).map(([k, v]) => `${CODE_NAME[k] || k} ${fmt(v)}`).join('、')}</span></td>
+                  </tr>
+                ))}
+              </tbody></table>
+            </div>
+          )}
         </div>
       )}
 
