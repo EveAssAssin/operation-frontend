@@ -9,7 +9,7 @@ import AccountsPanel from './AccountsPanel';
 import { ledgerApi } from '../../services/api';
 
 const fmt = (n) => (n === null || n === undefined ? '—' : Math.round(n).toLocaleString('zh-TW'));
-const SRC_COLOR = { 開帳單: '#2b6cb0', 部門開帳: '#6b46c1', 營運費用: '#2f855a', 固定支出: '#975a16', 固定金額: '#975a16', 'ERP 費用單': '#c05621', 愛民支出: '#c05621', 企劃部開帳: '#6b46c1', 倉庫開帳: '#2c7a7b', 合約: '#8b6f4e', 手填: '#4a5568', 調帳: '#c53030' };
+const SRC_COLOR = { 開帳單: '#2b6cb0', 部門開帳: '#6b46c1', 營運費用: '#2f855a', 固定支出: '#975a16', 固定金額: '#975a16', 'ERP 費用單': '#c05621', 愛民支出: '#c05621', 企劃部開帳: '#6b46c1', 倉庫開帳: '#2c7a7b', 合約: '#8b6f4e', 基本資料: '#718096', 手填: '#4a5568', 調帳: '#c53030' };
 const VENDOR_GROUPS = ['misc', 'frame', 'lens', 'contact'];
 const CODE_NAME = { electricity: '電費', water: '水費', telecom: '電話網路', rent: '租金', golden_chicken: '金雞', ad_budget: '廣告費', repair: '工程修繕', edu_bonus: '教育訓練獎金' };
 
@@ -22,8 +22,10 @@ const prevMonth = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMo
 const errMsg = (e) => (e && (e.message || e.error)) || '發生錯誤';
 
 export default function MonthlyReportPage() {
-  const [ym, setYm] = useState(prevMonth());
-  const [store, setStore] = useState('');
+  // 從門市基礎設定點過來會帶 ?store=&ym=
+  const qs = new URLSearchParams(window.location.search);
+  const [ym, setYm] = useState(/^\d{4}-\d{2}$/.test(qs.get('ym') || '') ? qs.get('ym') : prevMonth());
+  const [store, setStore] = useState(qs.get('store') || '');
   const [ov, setOv] = useState(null);
   const [rep, setRep] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -126,6 +128,7 @@ export default function MonthlyReportPage() {
         <h2 style={{ margin: 0 }}>📒 門市月報</h2>
         <select value={ym} onChange={(e) => setYm(e.target.value)} style={S.input}>{months().map((m) => <option key={m} value={m}>{m}</option>)}</select>
         {store && <button style={S.btn} onClick={() => setStore('')}>‹ 全部門市</button>}
+        {store && <a style={{ fontSize: 13, color: '#3182ce' }} href={`/store-profile?store=${store}&ym=${ym}`}>🏪 門市基礎設定（合約、付款狀態）</a>}
         {store && rep && <span style={{ fontWeight: 600 }}>{rep.store_name || store}　<span style={S.tag(closed ? '#2f855a' : '#718096')}>{closed ? '已關帳' : rep.status === 'review' ? '待審閱' : '整理中'}</span></span>}
         <button style={S.btn} onClick={() => (store ? loadReport() : loadOverview())} disabled={loading}>{loading ? '讀取中…' : '重新整理'}</button>
       </div>

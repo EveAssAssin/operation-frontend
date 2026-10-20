@@ -754,6 +754,7 @@ export const permissionsApi = {
 // 門市月報（營運部帳本，2026-10-20）
 export const ledgerApi = {
   accounts:   ()          => api.get('/ledger/accounts'),
+  storeProfile:(store, ym)=> api.get('/ledger/store-profile', { params: { store, ym } }),
   overview:   (ym)        => api.get('/ledger/overview', { params: { ym }, timeout: 180000 }),
   report:     (ym, store) => api.get('/ledger/report', { params: { ym, store }, timeout: 120000 }),
   manual:     (body)      => api.post('/ledger/manual', body),

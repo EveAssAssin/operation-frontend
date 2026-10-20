@@ -39,6 +39,7 @@ const NAV_ITEMS = [
   { path: '/billing-v2',      label: '帳單管理', icon: '🧾', minRole: 'operation_staff', moduleKey: 'billing_v2' },
   { path: '/billing-report',  label: '帳單月報', icon: '📊', minRole: 'operation_staff', moduleKey: 'billing_report' },
   { path: '/monthly-report',  label: '門市月報', icon: '📒', minRole: 'operation_staff', moduleKey: 'billing' },
+  { path: '/store-profile',   label: '門市基礎設定', icon: '🏪', minRole: 'operation_staff', moduleKey: 'billing' },
   {
     key:   'payable',
     label: '應付帳款',
