@@ -119,6 +119,7 @@ function Detail({ open, ym, onBack }) {
           <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>{(sub.shipping_photos || []).map((u, i) => <a key={i} href={u} target="_blank" rel="noreferrer"><img src={u} alt="寄件憑證" style={S.thumb} /></a>)}</div></div>}
         {sub.status === 'returned' && <div style={{ ...S.note, background: '#fed7d7', color: '#c53030' }}>退回原因：{sub.return_reason}（{sub.reviewed_by_name} {dt(sub.returned_at)}）</div>}
         {sub.status === 'approved' && <div style={{ ...S.note, background: '#c6f6d5', color: '#276749' }}>✅ {sub.reviewed_by_name} 於 {dt(sub.approved_at)} 通過{sub.review_note ? `　${sub.review_note}` : ''}</div>}
+        {sub.status === 'approved' && <Rating sub={sub} onSaved={load} />}
         {!canReview && <div style={{ ...S.note, background: '#fefcbf', color: '#975a16' }}>門市還沒寄出，先看得到他們整理到哪裡。</div>}
         {canReview && sub.status !== 'approved' && (
           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -256,3 +257,35 @@ const S = {
   thumb: { width: 56, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid #e2e8f0' },
   note: { fontSize: 13, padding: '8px 10px', borderRadius: 6, marginTop: 8 },
 };
+
+// 會計評價（2026-10-21 營運）：清點通過後給「結帳資料」「門市支出」各 1～5 分＋評語 → 市場部店長評核 admin_closing_rating／admin_expense_rating
+function Rating({ sub, onSaved }) {
+  const [rc, setRc] = useState(sub.rating_closing || 0);
+  const [re, setRe] = useState(sub.rating_expense || 0);
+  const [note, setNote] = useState(sub.rating_note || '');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { setRc(sub.rating_closing || 0); setRe(sub.rating_expense || 0); setNote(sub.rating_note || ''); }, [sub.id, sub.rated_at]);
+  const stars = (v, set) => <span>{[1, 2, 3, 4, 5].map((n) => <span key={n} onClick={() => set(n === v ? 0 : n)} style={{ cursor: 'pointer', fontSize: 22, color: n <= v ? '#d69e2e' : '#cbd5e0' }}>★</span>)}</span>;
+  const save = async () => {
+    setBusy(true); setMsg('');
+    try { await closingApi.rating(sub.id, { rating_closing: rc || null, rating_expense: re || null, rating_note: note }).then(unwrap); setMsg('✅ 已存評價'); onSaved && onSaved(); }
+    catch (e) { setMsg('❌ ' + e.message); }
+    setBusy(false);
+  };
+  return (
+    <div style={{ marginTop: 10, padding: 10, border: '1px solid #e2e8f0', borderRadius: 8, background: '#fffff0' }}>
+      <b>⭐ 會計評價</b> <span style={{ fontSize: 12, color: '#718096' }}>（列入店長評核參考：結帳資料 → 行政「結帳資料會計評價」、門市支出 → 行政「門市支出會計評價」）</span>
+      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center', marginTop: 6 }}>
+        <div>結帳資料（完整、準時、照片清楚）　{stars(rc, setRc)}</div>
+        <div>門市支出（憑證齊全、符合申報準則）　{stars(re, setRe)}</div>
+      </div>
+      <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} rows={2} placeholder="評語（選填，店長評核會看到）" style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, padding: 6, borderRadius: 6, border: '1px solid #cbd5e0' }} />
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+        <button style={{ ...S.btn, background: '#d69e2e', color: '#fff' }} disabled={busy || (!rc && !re)} onClick={save}>{busy ? '存檔中…' : '存評價'}</button>
+        {sub.rated_at && <span style={{ fontSize: 12, color: '#718096' }}>上次：{sub.rated_by_name} {dt(sub.rated_at)}</span>}
+        {msg && <span style={{ fontSize: 12, color: msg.startsWith('❌') ? '#c53030' : '#276749' }}>{msg}</span>}
+      </div>
+    </div>
+  );
+}

@@ -864,6 +864,7 @@ export const closingApi = {
   submission: (id, refresh)    => api.get(`/closing/submissions/${id}`, { params: refresh ? { refresh: 1 } : {}, timeout: 90000 }),
   checkItem:  (id, item, b)    => api.put(`/closing/submissions/${id}/items/${item}`, b),
   setStatus:  (id, b)          => api.post(`/closing/submissions/${id}/status`, b),
+  rating:     (id, b)          => api.post(`/closing/submissions/${id}/rating`, b),   // 會計評價（2026-10-21，店長評核讀）
   receipt:    (payId, b)       => api.put(`/closing/receipts/${payId}`, b),
   upload:     (data)           => api.post('/closing/upload', { data }, { timeout: 60000 }),
   templates:  ()               => api.get('/closing/templates'),
