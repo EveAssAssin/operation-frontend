@@ -4,6 +4,7 @@
 // ⚠ App 內建瀏覽器的 confirm／prompt 不可靠 → 全部用頁內表單（陷阱 143）
 import { useState, useEffect, useCallback } from 'react';
 import AuditPanel from './AuditPanel';
+import CloseBar from './CloseBar';
 import { ledgerApi } from '../../services/api';
 
 const fmt = (n) => (n === null || n === undefined ? '—' : Math.round(n).toLocaleString('zh-TW'));
@@ -129,6 +130,7 @@ export default function MonthlyReportPage() {
       </div>
       {err && <div style={S.err}>{err}</div>}
 
+      {!store && <CloseBar ym={ym} onDone={loadOverview} />}
       {!store && <AuditPanel ym={ym} onPickStore={(id) => setStore(id)} />}
 
       {/* ── 全部門市一覽 ── */}
@@ -141,7 +143,7 @@ export default function MonthlyReportPage() {
             <tbody>
               {ov.stores.map((s) => (
                 <tr key={s.store}>
-                  <td style={S.td}>{s.store_name}<div style={S.sub}>{s.store}</div></td>
+                  <td style={S.td}>{s.store_name}<div style={S.sub}>{s.store}　<span style={S.tag(s.status === 'closed' ? '#2f855a' : s.status === 'review' ? '#b7791f' : '#a0aec0')}>{s.status === 'closed' ? '已關帳' : s.status === 'review' ? '待審閱' : '整理中'}</span></div></td>
                   <td style={{ ...S.td, ...S.num }}>{fmt(s.sales_total)}</td>
                   <td style={{ ...S.td, ...S.num }}>{fmt(s.receipt_total)}</td>
                   <td style={{ ...S.td, ...S.num, color: s.gap_alert ? '#c53030' : '#718096', fontWeight: s.gap_alert ? 700 : 400 }}>{s.gap_pct == null ? '—' : `${s.gap_pct > 0 ? '+' : ''}${s.gap_pct}%`}{s.gap_alert ? ' ⚠' : ''}</td>
@@ -177,6 +179,8 @@ export default function MonthlyReportPage() {
         <>
           {rep.warnings.length > 0 && <div style={S.warn}>{rep.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}</div>}
 
+          <CloseBar ym={ym} store={store} status={rep.status} report={rep.report} onDone={loadReport} />
+          {rep.frozen && <div style={S.warn}>🔒 已關帳：下面是關帳當下的數字（{String(rep.snapshot_at || '').slice(0, 16).replace('T', ' ')}）。之後帳本再變也不會改到這份；要改請先重開。</div>}
           <AuditPanel ym={ym} store={store} canEdit={!closed} />
 
           <div style={S.card}>

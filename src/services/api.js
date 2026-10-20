@@ -763,6 +763,8 @@ export const ledgerApi = {
   auditAck:   (body)      => api.post('/ledger/audit/ack', body),
   auditUnack: (id)        => api.delete(`/ledger/audit/ack/${id}`),
   auditExplain: (body)    => api.post('/ledger/audit/explain', body, { timeout: 120000 }),
+  status:     (body)      => api.post('/ledger/report/status', body, { timeout: 240000 }),
+  reviewerNote: (body)    => api.post('/ledger/report/reviewer-note', body),
 };
 
 export default api;
