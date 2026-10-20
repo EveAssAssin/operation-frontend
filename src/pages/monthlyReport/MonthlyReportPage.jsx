@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ledgerApi } from '../../services/api';
 
 const fmt = (n) => (n === null || n === undefined ? '—' : Math.round(n).toLocaleString('zh-TW'));
-const SRC_COLOR = { 開帳單: '#2b6cb0', 部門開帳: '#6b46c1', 營運費用: '#2f855a', 固定支出: '#975a16', 固定金額: '#975a16', 'ERP 費用單': '#c05621', 手填: '#4a5568', 調帳: '#c53030' };
+const SRC_COLOR = { 開帳單: '#2b6cb0', 部門開帳: '#6b46c1', 營運費用: '#2f855a', 固定支出: '#975a16', 固定金額: '#975a16', 'ERP 費用單': '#c05621', 愛民支出: '#c05621', 手填: '#4a5568', 調帳: '#c53030' };
 const VENDOR_GROUPS = ['misc', 'frame', 'lens', 'contact'];
 const CODE_NAME = { electricity: '電費', water: '水費', telecom: '電話網路', rent: '租金', golden_chicken: '金雞', ad_budget: '廣告費', repair: '工程修繕', edu_bonus: '教育訓練獎金' };
 
@@ -132,8 +132,9 @@ export default function MonthlyReportPage() {
       {!store && ov && (
         <div style={S.card}>
           {ov.market_error && <div style={S.warn}>⚠ {ov.market_error}（ERP 帳上業績、門市費用單暫時拿不到）</div>}
+          {ov.aimin_error && <div style={S.warn}>⚠ {ov.aimin_error}（愛民門市的眼鏡業績、門市支出暫時拿不到）</div>}
           <table style={S.table}>
-            <thead><tr>{['門市', '總實收', 'ERP 帳上（眼鏡＋隱眼）', '總支出', '總盈餘', '實收', '提醒', ''].map((h) => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <thead><tr>{['門市', '總實收', '帳上參考（ERP＋愛民）', '總支出', '總盈餘', '實收', '提醒', ''].map((h) => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
             <tbody>
               {ov.stores.map((s) => (
                 <tr key={s.store}>
@@ -179,12 +180,19 @@ export default function MonthlyReportPage() {
                 <div key={code} style={S.kpi}>
                   <div style={S.sub}>{r.name}</div>
                   <div style={{ fontSize: 20, fontWeight: 700 }}>{r.amount == null ? <span style={{ color: '#c05621' }}>待填</span> : fmt(r.amount)}</div>
-                  {r.erp != null && <div style={S.sub}>ERP 帳上 {fmt(r.erp)}{r.amount != null && r.erp !== r.amount ? `（差 ${fmt(r.amount - r.erp)}）` : ''}</div>}
+                  {(r.refs || []).map((x) => <div key={x.label} style={S.sub}>{x.label} {fmt(x.amount)}</div>)}
+                  {r.erp != null && r.amount != null && r.erp !== r.amount && <div style={S.sub}>跟參考差 {fmt(r.amount - r.erp)}</div>}
                   {!closed && <button style={S.linkBtn} onClick={() => startForm({ code, name: r.name, group: 'revenue' }, 'value')}>填寫</button>}
                 </div>
               ))}
             </div>
             <div style={{ marginTop: 10, fontWeight: 600 }}>總實收 {fmt(rep.totals.total_in)}</div>
+            {rep.aimin && rep.aimin.closings && (
+              <div style={{ ...S.sub, marginTop: 6 }}>
+                愛民系統（{rep.aimin.name}）：訂單 {rep.aimin.orders} 張、業績 {fmt(rep.aimin.sales)}、收款 {fmt(rep.aimin.paid)}；
+                日結 {rep.aimin.closings.count} 次，現金收 {fmt(rep.aimin.closings.cash_received)}、刷卡 {fmt(rep.aimin.closings.card_total)}（日結含藥拋，僅供對帳）
+              </div>
+            )}
           </div>
 
           {form && (
