@@ -17,7 +17,8 @@ async function shrink(file) {
   cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
   return cv.toDataURL('image/jpeg', 0.85);
 }
-const unwrap = (r) => (r && r.data && r.data.success === false ? Promise.reject(new Error(r.data.message)) : r.data.data);
+// api 攔截器已先解掉 axios 一層（回 { success, data }），這裡再解 success 層；同時相容沒解過的
+const unwrap = (r) => { const o = r && r.data && r.data.success !== undefined ? r.data : r; if (o && o.success === false) return Promise.reject(new Error(o.message || '失敗')); return o && o.success !== undefined ? o.data : o; };
 
 export default function ClosingAdminPage() {
   const [tab, setTab] = useState('list');
