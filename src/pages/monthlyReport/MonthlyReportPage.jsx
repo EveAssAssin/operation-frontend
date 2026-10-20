@@ -187,12 +187,14 @@ export default function MonthlyReportPage() {
           {ov.market_error && <div style={S.warn}>⚠ {ov.market_error}（ERP 帳上業績、門市費用單暫時拿不到）</div>}
           {ov.aimin_error && <div style={S.warn}>⚠ {ov.aimin_error}（愛民門市的眼鏡業績、門市支出暫時拿不到）</div>}
           <table style={S.table}>
-            <thead><tr>{['門市', '總業績', '總實收', '實收差', '總支出', '總盈餘', '實收', '提醒', ''].map((h) => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <thead><tr>{['門市', '總業績', '眼鏡實收', '隱眼實收', '總實收', '實收差', '總支出', '總盈餘', '實收', '提醒', ''].map((h) => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
             <tbody>
               {ov.stores.map((s) => (
                 <tr key={s.store}>
                   <td style={S.td}>{s.store_name}<div style={S.sub}>{s.store}　<span style={S.tag(s.status === 'closed' ? '#2f855a' : s.status === 'review' ? '#b7791f' : '#a0aec0')}>{s.status === 'closed' ? '已關帳' : s.status === 'review' ? '月報完成・待關帳' : '整理中'}</span></div></td>
                   <td style={{ ...S.td, ...S.num }}>{fmt(s.sales_total)}</td>
+                  <td style={{ ...S.td, ...S.num }}>{fmt(s.glasses_receipt)}</td>
+                  <td style={{ ...S.td, ...S.num }}>{fmt(s.contact_receipt)}</td>
                   <td style={{ ...S.td, ...S.num }}>{fmt(s.receipt_total)}</td>
                   <td style={{ ...S.td, ...S.num, color: s.gap_alert ? '#c53030' : '#718096', fontWeight: s.gap_alert ? 700 : 400 }}>{s.gap_pct == null ? '—' : `${s.gap_pct > 0 ? '+' : ''}${s.gap_pct}%`}{s.gap_alert ? ' ⚠' : ''}</td>
                   <td style={{ ...S.td, ...S.num }}>{fmt(s.total_out)}</td>
