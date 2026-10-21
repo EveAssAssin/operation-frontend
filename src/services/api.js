@@ -770,6 +770,8 @@ export const hrToolApi = {
   saveSettings:(body)            => api.put('/hr-tool/settings', body),
   handovers:   (params = {})     => api.get('/hr-tool/handovers', { params }),
   handover:    (id)              => api.get(`/hr-tool/handovers/${id}`),
+  handoverTemplates:     ()      => api.get('/hr-tool/handover-templates'),
+  saveHandoverTemplates: (items) => api.put('/hr-tool/handover-templates', { items }),
 };
 
 // 匯款批次（S2：元大格式 + 進項發票）

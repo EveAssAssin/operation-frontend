@@ -12,7 +12,7 @@ const ghost = { border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 
 const ST = { pending: '等待同意', accepted: '填寫中', signing: '等簽名', signed: '等營運部確認', completed: '已完成', rejected: '已拒絕', cancelled: '已取消' };
 const dt = (s) => (s ? new Date(s).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 const MARKET_FE = 'https://market-frontend-qz17.onrender.com';
-const HELP = '兩種交接都在這裡看：\n・門市交接：店長在 App「樂活人員 → 營運工具 → 門市交接」發起，雙方填寫、盤點、簽名，最後營運部第三方確認結案（在 App 或市場部後台「門市交接」簽名）。\n・離職交接：離職人員最後上班日早上收到連結，填完簽名送出，門市管理者簽名確認就完成；完成會自動回填人事工具。\n項目與預設 12 項在市場部後台「門市交接 → 預設項目」維護。';
+const HELP = '兩種交接都在這裡看：\n・門市交接：店長在 App「樂活人員 → 營運工具 → 門市交接」發起，雙方填寫、盤點、簽名，最後營運部第三方確認結案（在 App 或市場部後台「門市交接」簽名）。\n・離職交接：離職人員最後上班日早上收到連結，填完簽名送出，門市管理者簽名確認就完成；完成會自動回填人事工具。\n預設項目在這頁上方「預設項目」維護（2026-10-21 從市場部搬過來；門市交接、離職交接共用，改了只影響之後新建的交接表）。';
 
 export default function HandoverListPage() {
   const [kind, setKind] = useState('');
@@ -21,6 +21,7 @@ export default function HandoverListPage() {
   const [err, setErr] = useState('');
   const load = useCallback(async () => {
     setErr('');
+    if (kind === 'tpl') return;
     try { const r = await hrToolApi.handovers(kind ? { kind } : {}); setList(r.data || []); } catch (e) { setErr(e.message || '讀取失敗'); }
   }, [kind]);
   useEffect(() => { load(); }, [load]);
@@ -28,12 +29,12 @@ export default function HandoverListPage() {
     <div style={{ padding: 20, background: C.bg, minHeight: '100vh' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0, color: C.primary }}>📝 門市交接表<HelpTip title="門市交接表" body={HELP} /></h2>
-        {[['', '全部'], ['store', '門市交接'], ['resign', '離職交接']].map(([k, l]) => <button key={k} onClick={() => { setKind(k); setSel(null); }} style={{ ...ghost, background: kind === k ? C.primary : '#edf2f7', color: kind === k ? '#fff' : '#4a5568' }}>{l}</button>)}
+        {[['', '全部'], ['store', '門市交接'], ['resign', '離職交接'], ['tpl', '⚙ 預設項目']].map(([k, l]) => <button key={k} onClick={() => { setKind(k); setSel(null); }} style={{ ...ghost, background: kind === k ? C.primary : '#edf2f7', color: kind === k ? '#fff' : '#4a5568' }}>{l}</button>)}
         <div style={{ flex: 1 }} />
         <a href={`${MARKET_FE}/handovers`} target="_blank" rel="noreferrer" style={{ fontSize: 13 }}>市場部後台（第三方確認）↗</a>
       </div>
       {err && <div style={{ ...card, color: C.danger }}>⚠ {err}</div>}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 380px) 1fr', gap: 14, alignItems: 'start' }}>
+      {kind === 'tpl' ? <Templates /> : <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 380px) 1fr', gap: 14, alignItems: 'start' }}>
         <div style={card}>
           {list.map((h) => (
             <div key={h.id} onClick={() => setSel(h.id)} style={{ padding: '10px 8px', borderRadius: 8, cursor: 'pointer', background: sel === h.id ? '#f5f0ea' : 'transparent', borderBottom: `1px solid ${C.border}` }}>
@@ -47,7 +48,53 @@ export default function HandoverListPage() {
           {!list.length && <div style={{ color: C.muted, fontSize: 13 }}>沒有交接</div>}
         </div>
         <div>{sel ? <Detail id={sel} /> : <div style={{ ...card, color: C.muted }}>點左邊一份交接看內容</div>}</div>
-      </div>
+      </div>}
+    </div>
+  );
+}
+
+const inp = { padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, fontFamily: 'inherit', background: '#fff' };
+const small = { padding: '4px 8px', borderRadius: 6, border: `1px solid ${C.border}`, background: '#fff', cursor: 'pointer', fontSize: 12 };
+
+// 交接預設項目（2026-10-21 從市場部後台搬過來；門市交接、離職交接共用）
+function Templates() {
+  const [items, setItems] = useState(null);
+  const [canEdit, setCanEdit] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    hrToolApi.handoverTemplates().then((r) => { setItems((r.data && r.data.items) || []); setCanEdit(!!(r.data && r.data.can_edit)); }).catch((e) => setMsg('❌ ' + (e.message || '讀取失敗')));
+  }, []);
+  if (!items) return <div style={card}>{msg || '載入中…'}</div>;
+  const set = (i, k, v) => { const a = [...items]; a[i] = { ...a[i], [k]: v }; setItems(a); };
+  const move = (i, d) => { const j = i + d; if (j < 0 || j >= items.length) return; const a = [...items]; [a[i], a[j]] = [a[j], a[i]]; setItems(a); };
+  const save = async () => {
+    if (!items.some((x) => String(x.title || '').trim())) { setMsg('❌ 至少要有一項'); return; }
+    setSaving(true); setMsg('');
+    try { const r = await hrToolApi.saveHandoverTemplates(items); setItems(r.data || []); setMsg('✅ 已儲存（之後新建的交接表才會用新項目）'); }
+    catch (e) { setMsg('❌ ' + (e.response?.data?.message || e.message)); }
+    setSaving(false);
+  };
+  return (
+    <div style={{ ...card, maxWidth: 820 }}>
+      <b>交接預設項目</b>
+      <div style={{ fontSize: 12, color: C.muted, margin: '4px 0 12px' }}>每份交接表（門市交接、離職交接）一開始帶入的項目；店長發起時還可以自己加。改了只影響之後新建的，已經在填的不會變。{!canEdit && ' 你的帳號只能看，要改請找營運主管或人事。'}</div>
+      {items.map((it, i) => (
+        <div key={it.id || `n${i}`} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ width: 22, fontSize: 12, color: C.muted }}>{i + 1}</span>
+          <input value={it.title || ''} disabled={!canEdit} onChange={(e) => set(i, 'title', e.target.value)} style={{ ...inp, flex: 2 }} placeholder="項目" />
+          <input value={it.hint || ''} disabled={!canEdit} onChange={(e) => set(i, 'hint', e.target.value)} style={{ ...inp, flex: 3 }} placeholder="說明（選填）" />
+          {canEdit && <><button onClick={() => move(i, -1)} style={small}>↑</button><button onClick={() => move(i, 1)} style={small}>↓</button>
+          <button onClick={() => setItems(items.filter((_, j) => j !== i))} style={{ ...small, color: C.danger }}>✕</button></>}
+        </div>
+      ))}
+      {canEdit && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
+          <button onClick={() => setItems([...items, { title: '', hint: '' }])} style={ghost}>＋ 加項目</button>
+          <button onClick={save} disabled={saving} style={{ ...ghost, background: C.primary, color: '#fff' }}>{saving ? '儲存中…' : '儲存'}</button>
+        </div>
+      )}
+      {msg && <div style={{ fontSize: 12, marginTop: 8, color: msg.startsWith('❌') ? C.danger : C.ok }}>{msg}</div>}
     </div>
   );
 }
