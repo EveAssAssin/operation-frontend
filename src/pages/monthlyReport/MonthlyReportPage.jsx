@@ -270,15 +270,13 @@ export default function MonthlyReportPage() {
                 {row('實收（真實實收＝會計對銀行後手填；帳面＝ERP 收款，不含 API PAY）', [
                   <div key="receipt_total" style={{ ...S.kpi, background: '#f7fafc', ...(G.total && G.total.alert ? { borderColor: '#fc8181' } : {}) }}>
                     <div style={S.sub}>總真實實收<HelpTip title="總真實實收" body={REV_HELP.receipt_total} size={14} /></div>
-                    <div style={{ fontSize: 20, fontWeight: 700 }}>{T.receipt_total == null ? <span style={{ color: '#c05621' }}>待填</span> : fmt(T.receipt_total)}{T.receipt_total != null && !T.receipt_filled ? <span style={{ ...S.sub, color: '#c05621' }}>（還有一格沒填）</span> : null}</div>
-                    {[['glasses_receipt', '眼鏡'], ['contact_receipt', '隱眼']].map(([code, lb]) => (
-                      <div key={code} style={S.sub}>{lb} {R[code].amount == null ? <span style={{ color: '#c05621' }}>待填</span> : fmt(R[code].amount)}
-                        {!closed && <button style={S.linkBtn} onClick={() => startForm({ code, name: R[code].name, group: 'revenue' }, 'value')}>填寫</button>}</div>
-                    ))}
+                    <div style={{ fontSize: 20, fontWeight: 700 }}>{T.receipt_total == null ? <span style={{ color: '#c05621' }}>待填</span> : fmt(T.receipt_total)}</div>
+                    {R.receipt_total && R.receipt_total.legacy && <div style={S.sub}>舊填法：眼鏡 {fmt(R.receipt_total.legacy.glasses)}＋隱眼 {fmt(R.receipt_total.legacy.contact)}（填了總數就以總數為準）</div>}
+                    {!closed && R.receipt_total && <button style={S.linkBtn} onClick={() => startForm({ code: 'receipt_total', name: '總真實實收', group: 'revenue' }, 'value')}>填寫</button>}
                     {gapLine(G.total)}
                   </div>,
-                  card('book_glasses_receipt', { name: '帳面眼鏡實收', amount: T.book_glasses_receipt, refs: R.glasses_receipt.refs }, { sales: true, total: true }),
-                  card('book_contact_receipt', { name: '帳面隱眼實收', amount: T.book_contact_receipt, refs: R.contact_receipt.refs }, { sales: true, total: true }),
+                  card('book_glasses_receipt', { name: '帳面眼鏡實收', amount: T.book_glasses_receipt }, { sales: true, total: true }),
+                  card('book_contact_receipt', { name: '帳面隱眼實收', amount: T.book_contact_receipt }, { sales: true, total: true }),
                   <div key="bad_debt" style={{ ...S.kpi, background: '#f7fafc', ...(T.bad_debt > 0 ? { borderColor: '#fc8181' } : {}) }}>
                     <div style={S.sub}>帳面呆帳<HelpTip title="帳面呆帳" body={REV_HELP.bad_debt} size={14} /></div>
                     <div style={{ fontSize: 20, fontWeight: 700, color: T.bad_debt > 0 ? '#c53030' : undefined }}>{T.bad_debt == null ? <span style={{ color: '#718096', fontSize: 14 }}>{T.book_receipt_total === undefined ? '這個月沒有帳面資料' : '拿不到'}</span> : fmt(T.bad_debt)}</div>
