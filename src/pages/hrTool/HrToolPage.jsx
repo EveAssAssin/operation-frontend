@@ -20,6 +20,7 @@ const daysTo = (ymd) => { const t = new Date(new Date().toLocaleDateString('sv-S
 
 const HELP = {
   page: '離職申請由人員在 App「樂活人員 → 營運工具 → 其他申請 → 離職申請」送出，門市管理者簽名通過後會出現在這裡（沒有門市管理者的直接進來）。\n每一張卡由上往下做，做完一步打勾，全部完成按「結案」。人員填的身分證字號、生日、地址只有這裡看得到，結案 90 天後自動刪除。',
+  suspend: '降職停薪（營運 10-21）：要提前至少 30 天申請、最長半年；最後上班日＝停薪開始日前一天，隔天 00:00 關閉登入（同離職）。返回門市那天請按「已返回門市」＝恢復登入、結案。返回日過了沒按，系統每天 9 點後會自動標記「期滿未返回＝自動離職」並通知人事，之後照離職流程辦（本人簽過的自願離職聲明此時生效）。勞健保留職停薪可選退保或續保，辦完打勾即可。',
   accept: '確認離職日（可以改）和離職類型。選「資遣」才會出現資遣通報那一步。',
   extra: '人員沒填或要修正的資料在這裡補。到職日、資遣事由是資遣通報要的；投保單位會自動依門市帶出（在右上「⚙ 設定」維護），特殊情況可以手動改。',
   li: '勞保、就保、職保、勞退是同一張退保申報。系統不能代送（要單位憑證＋自然人憑證），按「開啟網站」登入後，照下面逐欄按「複製」貼上。送出後回來按「已退保」。離職日前 10 天內可以預辦。',
@@ -69,8 +70,8 @@ export default function HrToolPage() {
             const layoffLate = r.resign_type === 'layoff' && !(r.steps || {}).layoff && d <= 12;
             return (
               <div key={r.id} onClick={() => setSel(r.id)} style={{ padding: '10px 8px', borderRadius: 8, cursor: 'pointer', background: sel === r.id ? '#f5f0ea' : 'transparent', borderBottom: `1px solid ${C.border}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><b>{r.name}</b>{chip(r.status)}</div>
-                <div style={{ fontSize: 12, color: C.muted }}>{r.store_name}・離職日 {r.resign_date}{tab === 'open' && <span style={{ color: d <= 3 ? C.danger : C.muted }}>（{d >= 0 ? `${d} 天後` : `已過 ${-d} 天`}）</span>}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><b>{r.name}{r.kind === 'suspend' && <span style={{ marginLeft: 6, fontSize: 11, color: '#b45309', background: '#fef3c7', borderRadius: 999, padding: '1px 7px' }}>⏸ 降職停薪{r.suspend_outcome === 'auto_resign' ? '→離職' : r.suspend_outcome === 'returned' ? '・已返回' : ''}</span>}</b>{chip(r.status)}</div>
+                <div style={{ fontSize: 12, color: C.muted }}>{r.store_name}・{r.kind === 'suspend' ? `停薪 ${r.suspend_start}～${r.suspend_end}・最後上班日` : '離職日'} {r.resign_date}{tab === 'open' && <span style={{ color: d <= 3 ? C.danger : C.muted }}>（{d >= 0 ? `${d} 天後` : `已過 ${-d} 天`}）</span>}</div>
                 {layoffLate && <div style={{ fontSize: 11, color: C.danger }}>⚠ 資遣通報還沒做（離職日前 10 日）</div>}
                 {r.blocked && <div style={{ fontSize: 11, color: C.muted }}>🔒 已關閉登入</div>}
               </div>
@@ -107,7 +108,9 @@ function Detail({ id, onChanged }) {
     try { await hrToolApi.action(r.id, body); setMsg(okMsg || '已更新'); await load(); onChanged && onChanged(); } catch (e) { setMsg('⚠ ' + await errText(e)); } finally { setBusy(false); }
   };
   const isLayoff = r.resign_type === 'layoff';
-  const need = ['li', 'nhi', ...(isLayoff ? ['layoff'] : []), 'lefthand', 'final_pay'];
+  const isSus = r.kind === 'suspend';
+  const susActive = isSus && r.suspend_outcome !== 'auto_resign';   // 降職停薪中／已返回：不是離職，不用左手離職、薪資結算
+  const need = susActive ? ['li', 'nhi'] : ['li', 'nhi', ...(isLayoff ? ['layoff'] : []), 'lefthand', 'final_pay'];
   const missing = need.filter((k) => !steps[k]);
   const Step = ({ k, label, help, children, auto }) => (
     <div style={{ ...card, borderLeft: `4px solid ${steps[k] ? C.ok : C.border}` }}>
@@ -127,31 +130,49 @@ function Detail({ id, onChanged }) {
     <div>
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <h3 style={{ margin: 0 }}>{r.name}</h3>{chip(r.status)}
+          <h3 style={{ margin: 0 }}>{r.name}</h3>{chip(r.status)}{isSus && <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', background: '#fef3c7', borderRadius: 999, padding: '2px 8px' }}>⏸ 降職停薪申請</span>}
           <span style={{ color: C.muted, fontSize: 13 }}>{r.store_name}・{r.jobtitle || '—'}・客編 {r.app_number}{r.erpid ? `・員編 ${r.erpid}` : ''}</span>
         </div>
         <div style={{ fontSize: 13, marginTop: 8, lineHeight: 1.8 }}>
-          申請 {r.apply_date}・預計離職 <b>{r.resign_date}</b>{d.type_name ? `・${d.type_name}` : ''}・電話 {r.phone || '—'}<br />
+          {isSus
+            ? <>申請 {r.apply_date}・停薪 <b>{r.suspend_start}～{r.suspend_end}</b>・最後上班日 {r.resign_date}・返回門市 <b>{r.return_date}</b>・電話 {r.phone || '—'}<br /></>
+            : <>申請 {r.apply_date}・預計離職 <b>{r.resign_date}</b>{d.type_name ? `・${d.type_name}` : ''}・電話 {r.phone || '—'}<br /></>}
           {r.reason && <>事由：{r.reason}<br /></>}
           主管：{r.manager_name ? `${r.manager_name} ${dt(r.manager_at)} 簽核` : r.approver_app ? `等 ${r.approver_name} 簽核` : '沒有門市管理者（直接送人事）'}{r.manager_note ? `（${r.manager_note}）` : ''}
         </div>
-        <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>{sig('自願離職聲明 本人簽名', r.decl_signature, r.decl_signed_at)}{sig(`直屬主管 ${r.manager_name || ''}`, r.manager_signature, r.manager_at)}</div>
+        <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>{sig(isSus ? '降職停薪申請＋自願離職聲明（期滿未返回生效）本人簽名' : '自願離職聲明 本人簽名', r.decl_signature, r.decl_signed_at)}{sig(`直屬主管 ${r.manager_name || ''}`, r.manager_signature, r.manager_at)}</div>
         {msg && <div style={{ marginTop: 8, fontSize: 13, color: msg.startsWith('⚠') ? C.danger : C.ok }}>{msg}</div>}
       </div>
+
+      {isSus && (
+        <div style={{ ...card, borderLeft: `4px solid ${r.suspend_outcome === 'returned' ? C.ok : r.suspend_outcome === 'auto_resign' ? C.danger : '#b45309'}` }}>
+          <b>⏸ 降職停薪結果</b><HelpTip title="降職停薪" body={HELP.suspend} />
+          <div style={{ fontSize: 13, marginTop: 6 }}>
+            {r.suspend_outcome === 'returned' && <>✅ 已返回門市（{r.suspend_outcome_by} {dt(r.suspend_outcome_at)}），已恢復登入、結案。</>}
+            {r.suspend_outcome === 'auto_resign' && <>⚠️ 期滿未返回門市＝自動離職（{r.suspend_outcome_by === 'system' ? '系統自動標記' : r.suspend_outcome_by} {dt(r.suspend_outcome_at)}）。請照下面離職流程辦退保、左手離職、薪資結算後結案。</>}
+            {!r.suspend_outcome && <>停薪中，應於 <b>{r.return_date}</b> 返回門市。返回日過了還沒按「已返回」，系統會自動標記為自動離職並通知人事。</>}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            {r.suspend_outcome !== 'returned' && <button style={btn(C.ok)} disabled={busy || ['cancelled', 'rejected'].includes(r.status)} onClick={() => { if (window.confirm(`${r.name} 已返回門市？會恢復系統登入並結案。`)) act({ action: 'suspend_return' }, '已標記返回門市'); }}>已返回門市</button>}
+            {!r.suspend_outcome && <button style={btn(C.danger)} disabled={busy} onClick={() => { if (window.confirm(`${r.name} 期滿未返回，視為自動離職？`)) act({ action: 'suspend_resign' }, '已改為自動離職'); }}>期滿未返回＝自動離職</button>}
+            {r.suspend_outcome && <button style={ghost} disabled={busy} onClick={() => { if (window.confirm('改回「停薪中」？')) act({ action: 'suspend_clear' }, '已改回停薪中'); }}>標錯了，改回停薪中</button>}
+          </div>
+        </div>
+      )}
 
       <div style={{ ...card, borderLeft: `4px solid ${r.hr_at ? C.ok : C.warn}` }}>
         <b>{r.hr_at ? '✅' : '⬜'} ① 人事確認</b><HelpTip title="人事確認" body={HELP.accept} />
         {r.hr_at && <span style={{ fontSize: 12, color: C.muted, marginLeft: 8 }}>{r.hr_name} {dt(r.hr_at)}</span>}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
-          <label style={{ fontSize: 13 }}>離職日 <input type="date" value={acc.resign_date} onChange={(e) => setAcc({ ...acc, resign_date: e.target.value })} style={input} /></label>
-          <label style={{ fontSize: 13 }}>類型{' '}
+          <label style={{ fontSize: 13 }}>{susActive ? '最後上班日' : '離職日'} <input type="date" value={acc.resign_date} onChange={(e) => setAcc({ ...acc, resign_date: e.target.value })} style={input} /></label>
+          {!susActive && <label style={{ fontSize: 13 }}>類型{' '}
             <select value={acc.resign_type} onChange={(e) => setAcc({ ...acc, resign_type: e.target.value })} style={input}>
               <option value="">請選</option><option value="voluntary">自願離職</option><option value="layoff">資遣</option><option value="other">其他</option>
             </select>
-          </label>
+          </label>}
           {r.hr_at
-            ? <button style={ghost} disabled={busy || !acc.resign_type} onClick={() => act({ action: 'update', resign_type: acc.resign_type, resign_date: acc.resign_date })}>更新</button>
-            : <button style={btn(C.primary)} disabled={busy || !acc.resign_type || ['closed', 'cancelled', 'rejected'].includes(r.status)} onClick={() => act({ action: 'accept', resign_type: acc.resign_type, resign_date: acc.resign_date }, '已確認，開始作業')}>確認</button>}
+            ? <button style={ghost} disabled={busy || (!susActive && !acc.resign_type)} onClick={() => act({ action: 'update', ...(susActive ? {} : { resign_type: acc.resign_type }), resign_date: acc.resign_date })}>更新</button>
+            : <button style={btn(C.primary)} disabled={busy || (!susActive && !acc.resign_type) || ['closed', 'cancelled', 'rejected'].includes(r.status)} onClick={() => act({ action: 'accept', ...(susActive ? {} : { resign_type: acc.resign_type }), resign_date: acc.resign_date }, '已確認，開始作業')}>確認</button>}
           {r.status === 'pending_manager' && <span style={{ fontSize: 12, color: C.warn }}>門市管理者還沒簽核；人事也可以直接確認</span>}
         </div>
       </div>
@@ -181,11 +202,11 @@ function Detail({ id, onChanged }) {
         }}>儲存資料</button>
       </div>
 
-      <div data-tour="hr-copy"><FormStep k="li" label="③ 勞保退保（勞保局 e化服務）" help={HELP.li} form={d.forms.li} Step={Step} /></div>
-      <FormStep k="nhi" label="④ 健保退保（健保署）" help={HELP.nhi} form={d.forms.nhi} Step={Step} />
+      <div data-tour="hr-copy"><FormStep k="li" label={susActive ? '③ 勞保（留職停薪退保或續保）' : '③ 勞保退保（勞保局 e化服務）'} help={HELP.li} form={d.forms.li} Step={Step} /></div>
+      <FormStep k="nhi" label={susActive ? '④ 健保（停薪退保或續保）' : '④ 健保退保（健保署）'} help={HELP.nhi} form={d.forms.nhi} Step={Step} />
       {isLayoff && <FormStep k="layoff" label={`⑤ 資遣通報（${d.forms.layoff.city || '縣市不明'}）`} help={HELP.layoff} form={d.forms.layoff} Step={Step} warn={daysTo(r.resign_date) <= 10 && !steps.layoff ? `離職日 ${r.resign_date}，法定要在離職日前 10 日通報，請盡快處理` : ''} />}
 
-      <Step k="handover" label="離職交接（系統自動）" help={HELP.handover} auto>
+      <Step k="handover" label={isSus ? '停薪交接（系統自動）' : '離職交接（系統自動）'} help={HELP.handover} auto>
         <div style={{ fontSize: 13, marginTop: 6 }}>{d.handover ? `狀態：${{ accepted: '離職人員填寫中', signing: `等 ${d.handover.to_name} 確認`, completed: '已完成', cancelled: '已取消' }[d.handover.status] || d.handover.status}` : `還沒開始（最後上班日 ${r.resign_date} 早上 9 點自動推播）`}</div>
       </Step>
       <Step k="access" label="關閉系統登入（離職日隔天自動）" help={HELP.access} auto>
@@ -195,12 +216,13 @@ function Detail({ id, onChanged }) {
           {d.blocked && <button style={ghost} disabled={busy} onClick={() => { if (window.confirm(`恢復 ${r.name} 的系統登入？`)) act({ action: 'restore' }, '已恢復'); }}>恢復</button>}
         </div>
       </Step>
-      <Step k="lefthand" label="左手系統設為離職" help={HELP.lefthand} />
-      <Step k="final_pay" label="薪資／費用結算完成" help={HELP.final_pay} />
+      {!susActive && <Step k="lefthand" label="左手系統設為離職" help={HELP.lefthand} />}
+      {!susActive && <Step k="final_pay" label="薪資／費用結算完成" help={HELP.final_pay} />}
 
       <div style={card}>
         {r.status === 'closed'
           ? <><b>🎉 已結案</b>（{dt(r.closed_at)}）　<button style={ghost} disabled={busy} onClick={() => act({ action: 'reopen' }, '已重開')}>重開</button></>
+          : susActive ? <span style={{ fontSize: 13, color: C.muted }}>降職停薪：返回門市後按上方「已返回門市」就會恢復登入並結案；期滿未返回改走離職流程。　<button style={ghost} disabled={busy} onClick={() => { if (window.confirm(`${r.name} 不停薪了？會取消申請並恢復登入。`)) act({ action: 'cancel' }, '已取消'); }}>不停薪了（取消）</button></span>
           : <>
             <button style={{ ...btn(C.ok), opacity: missing.length || r.status !== 'processing' ? 0.5 : 1 }} disabled={busy || missing.length > 0 || r.status !== 'processing'} onClick={() => act({ action: 'close' }, '已結案')}>✅ 結案</button>
             {missing.length > 0 && <span style={{ fontSize: 12, color: C.muted, marginLeft: 8 }}>還沒完成：{missing.map((k) => ({ li: '勞保退保', nhi: '健保退保', layoff: '資遣通報', lefthand: '左手離職', final_pay: '薪資結算' }[k])).join('、')}</span>}
