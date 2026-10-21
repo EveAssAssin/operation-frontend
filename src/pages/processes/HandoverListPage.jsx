@@ -29,7 +29,7 @@ export default function HandoverListPage() {
     <div style={{ padding: 20, background: C.bg, minHeight: '100vh' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0, color: C.primary }}>📝 門市交接表<HelpTip title="門市交接表" body={HELP} /></h2>
-        {[['', '全部'], ['store', '門市交接'], ['resign', '離職交接'], ['tpl', '⚙ 預設項目']].map(([k, l]) => <button key={k} onClick={() => { setKind(k); setSel(null); }} style={{ ...ghost, background: kind === k ? C.primary : '#edf2f7', color: kind === k ? '#fff' : '#4a5568' }}>{l}</button>)}
+        {[['', '全部'], ['store', '門市交接'], ['resign', '離職／停薪交接'], ['tpl', '⚙ 預設項目']].map(([k, l]) => <button key={k} onClick={() => { setKind(k); setSel(null); }} style={{ ...ghost, background: kind === k ? C.primary : '#edf2f7', color: kind === k ? '#fff' : '#4a5568' }}>{l}</button>)}
         <div style={{ flex: 1 }} />
         <a href={`${MARKET_FE}/handovers`} target="_blank" rel="noreferrer" style={{ fontSize: 13 }}>市場部後台（第三方確認）↗</a>
       </div>
@@ -39,7 +39,7 @@ export default function HandoverListPage() {
           {list.map((h) => (
             <div key={h.id} onClick={() => setSel(h.id)} style={{ padding: '10px 8px', borderRadius: 8, cursor: 'pointer', background: sel === h.id ? '#f5f0ea' : 'transparent', borderBottom: `1px solid ${C.border}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <b>{h.kind === 'resign' ? `${h.from_name} 離職交接` : h.store_name}</b>
+                <b>{h.kind === 'resign' ? `${h.from_name} ${h.resign_kind === 'suspend' ? '停薪' : '離職'}交接` : h.store_name}</b>
                 <span style={{ fontSize: 12, color: h.status === 'completed' ? C.ok : C.muted }}>{ST[h.status] || h.status}</span>
               </div>
               <div style={{ fontSize: 12, color: C.muted }}>{h.kind === 'resign' ? `${h.store_name}・確認人 ${h.to_name}` : `${h.from_name} → ${h.to_name}`}・{dt(h.created_at)}</div>
@@ -109,11 +109,11 @@ function Detail({ id }) {
   return (
     <div>
       <div style={card}>
-        <h3 style={{ margin: 0 }}>{h.kind === 'resign' ? `${h.from_name} 離職交接` : `${h.store_name} 門市交接`}</h3>
-        <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{h.store_name}・{h.kind === 'resign' ? `離職人員 ${h.from_name}・確認人 ${h.to_name}` : `原人員 ${h.from_name} → 後人員 ${h.to_name}`}・{ST[h.status] || h.status}</div>
+        <h3 style={{ margin: 0 }}>{h.kind === 'resign' ? `${h.from_name} ${h.resign_kind === 'suspend' ? '停薪' : '離職'}交接` : `${h.store_name} 門市交接`}</h3>
+        <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{h.store_name}・{h.kind === 'resign' ? `${h.resign_kind === 'suspend' ? '停薪' : '離職'}人員 ${h.from_name}・確認人 ${h.to_name}` : `原人員 ${h.from_name} → 後人員 ${h.to_name}`}・{ST[h.status] || h.status}</div>
         {h.other_notes && <div style={{ fontSize: 13, marginTop: 6, whiteSpace: 'pre-wrap' }}>其他重要事項：{h.other_notes}</div>}
         <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
-          {sig(h.kind === 'resign' ? '離職人員' : '原人員', h.from_signature, h.from_signed_at)}
+          {sig(h.kind === 'resign' ? (h.resign_kind === 'suspend' ? '停薪人員' : '離職人員') : '原人員', h.from_signature, h.from_signed_at)}
           {sig(h.kind === 'resign' ? '確認人' : '後人員', h.to_signature, h.to_signed_at)}
           {h.kind !== 'resign' && sig('營運部', h.third_signature, h.third_signed_at)}
         </div>
