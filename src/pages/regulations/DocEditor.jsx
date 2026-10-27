@@ -94,6 +94,7 @@ export default function DocEditor({ doc, onChange, roles = [], categories = [] }
       </div>
       <Field label="一句話摘要（這份規範在管什麼）"><input style={input} value={doc.summary || ''} onChange={e => setMeta('summary', e.target.value)} /></Field>
       <Field label="適用情境（什麼時候會用到）"><input style={input} value={doc.scenario || ''} onChange={e => setMeta('scenario', e.target.value)} /></Field>
+      <Field label="搜尋關鍵字（門市會怎麼問，用、分隔；人和 AI 都靠它找到這份）"><input style={input} value={doc.keywords || ''} onChange={e => setMeta('keywords', e.target.value)} /></Field>
       <Field label="適用身分">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
           {roles.map(r => (

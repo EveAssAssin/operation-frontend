@@ -914,6 +914,8 @@ export const regulationApi = safeApi({
   resolveIssue:  (vid, iid, body)    => api.post(`/regulations/versions/${vid}/ai-check/${iid}/resolve`, body),
   findings:      (status = 'open', regulation_id) => api.get('/regulations/audit/findings', { params: { status, regulation_id } }),
   runAudit:      (body = {})         => api.post('/regulations/audit/run', body),
+  runMeta:       (body = {})         => api.post('/regulations/audit/meta/run', body),
+  metaDraftAll:  ()                  => api.post('/regulations/audit/meta/draft-all', {}, { timeout: 300000 }),
   ignoreFinding: (id, reason)        => api.post(`/regulations/audit/findings/${id}/ignore`, { reason }),
   draftFromFinding: (id)             => api.post(`/regulations/audit/findings/${id}/draft`, {}, { timeout: 30000 }),
   questions:     (found)             => api.get('/regulations/questions', { params: { found } }),

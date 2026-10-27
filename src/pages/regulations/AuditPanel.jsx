@@ -12,14 +12,17 @@ export default function AuditPanel({ settings, reloadSettings, canRun, onEdit, a
   const [ignoring, setIgnoring] = useState(null);
   const [reason, setReason] = useState('');
   const job = settings?.audit || {};
+  const meta = settings?.meta || {};
+  const md = settings?.meta_draft || {};
+  const [busyAll, setBusyAll] = useState(false);
 
   const load = useCallback(() => api.findings(status).then(r => setRows(r?.success ? r.data : [])), [status]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    if (!job.running) return;
+    if (!job.running && !meta.running && !md.running) return;
     const t = setInterval(() => { reloadSettings(); load(); }, 5000);
     return () => clearInterval(t);
-  }, [job.running, reloadSettings, load]);
+  }, [job.running, meta.running, md.running, reloadSettings, load]);
 
   const grouped = useMemo(() => {
     const m = new Map();
@@ -39,6 +42,19 @@ export default function AuditPanel({ settings, reloadSettings, canRun, onEdit, a
     if (r.data.note) window.alert(r.data.note);
     onEdit(r.data.version_id);
   };
+  const runMeta = async () => {
+    const r = await api.runMeta({});
+    setMsg(r?.success ? { text: 'AI 整理已開始（每份約 3～5 秒）' } : { err: true, text: r?.message || '失敗' });
+    reloadSettings();
+  };
+  const metaOpen = rows.filter(r => r.kind === '整理').length;
+  const draftAll = async () => {
+    setBusyAll(true);
+    const r = await api.metaDraftAll();
+    setBusyAll(false);
+    setMsg(r?.success ? { text: '開始產生草稿並送審（背景處理，完成後 LINE 通知審核人）' } : { err: true, text: r?.message || '失敗' });
+    reloadSettings();
+  };
   const ignore = async (f) => {
     const r = await api.ignoreFinding(f.id, reason.trim());
     if (r?.success) { setIgnoring(null); setReason(''); load(); } else setMsg({ err: true, text: r?.message || '失敗' });
@@ -56,6 +72,19 @@ export default function AuditPanel({ settings, reloadSettings, canRun, onEdit, a
         </div>
         {canRun && <button style={btnP} disabled={!aiEnabled || job.running} onClick={run}>{job.running ? '巡檢中…' : '立即巡檢'}</button>}
       </div>
+      <div style={{ ...card, padding: 12, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 260, fontSize: 13 }}>
+          <b style={{ fontSize: 15 }}>🤖 AI 整理基本資料</b>　替還沒填「摘要／類型／適用情境／負責部門」的規範產生建議，並補上門市常用的搜尋關鍵字。建議出現在下面（標「整理」），人看過按「產生草稿」，或一次全部送審。
+          <div style={{ color: C.mid, marginTop: 2 }}>
+            {meta.running ? <b style={{ color: '#b7791f' }}>整理中：{meta.progress}</b>
+              : meta.finishedAt ? (meta.error ? `上次失敗：${meta.error}` : `上次完成 ${fmtTime(meta.finishedAt)}：看了 ${meta.result?.checked} 份，產生 ${meta.result?.made} 筆建議`) : '這次開機後還沒執行過'}
+            {md.running && <div><b style={{ color: '#b7791f' }}>送審中：{md.progress}</b></div>}
+            {!md.running && md.result && <div>上次全部送審：送審 {md.result.submitted} 份{md.result.skipped?.length ? `，跳過 ${md.result.skipped.length} 份（${[...new Set(md.result.skipped.map(x => x.reason))].slice(0, 3).join('／')}）` : ''}；到「審核」按「低風險全部通過」就上線</div>}
+          </div>
+        </div>
+        {canRun && <button style={btn} disabled={!aiEnabled || meta.running} onClick={runMeta}>{meta.running ? '整理中…' : '開始 AI 整理'}</button>}
+        {canRun && status === 'open' && metaOpen > 0 && <button style={btnP} disabled={busyAll || md.running} onClick={draftAll}>{busyAll || md.running ? '處理中…' : `${metaOpen} 筆「整理」全部產生草稿並送審`}</button>}
+      </div>
       {msg && <div style={{ fontSize: 13, color: msg.err ? C.bad : C.ok }}>{msg.text}</div>}
       <div style={card}>
         <div style={{ padding: 8, display: 'flex', gap: 6, borderBottom: `1px solid ${C.line}`, flexWrap: 'wrap' }}>
@@ -71,7 +100,7 @@ export default function AuditPanel({ settings, reloadSettings, canRun, onEdit, a
               <div key={f.id} style={{ margin: '6px 0 0 8px', padding: 8, borderRadius: 8, background: f.severity === 'warn' ? '#fffaf0' : '#f7fafc', border: `1px solid ${f.severity === 'warn' ? '#fbd38d' : C.line}`, fontSize: 13 }}>
                 <div>{f.severity === 'warn' ? '⚠️' : '💡'} <span style={{ fontSize: 11, background: '#edf2f7', borderRadius: 6, padding: '0 5px' }}>{f.kind}</span> <b>{f.title}</b>
                   <span style={{ fontSize: 11, color: '#a0aec0', marginLeft: 6 }}>第 {f.version} 版 · {fmtTime(f.created_at)}</span></div>
-                <div style={{ marginTop: 2 }}>{f.detail}</div>
+                <div style={{ marginTop: 2, whiteSpace: 'pre-wrap' }}>{f.detail}</div>
                 {f.codes?.length > 0 && <div style={{ fontSize: 11, fontFamily: 'monospace', color: '#8b6f4e' }}>{f.codes.join('、')}</div>}
                 {f.ignore_reason && <div style={{ fontSize: 12, color: C.mid }}>忽略原因：{f.ignore_reason}（{f.handled_by}）</div>}
                 {status === 'open' && (

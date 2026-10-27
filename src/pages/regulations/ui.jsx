@@ -42,6 +42,25 @@ export function noOf(level, path) {
   return `${path[0] + 1}-${path[1] + 1}.${path.slice(2).map(n => n + 1).join('.')}`;
 }
 export const linkify = (s) => String(s || '').split(/(『[^』]+』)/g).map((p, i) => p.startsWith('『') ? <b key={i} style={{ color: '#1e40af' }}>{p}</b> : p);
+/** 條文內文：markdown 表格（| a | b |）畫成表格，其他照原樣換行；格子裡的 <br> 換行 */
+const isMdTable = (s) => { const l = String(s || '').split('\n'); return l.length >= 2 && /^\|.*\|$/.test(l[0].trim()) && /^\|\s*-{3}/.test(l[1].trim()); };
+const cellsOf = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map(x => x.trim());
+const brText = (t) => String(t).split(/<br\s*\/?>/i).map((x, i) => <span key={i}>{i > 0 && <br />}{linkify(x)}</span>);
+export function ClauseText({ text }) {
+  const s = String(text || '');
+  if (!isMdTable(s)) return <span style={{ whiteSpace: 'pre-wrap' }}>{linkify(s)}</span>;
+  const lines = s.split('\n').filter(l => l.trim());
+  const head = cellsOf(lines[0]); const body = lines.slice(2).map(cellsOf);
+  const td = { border: '1px solid #e2d6c3', padding: '4px 6px', verticalAlign: 'top', fontSize: 12.5, minWidth: 60 };
+  return (
+    <div style={{ overflowX: 'auto', marginTop: 4, maxWidth: '100%' }}>
+      <table style={{ borderCollapse: 'collapse', background: '#fff' }}>
+        <thead><tr>{head.map((h, i) => <th key={i} style={{ ...td, background: '#f5efe6', fontWeight: 600, whiteSpace: 'nowrap' }}>{brText(h)}</th>)}</tr></thead>
+        <tbody>{body.map((r, i) => <tr key={i}>{head.map((_, j) => <td key={j} style={td}>{brText(r[j] || '')}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
+}
 export const fmtTime = (t) => (t ? new Date(t).toLocaleString('zh-TW', { dateStyle: 'short', timeStyle: 'short' }) : '—');
 export const clone = (o) => JSON.parse(JSON.stringify(o));
 
@@ -60,7 +79,7 @@ export function DocView({ doc, highlight = {}, compact = false }) {
             {compact && c.code && <span style={{ fontFamily: 'ui-monospace,Consolas,monospace', fontSize: 10.5, color: '#a0896b', marginRight: 4 }}>{c.code}</span>}
             <b style={{ marginRight: 4 }}>{noOf(level, path)}</b>
             {c.pen != null && <span style={{ fontSize: 11, color: C.bad, marginRight: 4, border: '1px solid #feb2b2', borderRadius: 6, padding: '0 5px' }}>扣 {c.pen}</span>}
-            <span style={{ whiteSpace: 'pre-wrap' }}>{linkify(c.text)}</span>
+            <ClauseText text={c.text} />
             {(c.notes || []).map((n, i) => (
               <div key={i} style={{ fontSize: 13, color: '#5a4a36', marginTop: 3, paddingLeft: 10, borderLeft: `2px solid ${n.kind === '例' ? '#c6f6d5' : '#fbd38d'}`, whiteSpace: 'pre-wrap' }}>
                 <TypeBadge t={n.kind} />{linkify(n.text)}

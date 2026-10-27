@@ -1,7 +1,7 @@
 // 引用條文扣分：選員工 → 搜尋條文 → 扣分單 → 審核通過寫入 MAP（事由帶條文代碼）
 import React, { useCallback, useEffect, useState } from 'react';
 import { regulationApi as api } from '../../services/api';
-import { C, card, input, btn, btnP, btnOk, btnD, btnSm, Field, EmployeePicker, StatusBadge, fmtTime, Modal } from './ui';
+import { C, card, input, btn, btnP, btnOk, btnD, btnSm, Field, EmployeePicker, StatusBadge, fmtTime, Modal, ClauseText } from './ui';
 
 export default function DeductionPanel({ canApprove }) {
   const [emp, setEmp] = useState(null);
@@ -50,7 +50,7 @@ export default function DeductionPanel({ canApprove }) {
           {clause ? (
             <div style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: 8, background: '#fcfaf6' }}>
               <div style={{ fontSize: 12 }}><span style={{ fontFamily: 'monospace', color: '#8b6f4e' }}>{clause.code}</span> {clause.display_no} <b>{clause.regulations?.title}</b>（第 {clause.version} 版）</div>
-              <div style={{ fontSize: 13, marginTop: 3, whiteSpace: 'pre-wrap' }}>{clause.text}</div>
+              <div style={{ fontSize: 13, marginTop: 3 }}><ClauseText text={clause.text} /></div>
               <button style={{ ...btn, ...btnSm, marginTop: 4 }} onClick={() => setClause(null)}>更換條文</button>
             </div>
           ) : (
