@@ -876,3 +876,32 @@ export const closingApi = {
 };
 
 export default api;
+
+// 規範系統（主檔、版本、送審審核、引用條文扣分）
+export const regulationApi = {
+  list:          (params = {})       => api.get('/regulations', { params }),
+  categories:    ()                  => api.get('/regulations/categories'),
+  get:           (id)                => api.get(`/regulations/${id}`),
+  clauses:       (q, regulation_id)  => api.get('/regulations/clauses', { params: { q, regulation_id } }),
+  version:       (vid)               => api.get(`/regulations/versions/${vid}`),
+  newRegulation: (body)              => api.post('/regulations/new', body),
+  startDraft:    (id)                => api.post(`/regulations/${id}/draft`),
+  drafts:        ()                  => api.get('/regulations/drafts/list'),
+  saveDraft:     (vid, body)         => api.put(`/regulations/versions/${vid}`, body),
+  preview:       (vid)               => api.post(`/regulations/versions/${vid}/preview`),
+  submit:        (vid)               => api.post(`/regulations/versions/${vid}/submit`, {}, { timeout: 60000 }),
+  discard:       (vid)               => api.post(`/regulations/versions/${vid}/discard`),
+  reviews:       (status = 'pending') => api.get('/regulations/reviews/list', { params: { status } }),
+  review:        (vid)               => api.get(`/regulations/reviews/${vid}`),
+  approve:       (vid, body)         => api.post(`/regulations/reviews/${vid}/approve`, body, { timeout: 60000 }),
+  returnBack:    (vid, reason)       => api.post(`/regulations/reviews/${vid}/return`, { reason }),
+  approveLow:    ()                  => api.post('/regulations/reviews/approve-low', {}, { timeout: 120000 }),
+  employees:     (q)                 => api.get('/regulations/employees/search', { params: { q } }),
+  deductions:    (params = {})       => api.get('/regulations/deductions', { params }),
+  createDeduction:(body)             => api.post('/regulations/deductions', body),
+  approveDeduction:(id)              => api.post(`/regulations/deductions/${id}/approve`, {}, { timeout: 30000 }),
+  rejectDeduction:(id, reason)       => api.post(`/regulations/deductions/${id}/reject`, { reason }),
+  settings:      ()                  => api.get('/regulations/settings'),
+  setReviewer:   (erpid)             => api.put('/regulations/settings/reviewer', { erpid }),
+  importFromMap: ()                  => api.post('/regulations/import'),
+};

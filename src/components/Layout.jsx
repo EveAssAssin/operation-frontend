@@ -58,6 +58,7 @@ const NAV_ITEMS = [
   },
   { path: '/recruitment',     label: '人力招募', icon: '🧑‍💼', minRole: 'operation_staff', moduleKey: 'recruitment' },
   { path: '/hr-tool',         label: '人事工具', icon: '🧾', minRole: 'operation_staff', moduleKey: 'hr_tool' },
+  { path: '/regulations',     label: '規範管理', icon: '📘', minRole: 'operation_staff', moduleKey: 'regulations' },
   { path: '/sales-events',    label: '業績活動', icon: '📣', minRole: 'operation_staff', moduleKey: 'sales_events' },
   { path: '/quests',          label: '任務派發', icon: '📋', minRole: 'operation_staff', moduleKey: 'quests' },
   {
