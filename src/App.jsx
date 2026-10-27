@@ -31,6 +31,7 @@ import ProcessesHubPage    from './pages/processes/ProcessesHubPage';
 import HandoverListPage    from './pages/processes/HandoverListPage';   // 門市交接表＝市場部那套（2026-10-20 合併）
 import HrToolPage          from './pages/hrTool/HrToolPage';
 import RegulationsPage     from './pages/regulations/RegulationsPage';
+import RulesPage           from './pages/regulations/RulesPage';
 import VendorManagePage    from './pages/vendorManage/VendorManagePage';
 import PointRedeemPage      from './pages/pointRedemption/PointRedeemPage';
 import PointRedeemAdminPage from './pages/pointRedemption/PointRedeemAdminPage';
@@ -96,6 +97,8 @@ function AppRoutes() {
 
       {/* 分數兌換 — 員工自助頁（手機/LINE，不需登入，?app_number=） */}
       <Route path="/points" element={<PointRedeemPage />} />
+      {/* 人員查規範（不需登入，用 APP 編號確認身分） */}
+      <Route path="/rules" element={<RulesPage />} />
 
       {/* 主應用（需登入，套 Layout） */}
       <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />

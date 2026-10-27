@@ -52,10 +52,12 @@ export function DocView({ doc, highlight = {}, compact = false }) {
     const h = c.code && highlight[c.code];
     return (
       <>
-        <div style={{ display: 'grid', gridTemplateColumns: `${compact ? 0 : 92}px 1fr`, gap: 6, padding: '6px 4px', borderBottom: '1px dashed #efe6d8', marginLeft: (level - 1) * 20,
-          background: h === 'add' ? '#f0fff4' : h === 'mod' ? '#fffbea' : undefined, borderLeft: h ? `3px solid ${h === 'add' ? '#38a169' : '#d69e2e'}` : '3px solid transparent' }}>
+        <div id={c.code ? `c-${c.code}` : undefined} style={{ display: 'grid', gridTemplateColumns: `${compact ? 0 : 92}px 1fr`, gap: 6, padding: '6px 4px', borderBottom: '1px dashed #efe6d8', marginLeft: (level - 1) * (compact ? 12 : 20),
+          background: h === 'add' ? '#f0fff4' : h === 'mod' ? '#fffbea' : h === 'focus' ? '#fff3bf' : undefined,
+          borderLeft: h ? `3px solid ${h === 'add' ? '#38a169' : h === 'focus' ? '#f59f00' : '#d69e2e'}` : '3px solid transparent', scrollMarginTop: 70 }}>
           {!compact && <div style={{ fontFamily: 'ui-monospace,Consolas,monospace', fontSize: 11, color: '#8b6f4e', paddingTop: 2 }}>{c.code}</div>}
           <div>
+            {compact && c.code && <span style={{ fontFamily: 'ui-monospace,Consolas,monospace', fontSize: 10.5, color: '#a0896b', marginRight: 4 }}>{c.code}</span>}
             <b style={{ marginRight: 4 }}>{noOf(level, path)}</b>
             {c.pen != null && <span style={{ fontSize: 11, color: C.bad, marginRight: 4, border: '1px solid #feb2b2', borderRadius: 6, padding: '0 5px' }}>扣 {c.pen}</span>}
             <span style={{ whiteSpace: 'pre-wrap' }}>{linkify(c.text)}</span>

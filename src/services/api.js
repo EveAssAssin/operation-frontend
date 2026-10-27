@@ -878,7 +878,10 @@ export const closingApi = {
 export default api;
 
 // 規範系統（主檔、版本、送審審核、引用條文扣分）
-export const regulationApi = {
+// 失敗時一律回 { success:false, message }，畫面才看得到錯誤訊息（不會變成沒反應）
+const safeApi = (obj) => Object.fromEntries(Object.entries(obj).map(([k, fn]) => [k, (...args) =>
+  fn(...args).catch(e => ({ success: false, message: e?.message || '連線失敗，請稍後再試' }))]));
+export const regulationApi = safeApi({
   list:          (params = {})       => api.get('/regulations', { params }),
   categories:    ()                  => api.get('/regulations/categories'),
   get:           (id)                => api.get(`/regulations/${id}`),
@@ -913,4 +916,17 @@ export const regulationApi = {
   runAudit:      (body = {})         => api.post('/regulations/audit/run', body),
   ignoreFinding: (id, reason)        => api.post(`/regulations/audit/findings/${id}/ignore`, { reason }),
   draftFromFinding: (id)             => api.post(`/regulations/audit/findings/${id}/draft`, {}, { timeout: 30000 }),
-};
+  questions:     (found)             => api.get('/regulations/questions', { params: { found } }),
+});
+
+// 人員「查規範」（不需登入，用 APP 編號確認身分）
+export const regulationPublicApi = safeApi({
+  verify:       (app)                 => api.get('/regulations-public/verify', { params: { app_number: app } }),
+  list:         (app, all)            => api.get('/regulations-public/list', { params: { app_number: app, all: all ? 1 : undefined } }),
+  search:       (app, q, all)         => api.get('/regulations-public/search', { params: { app_number: app, q, all: all ? 1 : undefined } }),
+  regulation:   (app, id)             => api.get(`/regulations-public/regulation/${id}`, { params: { app_number: app } }),
+  recent:       (app, days = 30)      => api.get('/regulations-public/recent', { params: { app_number: app, days } }),
+  myDeductions: (app)                 => api.get('/regulations-public/my-deductions', { params: { app_number: app } }),
+  ask:          (app, question, history) => api.post('/regulations-public/ask', { app_number: app, question, history }, { timeout: 120000 }),
+  feedback:     (app, id, helpful)    => api.post('/regulations-public/feedback', { app_number: app, id, helpful }),
+});

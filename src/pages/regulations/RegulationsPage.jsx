@@ -10,6 +10,7 @@ import ReviewPanel from './ReviewPanel';
 import DeductionPanel from './DeductionPanel';
 import SettingsPanel from './SettingsPanel';
 import AuditPanel from './AuditPanel';
+import QuestionsPanel from './QuestionsPanel';
 import { C, card, btn, btnSm, StatusBadge, fmtTime } from './ui';
 
 export default function RegulationsPage() {
@@ -38,6 +39,7 @@ export default function RegulationsPage() {
     ['drafts', '✏️ 修改中'],
     ['review', `🛡 審核${pendingCount ? `（${pendingCount}）` : ''}`],
     ['audit', '🔎 巡檢'],
+    ['questions', '💬 人員提問'],
     ['deduct', '📌 引用條文扣分'],
     ['settings', '⚙ 設定'],
   ];
@@ -67,6 +69,7 @@ export default function RegulationsPage() {
           {tab === 'review' && <ReviewPanel initialVid={params.get('v') ? Number(params.get('v')) : null} isReviewer={isReviewer}
             roles={settings?.roles || []} categories={categories} onCountChange={setPendingCount} />}
           {tab === 'audit' && <AuditPanel settings={settings} reloadSettings={loadSettings} canRun={isReviewer || user?.role === 'super_admin'} onEdit={setEditing} aiEnabled={!!settings?.ai} />}
+          {tab === 'questions' && <QuestionsPanel />}
           {tab === 'deduct' && <DeductionPanel canApprove={canApproveDeduction} />}
           {tab === 'settings' && <SettingsPanel settings={settings} reload={loadSettings} />}
         </>
