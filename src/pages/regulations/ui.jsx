@@ -107,33 +107,42 @@ export function Modal({ title, children, onClose, width = 560 }) {
 }
 
 export function Field({ label, children, style }) {
-  return <label style={{ display: 'block', marginBottom: 10, ...style }}><div style={{ fontSize: 12, color: C.mid, marginBottom: 3 }}>{label}</div>{children}</label>;
+  return <div style={{ display: 'block', marginBottom: 10, ...style }}><div style={{ fontSize: 12, color: C.mid, marginBottom: 3 }}>{label}</div>{children}</div>;
 }
 
-/** 員工搜尋選擇 */
-export function EmployeePicker({ api, value, onChange, placeholder = '輸入姓名、門市或 ERP 編號' }) {
+/** 員工搜尋選擇（姓名、門市、ERP 編號或 APP 編號） */
+export function EmployeePicker({ api, value, onChange, placeholder = '輸入姓名、門市、ERP 或 APP 編號' }) {
   const [q, setQ] = React.useState('');
   const [list, setList] = React.useState([]);
+  const [state, setState] = React.useState('');   // '' | 'loading' | 'empty' | 'error'
   React.useEffect(() => {
-    if (!q.trim()) { setList([]); return; }
-    const t = setTimeout(() => api.employees(q).then(r => setList(r?.success ? r.data : [])).catch(() => setList([])), 300);
+    const s = q.replace(/[\u3100-\u312F\u02C7\u02CA\u02CB\u02D9]/g, '').trim();   // 注音還沒選字時先不查
+    if (!s) { setList([]); setState(''); return; }
+    setState('loading');
+    const t = setTimeout(() => api.employees(s)
+      .then(r => { const rows = r?.success ? r.data : []; setList(rows); setState(r?.success ? (rows.length ? '' : 'empty') : 'error'); })
+      .catch(() => { setList([]); setState('error'); }), 350);
     return () => clearTimeout(t);
   }, [q, api]);
   if (value) return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span><b>{value.name}</b>（{value.store_name || '—'}，ERP {value.erpid}）</span>
-      <button style={{ ...btn, ...btnSm }} onClick={() => onChange(null)}>更換</button>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', border: `1px solid ${C.line}`, borderRadius: 6, background: '#f0fff4' }}>
+      <span>✓ <b>{value.name}</b>（{value.store_name || '—'}，ERP {value.erpid}{value.app_number ? `，APP ${value.app_number}` : '，⚠ 沒有 APP 編號'}）</span>
+      <button type="button" style={{ ...btn, ...btnSm, marginLeft: 'auto' }} onClick={() => onChange(null)}>重選</button>
     </div>
   );
   return (
     <div style={{ position: 'relative' }}>
       <input style={input} value={q} onChange={e => setQ(e.target.value)} placeholder={placeholder} />
-      {list.length > 0 && (
-        <div style={{ position: 'absolute', zIndex: 5, left: 0, right: 0, ...card, maxHeight: 240, overflow: 'auto', marginTop: 2 }}>
+      {(list.length > 0 || state) && (
+        <div style={{ position: 'absolute', zIndex: 20, left: 0, right: 0, ...card, maxHeight: 260, overflow: 'auto', marginTop: 2, boxShadow: '0 6px 18px rgba(0,0,0,.12)' }}>
+          {state === 'loading' && !list.length && <div style={{ padding: '8px 10px', color: C.mid }}>搜尋中…</div>}
+          {state === 'empty' && <div style={{ padding: '8px 10px', color: C.mid }}>找不到符合的在職員工</div>}
+          {state === 'error' && <div style={{ padding: '8px 10px', color: C.bad }}>搜尋失敗，請重新整理頁面再試</div>}
           {list.map(e => (
-            <div key={e.erpid} onClick={() => { onChange(e); setQ(''); setList([]); }} style={{ padding: '6px 10px', cursor: 'pointer', borderBottom: `1px solid ${C.line}` }}>
-              <b>{e.name}</b> <span style={{ color: C.mid, fontSize: 12 }}>{e.store_name} · {e.jobtitle || ''} · ERP {e.erpid}</span>
-            </div>
+            <button type="button" key={e.erpid} onMouseDown={(ev) => ev.preventDefault()} onClick={() => { onChange(e); setQ(''); setList([]); setState(''); }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', cursor: 'pointer', border: 'none', borderBottom: `1px solid ${C.line}`, background: '#fff', fontSize: 14 }}>
+              <b>{e.name}</b> <span style={{ color: C.mid, fontSize: 12 }}>{e.store_name} · {e.jobtitle || ''} · ERP {e.erpid}{e.app_number ? '' : ' · 沒有 APP 編號'}</span>
+            </button>
           ))}
         </div>
       )}

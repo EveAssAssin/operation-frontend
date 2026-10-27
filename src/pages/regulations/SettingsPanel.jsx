@@ -14,10 +14,14 @@ export default function SettingsPanel({ settings, reload }) {
     return () => clearInterval(t);
   }, [imp.running, reload]);
 
+  const [saving, setSaving] = useState(false);
   const saveReviewer = async () => {
-    const r = await api.setReviewer(emp.erpid);
-    setMsg(r?.success ? { text: `審核人已設為 ${r.data.name}` } : { err: true, text: r?.message || '失敗' });
-    if (r?.success) { setEmp(null); reload(); }
+    setSaving(true); setMsg(null);
+    try {
+      const r = await api.setReviewer(emp.erpid);
+      setMsg(r?.success ? { text: `✓ 審核人已設為 ${r.data.name}${r.data.app_number ? '' : '（⚠ 這位員工沒有 APP 編號，收不到 LINE 推播）'}` } : { err: true, text: r?.message || '儲存失敗' });
+      if (r?.success) { setEmp(null); reload(); }
+    } catch (e) { setMsg({ err: true, text: e?.message || '儲存失敗' }); } finally { setSaving(false); }
   };
   const startImport = async () => {
     if (!window.confirm('從左手 MAP 匯入全部規範？\n‧ 系統裡沒有的會新增\n‧ 已在本系統修改過的不會被覆蓋')) return;
@@ -33,8 +37,9 @@ export default function SettingsPanel({ settings, reload }) {
         <div style={{ fontSize: 13, color: C.mid, margin: '4px 0 10px' }}>所有規範送審都送給這個人：有人送審時 LINE 立即通知。</div>
         <div style={{ marginBottom: 10 }}>目前：{settings?.reviewer?.name ? <b>{settings.reviewer.name}（ERP {settings.reviewer.erpid}）</b> : <span style={{ color: C.bad }}>尚未設定（送審不會推播）</span>}
           {settings?.reviewer?.name && !settings?.reviewer?.app_number && <div style={{ fontSize: 12, color: C.bad }}>這位員工沒有 APP 編號，收不到 LINE 推播</div>}</div>
-        <Field label="更換審核人"><EmployeePicker api={api} value={emp} onChange={setEmp} /></Field>
-        <button style={btnP} disabled={!emp} onClick={saveReviewer}>儲存</button>
+        <Field label={settings?.reviewer?.name ? '更換審核人' : '設定審核人'}><EmployeePicker api={api} value={emp} onChange={setEmp} /></Field>
+        <button style={btnP} disabled={!emp || saving} onClick={saveReviewer}>{saving ? '儲存中…' : emp ? `設 ${emp.name} 為審核人` : '先搜尋並選一位員工'}</button>
+        {msg && <div style={{ fontSize: 13, marginTop: 8, color: msg.err ? C.bad : C.ok }}>{msg.text}</div>}
       </div>
       <div style={{ ...card, padding: 14 }}>
         <b style={{ fontSize: 16 }}>從左手 MAP 匯入</b>
@@ -50,7 +55,6 @@ export default function SettingsPanel({ settings, reload }) {
         <button style={btnP} disabled={imp.running} onClick={startImport}>{imp.running ? '匯入中…' : '開始匯入'}</button>
         <div style={{ fontSize: 12, color: C.mid, marginTop: 10 }}>AI 功能（編輯助理、AI 檢查、審核摘要、每週巡檢）：{settings?.ai ? <b style={{ color: C.ok }}>已啟用</b> : '未啟用（Render 的 operation-backend 設定 ANTHROPIC_API_KEY 後啟用；未啟用時審核摘要改用規則產生，其他 AI 功能不能用）'}</div>
       </div>
-      {msg && <div style={{ fontSize: 13, color: msg.err ? C.bad : C.ok }}>{msg.text}</div>}
     </div>
   );
 }
