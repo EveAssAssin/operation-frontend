@@ -48,7 +48,7 @@ export default function SettingsPanel({ settings, reload }) {
           )}
         </div>
         <button style={btnP} disabled={imp.running} onClick={startImport}>{imp.running ? '匯入中…' : '開始匯入'}</button>
-        <div style={{ fontSize: 12, color: C.mid, marginTop: 10 }}>AI 審核摘要：{settings?.ai ? '已啟用' : '未啟用（Render 設定 ANTHROPIC_API_KEY 後啟用；未啟用時用規則摘要）'}</div>
+        <div style={{ fontSize: 12, color: C.mid, marginTop: 10 }}>AI 功能（編輯助理、AI 檢查、審核摘要、每週巡檢）：{settings?.ai ? <b style={{ color: C.ok }}>已啟用</b> : '未啟用（Render 的 operation-backend 設定 ANTHROPIC_API_KEY 後啟用；未啟用時審核摘要改用規則產生，其他 AI 功能不能用）'}</div>
       </div>
       {msg && <div style={{ fontSize: 13, color: msg.err ? C.bad : C.ok }}>{msg.text}</div>}
     </div>

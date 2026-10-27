@@ -1,7 +1,8 @@
 // 規範內容編輯器：大項／條文樹（新增、刪除、上下移、子條文、類型、扣分、註／例）
 // 條文代碼由後端存檔時配發；新條文顯示「（存檔後配發）」
 import React from 'react';
-import { C, input, btn, btnSm, TYPES, cnNo, noOf, clone, Field } from './ui';
+import { C, input, btn, btnSm, cnNo, noOf, clone, Field } from './ui';
+import { regulationApi } from '../../services/api';
 
 const DOC_TYPES = ['作業流程', '行政規定', '產品知識', '工作職掌', '人事規範', '其他'];
 
@@ -21,7 +22,7 @@ function ClauseEd({ c, path, level, upd }) {
     if ((c.subs || []).length && !window.confirm('這條底下還有子條文，會一起刪除。確定？')) return;
     upd(d => { listAt(d, parentPath).splice(idx, 1); });
   };
-  const addSub = () => upd(d => { const it = listAt(d, parentPath)[idx]; it.subs = it.subs || []; it.subs.push({ text: '', t: it.t || null, notes: [], subs: [] }); });
+  const addSub = () => upd(d => { const it = listAt(d, parentPath)[idx]; it.subs = it.subs || []; it.subs.push({ text: '', t: null, notes: [], subs: [] }); });
   const addNote = (kind) => upd(d => { const it = listAt(d, parentPath)[idx]; it.notes = it.notes || []; it.notes.push({ kind, text: '' }); });
   const setNote = (ni, v) => upd(d => { listAt(d, parentPath)[idx].notes[ni].text = v; });
   const delNote = (ni) => upd(d => { listAt(d, parentPath)[idx].notes.splice(ni, 1); });
@@ -30,20 +31,23 @@ function ClauseEd({ c, path, level, upd }) {
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 12 }}>
         <b>{noOf(level, path.slice(1))}</b>
         <span style={{ fontFamily: 'ui-monospace,Consolas,monospace', color: '#8b6f4e' }}>{c.code || '（存檔後配發代碼）'}</span>
-        <select value={c.t || ''} onChange={e => set('t', e.target.value || null)} style={{ ...input, width: 'auto', padding: '2px 6px', fontSize: 12 }}>
-          <option value="">未分類</option>{TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-        {c.t === '規定' && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: C.bad }}>扣分
-            <input type="number" value={c.pen ?? ''} placeholder="預設" onChange={e => set('pen', e.target.value === '' ? null : Number(e.target.value))} style={{ ...input, width: 70, padding: '2px 6px', fontSize: 12 }} />
-          </label>
-        )}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: C.bad }} title="違反這條扣幾分；空白＝用整份規範的預設分數">扣分
+          <input type="number" value={c.pen ?? ''} placeholder="預設" onChange={e => set('pen', e.target.value === '' ? null : Number(e.target.value))} style={{ ...input, width: 70, padding: '2px 6px', fontSize: 12 }} />
+        </label>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
           <button style={{ ...btn, ...btnSm }} title="上移" onClick={() => move(-1)}>↑</button>
           <button style={{ ...btn, ...btnSm }} title="下移" onClick={() => move(1)}>↓</button>
           {level < 4 && <button style={{ ...btn, ...btnSm }} onClick={addSub}>＋子條文</button>}
           <button style={{ ...btn, ...btnSm }} onClick={() => addNote('註')}>＋註</button>
           <button style={{ ...btn, ...btnSm }} onClick={() => addNote('例')}>＋例</button>
+          <label style={{ ...btn, ...btnSm, display: 'inline-block' }}>＋照片
+            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
+              const f = e.target.files?.[0]; e.target.value = ''; if (!f) return;
+              const r = await regulationApi.upload(f);
+              if (!r?.success) { window.alert(r?.message || '上傳失敗'); return; }
+              upd(d => { const it = listAt(d, parentPath)[idx]; it.images = it.images || []; it.images.push({ url: r.data.url, caption: '' }); });
+            }} />
+          </label>
           <button style={{ ...btn, ...btnSm, color: C.bad }} onClick={remove}>刪除</button>
         </span>
       </div>
@@ -54,6 +58,14 @@ function ClauseEd({ c, path, level, upd }) {
           <span style={{ fontSize: 12, fontWeight: 700, color: n.kind === '例' ? '#2f855a' : '#975a16', paddingTop: 6 }}>{n.kind}</span>
           <textarea value={n.text} onChange={e => setNote(ni, e.target.value)} rows={2} style={{ ...input, fontSize: 13, resize: 'vertical' }} />
           <button style={{ ...btn, ...btnSm, color: C.bad }} onClick={() => delNote(ni)}>✕</button>
+        </div>
+      ))}
+      {(c.images || []).map((im, ii) => (
+        <div key={ii} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4, marginLeft: 16 }}>
+          <img src={im.url} alt="" style={{ width: 72, height: 54, objectFit: 'cover', borderRadius: 4, border: `1px solid ${C.line}` }} />
+          <input style={{ ...input, fontSize: 13, borderColor: im.caption ? C.line : '#fbd38d' }} value={im.caption || ''} placeholder="照片說明（照片裡的文字沒有規範效力，重點請寫成條文）"
+            onChange={e => upd(d => { listAt(d, parentPath)[idx].images[ii].caption = e.target.value; })} />
+          <button style={{ ...btn, ...btnSm, color: C.bad }} onClick={() => upd(d => { listAt(d, parentPath)[idx].images.splice(ii, 1); })}>✕</button>
         </div>
       ))}
       {(c.subs || []).map((s, i) => <ClauseEd key={s.code || `n${i}`} c={s} path={[...path, i]} level={level + 1} upd={upd} />)}

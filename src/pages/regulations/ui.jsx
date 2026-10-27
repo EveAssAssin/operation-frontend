@@ -56,14 +56,24 @@ export function DocView({ doc, highlight = {}, compact = false }) {
           background: h === 'add' ? '#f0fff4' : h === 'mod' ? '#fffbea' : undefined, borderLeft: h ? `3px solid ${h === 'add' ? '#38a169' : '#d69e2e'}` : '3px solid transparent' }}>
           {!compact && <div style={{ fontFamily: 'ui-monospace,Consolas,monospace', fontSize: 11, color: '#8b6f4e', paddingTop: 2 }}>{c.code}</div>}
           <div>
-            <b style={{ marginRight: 4 }}>{noOf(level, path)}</b><TypeBadge t={c.t} />
-            {c.t === '規定' && <span style={{ fontSize: 11, color: C.bad, marginRight: 4 }}>扣分 {c.pen ?? '預設'}</span>}
+            <b style={{ marginRight: 4 }}>{noOf(level, path)}</b>
+            {c.pen != null && <span style={{ fontSize: 11, color: C.bad, marginRight: 4, border: '1px solid #feb2b2', borderRadius: 6, padding: '0 5px' }}>扣 {c.pen}</span>}
             <span style={{ whiteSpace: 'pre-wrap' }}>{linkify(c.text)}</span>
             {(c.notes || []).map((n, i) => (
               <div key={i} style={{ fontSize: 13, color: '#5a4a36', marginTop: 3, paddingLeft: 10, borderLeft: `2px solid ${n.kind === '例' ? '#c6f6d5' : '#fbd38d'}`, whiteSpace: 'pre-wrap' }}>
                 <TypeBadge t={n.kind} />{linkify(n.text)}
               </div>
             ))}
+            {(c.images || []).length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                {c.images.map((im, i) => (
+                  <figure key={i} style={{ margin: 0, maxWidth: 260 }}>
+                    <a href={im.url} target="_blank" rel="noreferrer"><img src={im.url} alt={im.caption || ''} style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 6, border: `1px solid ${C.line}` }} /></a>
+                    {im.caption && <figcaption style={{ fontSize: 12, color: C.mid }}>{im.caption}</figcaption>}
+                  </figure>
+                ))}
+              </div>
+            )}
             {(c.flags || []).length > 0 && <div style={{ fontSize: 11, color: '#b7791f', marginTop: 2 }}>⚠ {c.flags.join('、')}</div>}
           </div>
         </div>

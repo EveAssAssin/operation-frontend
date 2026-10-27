@@ -1,7 +1,7 @@
 // 引用條文扣分：選員工 → 搜尋條文 → 扣分單 → 審核通過寫入 MAP（事由帶條文代碼）
 import React, { useCallback, useEffect, useState } from 'react';
 import { regulationApi as api } from '../../services/api';
-import { C, card, input, btn, btnP, btnOk, btnD, btnSm, Field, EmployeePicker, StatusBadge, TypeBadge, fmtTime, Modal } from './ui';
+import { C, card, input, btn, btnP, btnOk, btnD, btnSm, Field, EmployeePicker, StatusBadge, fmtTime, Modal } from './ui';
 
 export default function DeductionPanel({ canApprove }) {
   const [emp, setEmp] = useState(null);
@@ -49,7 +49,7 @@ export default function DeductionPanel({ canApprove }) {
         <Field label="違反條文 *">
           {clause ? (
             <div style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: 8, background: '#fcfaf6' }}>
-              <div style={{ fontSize: 12 }}><span style={{ fontFamily: 'monospace', color: '#8b6f4e' }}>{clause.code}</span> {clause.display_no} <TypeBadge t={clause.ctype} /> <b>{clause.regulations?.title}</b>（第 {clause.version} 版）</div>
+              <div style={{ fontSize: 12 }}><span style={{ fontFamily: 'monospace', color: '#8b6f4e' }}>{clause.code}</span> {clause.display_no} <b>{clause.regulations?.title}</b>（第 {clause.version} 版）</div>
               <div style={{ fontSize: 13, marginTop: 3, whiteSpace: 'pre-wrap' }}>{clause.text}</div>
               <button style={{ ...btn, ...btnSm, marginTop: 4 }} onClick={() => setClause(null)}>更換條文</button>
             </div>
@@ -60,7 +60,7 @@ export default function DeductionPanel({ canApprove }) {
                 <div style={{ position: 'absolute', zIndex: 5, left: 0, right: 0, ...card, maxHeight: 320, overflow: 'auto', marginTop: 2 }}>
                   {hits.map(h => (
                     <div key={h.code} onClick={() => pick(h)} style={{ padding: '6px 10px', cursor: 'pointer', borderBottom: `1px solid ${C.line}`, fontSize: 13 }}>
-                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#8b6f4e' }}>{h.code}</span> <TypeBadge t={h.ctype} /><b>{h.regulations?.title}</b>
+                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#8b6f4e' }}>{h.code}</span> <b>{h.regulations?.title}</b>
                       <div style={{ color: C.mid, fontSize: 12 }}>{h.text.length > 80 ? `${h.text.slice(0, 80)}…` : h.text}</div>
                     </div>
                   ))}

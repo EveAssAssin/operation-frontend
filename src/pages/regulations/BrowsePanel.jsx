@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { regulationApi as api } from '../../services/api';
 import { C, card, input, btn, btnP, btnSm, DocView, StatusBadge, fmtTime, Modal, Field } from './ui';
 
-export default function BrowsePanel({ initialId, categories, onEdit }) {
+export default function BrowsePanel({ initialId, categories, onEdit, canAudit }) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
   const [list, setList] = useState([]);
@@ -100,6 +100,10 @@ export default function BrowsePanel({ initialId, categories, onEdit }) {
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                   {verDoc && <button style={btn} onClick={() => setVerDoc(null)}>回現行版</button>}
+                  {canAudit && !verDoc && <button style={btn} title="用 AI 檢查這份規範的矛盾、模糊、過時等問題，結果放在「巡檢」分頁" onClick={async () => {
+                    const r2 = await api.runAudit({ regulation_id: r.id });
+                    setErr(r2?.success ? '已開始巡檢這份規範，約 1 分鐘後到「🔎 巡檢」分頁看結果' : (r2?.message || '無法巡檢'));
+                  }}>🔎 巡檢這份</button>}
                   {open ? (
                     open.status === 'pending' ? <span style={{ fontSize: 13, color: '#b7791f' }}>第 {open.version} 版送審中</span>
                       : <button style={btnP} onClick={() => onEdit(open.id)}>繼續修改（第 {open.version} 版{open.status === 'returned' ? '・被退回' : ''}）</button>

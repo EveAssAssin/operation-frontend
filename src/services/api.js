@@ -904,4 +904,13 @@ export const regulationApi = {
   settings:      ()                  => api.get('/regulations/settings'),
   setReviewer:   (erpid)             => api.put('/regulations/settings/reviewer', { erpid }),
   importFromMap: ()                  => api.post('/regulations/import'),
+  upload:        (file)              => { const fd = new FormData(); fd.append('file', file); return api.post('/regulations/upload', fd, { timeout: 60000 }); },
+  assist:        (vid, body)         => api.post(`/regulations/versions/${vid}/assist`, body, { timeout: 120000 }),
+  chooseOption:  (vid, log_index, key) => api.post(`/regulations/versions/${vid}/assist/choose`, { log_index, key }),
+  aiCheck:       (vid)               => api.post(`/regulations/versions/${vid}/ai-check`, {}, { timeout: 120000 }),
+  resolveIssue:  (vid, iid, body)    => api.post(`/regulations/versions/${vid}/ai-check/${iid}/resolve`, body),
+  findings:      (status = 'open', regulation_id) => api.get('/regulations/audit/findings', { params: { status, regulation_id } }),
+  runAudit:      (body = {})         => api.post('/regulations/audit/run', body),
+  ignoreFinding: (id, reason)        => api.post(`/regulations/audit/findings/${id}/ignore`, { reason }),
+  draftFromFinding: (id)             => api.post(`/regulations/audit/findings/${id}/draft`, {}, { timeout: 30000 }),
 };

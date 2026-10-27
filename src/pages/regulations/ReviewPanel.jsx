@@ -99,7 +99,7 @@ export default function ReviewPanel({ initialVid, isReviewer, roles, categories,
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 8 }}>
               <Imp k="影響人員" v={`門市 ${rv.impact?.stores ?? 0} 間 ${rv.impact?.store_people ?? 0} 人`} d={rv.impact?.office_people ? `＋辦公室 ${rv.impact.office_people} 人` : '不含辦公室'} />
               <Imp k="連帶規範" v={`${(rv.impact?.linked || []).length} 份`} d={(rv.impact?.linked || []).slice(0, 3).map(l => l.title).join('、') || '沒有其他規範引用這份'} />
-              <Imp k="扣分相關變更" v={`${rv.impact?.penalty_changes ?? 0} 條`} d={`改到的條文近 90 天被引用扣分 ${rv.impact?.recent_deductions ?? 0} 次`} />
+              <Imp k="可扣分條文變動" v={`${rv.impact?.penalty_changes ?? 0} 條`} d={`改到的條文近 90 天被引用扣分 ${rv.impact?.recent_deductions ?? 0} 次`} />
               <Imp k="適用身分" v={`${(rv.impact?.roles || []).length} 種`} d={(rv.impact?.roles || []).join('、')} />
             </div>
 
@@ -120,7 +120,8 @@ export default function ReviewPanel({ initialVid, isReviewer, roles, categories,
             ))}
             {rv.diff.changes.map((c, i) => (
               <Diff key={i} kind={c.kind}
-                head={<><span style={{ fontFamily: 'monospace', color: '#8b6f4e' }}>{c.code}</span> {c.display_no} {c.ctype && <span style={{ fontSize: 11 }}>［{c.ctype}］</span>}
+                head={<><span style={{ fontFamily: 'monospace', color: '#8b6f4e' }}>{c.code}</span> {c.display_no}
+                  {(c.fields || []).includes('images') && <span style={{ fontSize: 12, color: '#2b6cb0' }}> 照片有變動</span>}
                   {(c.fields || []).includes('penalty') && <span style={{ color: C.bad, fontSize: 12 }}> 扣分 {c.old_penalty ?? '預設'} → {c.penalty ?? '預設'}</span>}
                   {c.moved && c.kind !== 'add' && <span style={{ fontSize: 12, color: '#553c9a' }}> 從 {c.old_display_no} 移到這裡</span>}</>}
                 old={c.kind === 'add' || c.kind === 'move' ? null : c.old}
@@ -128,6 +129,23 @@ export default function ReviewPanel({ initialVid, isReviewer, roles, categories,
                 notes={(c.fields || []).includes('notes') ? c.notes : null} />
             ))}
 
+            {rv.ai_checks && (
+              <>
+                <h3 style={{ fontSize: 15, margin: '16px 0 6px', borderBottom: `2px solid ${C.line}`, paddingBottom: 3 }}>🛡 AI 檢查（{fmtTime(rv.ai_checks.at)}）</h3>
+                {!(rv.ai_checks.issues || []).length && <div style={{ fontSize: 13 }}>✅ AI 沒有發現問題</div>}
+                {(rv.ai_checks.issues || []).map((i, k) => (
+                  <div key={k} style={{ fontSize: 13, padding: '5px 8px', margin: '4px 0', borderRadius: 8, background: i.resolved?.how === 'ignored' ? '#fffaf0' : '#f7fafc', border: `1px solid ${i.resolved?.how === 'ignored' ? '#fbd38d' : C.line}` }}>
+                    {i.level === 'warn' ? '⚠️' : '💡'} <b>{i.title}</b> <span style={{ color: C.mid }}>{i.detail}</span>
+                    <div style={{ fontSize: 12, marginTop: 2 }}>
+                      {i.resolved?.how === 'applied' && <span style={{ color: C.ok }}>✓ 送審人已套用 AI 修正</span>}
+                      {i.resolved?.how === 'ignored' && <span style={{ color: '#975a16' }}>送審人選擇忽略，原因：<b>{i.resolved.reason}</b></span>}
+                      {!i.resolved && i.level === 'info' && <span style={{ color: C.mid }}>建議（未處理）</span>}
+                    </div>
+                    {(i.other_regs || []).map((r, j) => <div key={j} style={{ fontSize: 12 }}>📎 {r.title} {r.code}：{r.suggestion}</div>)}
+                  </div>
+                ))}
+              </>
+            )}
             <h3 style={{ fontSize: 15, margin: '16px 0 6px', borderBottom: `2px solid ${C.line}`, paddingBottom: 3 }}>檢查</h3>
             {(rv.checks || []).map((c, i) => <div key={i} style={{ fontSize: 13, padding: '2px 0' }}>{c.lv === 'ok' ? '✅' : c.lv === 'warn' ? '⚠️' : '💡'} {c.text}</div>)}
             {(rv.risk_reasons || []).length > 0 && <div style={{ fontSize: 12, color: C.mid, marginTop: 4 }}>風險判定：{rv.risk_reasons.slice(0, 8).join('；')}</div>}

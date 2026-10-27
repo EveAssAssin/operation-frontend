@@ -9,6 +9,7 @@ import EditorView from './EditorView';
 import ReviewPanel from './ReviewPanel';
 import DeductionPanel from './DeductionPanel';
 import SettingsPanel from './SettingsPanel';
+import AuditPanel from './AuditPanel';
 import { C, card, btn, btnSm, StatusBadge, fmtTime } from './ui';
 
 export default function RegulationsPage() {
@@ -36,6 +37,7 @@ export default function RegulationsPage() {
     ['browse', '📘 規範'],
     ['drafts', '✏️ 修改中'],
     ['review', `🛡 審核${pendingCount ? `（${pendingCount}）` : ''}`],
+    ['audit', '🔎 巡檢'],
     ['deduct', '📌 引用條文扣分'],
     ['settings', '⚙ 設定'],
   ];
@@ -55,15 +57,16 @@ export default function RegulationsPage() {
       {flash && <div style={{ ...card, padding: '8px 12px', marginBottom: 10, color: C.ok }}>{flash}</div>}
 
       {editing ? (
-        <EditorView versionId={editing} roles={settings?.roles || []} categories={categories}
+        <EditorView versionId={editing} roles={settings?.roles || []} categories={categories} aiEnabled={!!settings?.ai}
           onClose={() => setEditing(null)}
           onSubmitted={(v) => { setEditing(null); setFlash(`已送審：${v.doc?.title}（第 ${v.version} 版），已通知審核人`); setPendingCount(n => n + 1); setTab('drafts'); }} />
       ) : (
         <>
-          {tab === 'browse' && <BrowsePanel initialId={params.get('reg') ? Number(params.get('reg')) : null} categories={categories} onEdit={setEditing} />}
+          {tab === 'browse' && <BrowsePanel initialId={params.get('reg') ? Number(params.get('reg')) : null} categories={categories} onEdit={setEditing} canAudit={!!settings?.ai && (isReviewer || user?.role === 'super_admin')} />}
           {tab === 'drafts' && <DraftsPanel onEdit={setEditing} />}
           {tab === 'review' && <ReviewPanel initialVid={params.get('v') ? Number(params.get('v')) : null} isReviewer={isReviewer}
             roles={settings?.roles || []} categories={categories} onCountChange={setPendingCount} />}
+          {tab === 'audit' && <AuditPanel settings={settings} reloadSettings={loadSettings} canRun={isReviewer || user?.role === 'super_admin'} onEdit={setEditing} aiEnabled={!!settings?.ai} />}
           {tab === 'deduct' && <DeductionPanel canApprove={canApproveDeduction} />}
           {tab === 'settings' && <SettingsPanel settings={settings} reload={loadSettings} />}
         </>
