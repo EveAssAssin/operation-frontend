@@ -1,7 +1,7 @@
 // 規範瀏覽：左邊清單（搜尋、分類），右邊內容＋版本紀錄；可開始修改或新增規範
 import React, { useEffect, useMemo, useState } from 'react';
 import { regulationApi as api } from '../../services/api';
-import { C, card, input, btn, btnP, btnSm, DocView, StatusBadge, fmtTime, Modal, Field } from './ui';
+import { C, card, input, btn, btnP, btnSm, DocView, StatusBadge, fmtTime, Modal, Field, RecentChange } from './ui';
 
 export default function BrowsePanel({ initialId, categories, onEdit, canAudit }) {
   const [q, setQ] = useState('');
@@ -11,6 +11,7 @@ export default function BrowsePanel({ initialId, categories, onEdit, canAudit })
   const [sel, setSel] = useState(initialId || null);
   const [detail, setDetail] = useState(null);
   const [verDoc, setVerDoc] = useState(null);   // 檢視舊版
+  const [markChg, setMarkChg] = useState(true); // 標出最近修改的條文
   const [hits, setHits] = useState([]);          // 條文全文搜尋
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState('');
@@ -122,7 +123,8 @@ export default function BrowsePanel({ initialId, categories, onEdit, canAudit })
               {(doc?.parse_flags || []).length > 0 && !verDoc && (
                 <div style={{ fontSize: 12, color: '#b7791f', marginTop: 6 }}>⚠ 匯入時發現格式問題：{doc.parse_flags.slice(0, 4).join('、')}{doc.parse_flags.length > 4 ? '…' : ''}</div>
               )}
-              <DocView doc={doc} />
+              {!verDoc && <RecentChange rc={detail.recent_change} mark={markChg} onToggleMark={setMarkChg} />}
+              <DocView doc={doc} highlight={!verDoc && markChg ? Object.fromEntries((detail.recent_change?.codes || []).map(c => [c, 'mod'])) : {}} />
               <details style={{ marginTop: 16 }}>
                 <summary style={{ cursor: 'pointer', color: C.mid, fontWeight: 700 }}>版本紀錄（{detail.versions.length}）</summary>
                 <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', marginTop: 6 }}>

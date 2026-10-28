@@ -2,7 +2,7 @@
 //   問 AI（只根據規範回答、附條文出處）／搜尋／最近更新／我的扣分／全部規範
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { regulationPublicApi as api, regulationProposeApi } from '../../services/api';
-import { DocView, fmtTime, StatusBadge } from './ui';
+import { DocView, fmtTime, StatusBadge, RecentChange } from './ui';
 import EditorView from './EditorView';
 import { RegApiCtx } from './regApi';
 
@@ -43,7 +43,7 @@ export default function RulesPage() {
   if (!me) return <Login app={app} setApp={setApp} err={err} onLogin={() => login(app.trim())} />;
 
   const open = (id, code) => setViewer({ id: Number(id), code });
-  const TABS = [['ask', '💬', '問 AI'], ['search', '🔍', '搜尋'], ['recent', '🆕', '最近更新'], ['mine', '📌', '我的扣分'], ['all', '📚', '全部']];
+  const TABS = [['ask', '💬', '問規範'], ['recent', '🆕', '最近更新'], ['mine', '📌', '我的扣分'], ['all', '📚', '全部']];   // 關鍵字搜尋已併進「問規範」（10-28）
   if (prop?.can || tab === 'propose') TABS.push(['propose', '✏️', '提出修改']);
   return (
     <div style={{ background: C.bg, minHeight: '100vh', fontFamily: '-apple-system,"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif', color: C.ink, paddingBottom: 72 }}>
@@ -53,8 +53,7 @@ export default function RulesPage() {
           <span onClick={() => { localStorage.removeItem(LS_KEY); setMe(null); setApp(''); }} style={{ marginLeft: 8, textDecoration: 'underline', cursor: 'pointer' }}>換人</span></div>
       </div>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: 12 }}>
-        {tab === 'ask' && <Ask app={app} me={me} open={open} />}
-        {tab === 'search' && <Search app={app} open={open} initial={params.get('q') || ''} />}
+        {(tab === 'ask' || tab === 'search') && <Ask app={app} me={me} open={open} initialMode={tab === 'search' || params.get('q') || !me.ai ? 'search' : 'ask'} initialQ={params.get('q') || ''} />}
         {tab === 'recent' && <Recent app={app} open={open} />}
         {tab === 'mine' && <Mine app={app} open={open} />}
         {tab === 'all' && <All app={app} open={open} />}
@@ -62,7 +61,7 @@ export default function RulesPage() {
       </div>
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: `1px solid ${C.line}`, display: 'flex', zIndex: 6, paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {TABS.map(([k, i, l]) => (
-          <button key={k} onClick={() => setTab(k)} style={{ flex: 1, border: 'none', background: 'none', padding: '8px 0 6px', cursor: 'pointer', color: tab === k ? C.brand : '#a0aec0', fontWeight: tab === k ? 800 : 500 }}>
+          <button key={k} onClick={() => setTab(k)} style={{ flex: 1, border: 'none', background: 'none', padding: '8px 0 6px', cursor: 'pointer', color: (tab === k || (k === 'ask' && tab === 'search')) ? C.brand : '#a0aec0', fontWeight: (tab === k || (k === 'ask' && tab === 'search')) ? 800 : 500 }}>
             <div style={{ fontSize: 20 }}>{i}</div><div style={{ fontSize: 11 }}>{l}</div>
           </button>
         ))}
@@ -110,7 +109,21 @@ function AnswerText({ text, cites, open }) {
   );
 }
 
-function Ask({ app, me, open }) {
+function Ask({ app, me, open, initialMode = 'ask', initialQ = '' }) {
+  const [mode, setMode] = useState(me.ai ? initialMode : 'search');   // ask＝問 AI、search＝關鍵字找標題／條文
+  const modeBar = (
+    <div data-yaya="rules-mode" style={{ display: 'flex', background: '#fff', border: `1px solid ${C.line}`, borderRadius: 12, padding: 3, marginBottom: 10 }}>
+      {[['ask', '💬 問 AI'], ['search', '🔍 關鍵字查詢']].map(([k, l]) => (
+        <button key={k} disabled={k === 'ask' && !me.ai} onClick={() => setMode(k)} style={{ flex: 1, border: 'none', borderRadius: 9, padding: '8px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+          background: mode === k ? C.brand : 'transparent', color: mode === k ? '#fff' : (k === 'ask' && !me.ai ? '#cbd5e0' : C.mid) }}>{l}</button>
+      ))}
+    </div>
+  );
+  if (mode === 'search') return <div>{modeBar}<Search app={app} open={open} initial={initialQ} /></div>;
+  return <AskAi app={app} me={me} open={open} modeBar={modeBar} />;
+}
+
+function AskAi({ app, me, open, modeBar }) {
   const [q, setQ] = useState('');
   const [thread, setThread] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -130,9 +143,9 @@ function Ask({ app, me, open }) {
     await api.feedback(app, t.id, helpful);
     setThread(th => th.map((x, k) => (k === i ? { ...x, fb: helpful } : x)));
   };
-  if (!me.ai) return <div style={{ ...card, padding: 16, color: C.mid }}>AI 問答還沒開放，請先用下方「🔍 搜尋」查規範。</div>;
   return (
     <div>
+      {modeBar}
       {!thread.length && (
         <div style={{ ...card, padding: 14, marginBottom: 10 }}>
           <div style={{ fontWeight: 800, marginBottom: 4 }}>有規範問題，直接問我</div>
@@ -316,6 +329,7 @@ function All({ app, open }) {
 
 function Viewer({ app, id, code, onClose, onPropose }) {
   const [data, setData] = useState(null);
+  const [mark, setMark] = useState(true);
   const [err, setErr] = useState('');
   useEffect(() => {
     api.regulation(app, id).then(r => (r?.success ? setData(r.data) : setErr(r?.message || '讀取失敗')));
@@ -345,7 +359,8 @@ function Viewer({ app, id, code, onClose, onPropose }) {
                 {d.scenario && <div><b>什麼時候用：</b>{d.scenario}</div>}
               </div>
             )}
-            <DocView doc={d} compact highlight={code ? { [code]: 'focus' } : {}} />
+            <RecentChange rc={data.recent_change} mark={mark} onToggleMark={setMark} />
+            <DocView doc={d} compact highlight={{ ...(mark ? Object.fromEntries((data.recent_change?.codes || []).map(c => [c, 'mod'])) : {}), ...(code ? { [code]: 'focus' } : {}) }} />
             <div style={{ fontSize: 12, color: C.mid, marginTop: 14 }}>每一條都可能被引用扣分；沒有另外標扣分的，依規範預設分數（{r.score}）。</div>
           </>
         )}
@@ -408,6 +423,7 @@ function Propose({ app, prop, open, onEdit, reload, papi }) {
         <input style={{ ...input, marginTop: 6 }} value={cat} onChange={e => setCat(e.target.value)} placeholder="分類（選填）" list="rules-cats" />
         <datalist id="rules-cats">{(prop.meta?.categories || []).map(c => <option key={c} value={c} />)}</datalist>
         <button style={{ ...btnP, width: '100%', marginTop: 8 }} disabled={busy} onClick={create}>{busy ? '建立中…' : '建立草稿並開始寫'}</button>
+        <div style={{ fontSize: 12, color: C.mid, marginTop: 6 }}>習慣用 Word 寫的：建好草稿後在編輯器按「📄 上傳 Word 轉成系統格式」，AI 會轉成一條一條的條文（表格、圖片都會帶過來）。</div>
       </div>
 
       <div data-yaya="rules-propose-mine" style={{ ...card, padding: 12 }}>

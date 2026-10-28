@@ -1,5 +1,5 @@
 // 規範系統共用：樣式、顯示元件、文件工具
-import React from 'react';
+import React, { useState } from 'react';
 
 export const C = { bg: '#f6f2ec', card: '#fff', ink: '#2d2416', mid: '#6b5640', line: '#e6dccd', brand: '#50422d', ok: '#2f855a', bad: '#c53030' };
 export const card  = { background: '#fff', border: `1px solid ${C.line}`, borderRadius: 10 };
@@ -65,8 +65,11 @@ export const fmtTime = (t) => (t ? new Date(t).toLocaleString('zh-TW', { dateSty
 export const clone = (o) => JSON.parse(JSON.stringify(o));
 
 /** 規範內容顯示（唯讀） */
-export function DocView({ doc, highlight = {}, compact = false }) {
+export function DocView({ doc, highlight = {}, compact = false, toc = true }) {
+  const [zoom, setZoom] = useState(null);   // 點圖片放大
   if (!doc) return null;
+  const secs = doc.sections || [];
+  const goSec = (si) => document.getElementById(`sec-${si}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const Clause = ({ c, level, path }) => {
     const h = c.code && highlight[c.code];
     return (
@@ -88,8 +91,8 @@ export function DocView({ doc, highlight = {}, compact = false }) {
             {(c.images || []).length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
                 {c.images.map((im, i) => (
-                  <figure key={i} style={{ margin: 0, maxWidth: 260 }}>
-                    <a href={im.url} target="_blank" rel="noreferrer"><img src={im.url} alt={im.caption || ''} style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 6, border: `1px solid ${C.line}` }} /></a>
+                  <figure key={i} style={{ margin: 0, maxWidth: compact ? '100%' : 360 }}>
+                    <img src={im.url} alt={im.caption || ''} onClick={() => setZoom(im)} style={{ maxWidth: '100%', maxHeight: compact ? 360 : 260, borderRadius: 6, border: `1px solid ${C.line}`, cursor: 'zoom-in', display: 'block' }} />
                     {im.caption && <figcaption style={{ fontSize: 12, color: C.mid }}>{im.caption}</figcaption>}
                   </figure>
                 ))}
@@ -104,9 +107,29 @@ export function DocView({ doc, highlight = {}, compact = false }) {
   };
   return (
     <div>
-      {(doc.sections || []).map((s, si) => (
-        <div key={si} style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, borderBottom: `2px solid ${C.line}`, paddingBottom: 3, marginBottom: 2 }}>{cnNo(si)}、{s.title || '（未命名大項）'}</div>
+      {toc && secs.length > 1 && (
+        <div data-yaya="reg-toc" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '10px 0 4px', padding: '8px 8px 6px', background: '#fcfaf6', border: `1px solid ${C.line}`, borderRadius: 10 }}>
+          <span style={{ fontSize: 12, color: C.mid, width: '100%' }}>📑 快速前往</span>
+          {secs.map((s, si) => (
+            <button key={si} onClick={() => goSec(si)} style={{ border: `1px solid ${C.line}`, background: '#fff', borderRadius: 16, padding: '3px 10px', fontSize: 13, cursor: 'pointer', color: C.ink, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {cnNo(si)}、{s.title || '（未命名大項）'}
+            </button>
+          ))}
+        </div>
+      )}
+      {zoom && (
+        <div onClick={() => setZoom(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.85)', zIndex: 2000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+          <img src={zoom.url} alt={zoom.caption || ''} style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain' }} />
+          {zoom.caption && <div style={{ color: '#fff', marginTop: 8, fontSize: 14 }}>{zoom.caption}</div>}
+          <div style={{ color: '#ddd', marginTop: 8, fontSize: 12 }}>點一下關閉</div>
+        </div>
+      )}
+      {secs.map((s, si) => (
+        <div key={si} id={`sec-${si}`} style={{ marginTop: 12, scrollMarginTop: 64 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, borderBottom: `2px solid ${C.line}`, paddingBottom: 3, marginBottom: 2, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            <span style={{ flex: 1 }}>{cnNo(si)}、{s.title || '（未命名大項）'}</span>
+            {toc && secs.length > 1 && <span onClick={() => document.querySelector('[data-yaya="reg-toc"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} style={{ fontSize: 11, fontWeight: 400, color: C.mid, cursor: 'pointer' }}>↑ 目錄</span>}
+          </div>
           {(s.items || []).map((c, i) => <Clause key={c.code || i} c={c} level={1} path={[i]} />)}
         </div>
       ))}
@@ -167,6 +190,25 @@ export function EmployeePicker({ api, value, onChange, placeholder = '輸入姓�
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** 規範最上方「最近修改」：AI 白話說明這次改了什麼（30 天內、本系統審核通過的版本） */
+export function RecentChange({ rc, mark, onToggleMark }) {
+  if (!rc) return null;
+  const d = rc.published_at ? new Date(rc.published_at) : null;
+  const n = rc.counts || {};
+  return (
+    <div data-yaya="reg-recent" style={{ background: '#fffbea', border: '1px solid #f6e05e', borderRadius: 10, padding: '8px 12px', marginTop: 10, fontSize: 14 }}>
+      <div style={{ fontWeight: 800, color: '#975a16' }}>🆕 最近修改{d ? `（${d.getMonth() + 1}/${d.getDate()} 第 ${rc.version} 版）` : ''}</div>
+      {(rc.summary || []).length > 0
+        ? <ul style={{ margin: '4px 0 0', paddingLeft: 18, lineHeight: 1.6 }}>{rc.summary.map((x, i) => <li key={i}>{x}</li>)}</ul>
+        : rc.change_note ? <div style={{ marginTop: 4 }}>{rc.change_note}</div> : null}
+      <div style={{ fontSize: 12, color: C.mid, marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span>{[n.add ? `新增 ${n.add} 條` : '', n.mod ? `修改 ${n.mod} 條` : '', n.del ? `刪除 ${n.del} 條` : ''].filter(Boolean).join('・') || '調整基本資料'}{rc.ai ? '・說明由 AI 整理' : ''}</span>
+        {onToggleMark && (rc.codes || []).length > 0 && <label style={{ display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={!!mark} onChange={e => onToggleMark(e.target.checked)} />在內文標出修改的條文</label>}
+      </div>
     </div>
   );
 }

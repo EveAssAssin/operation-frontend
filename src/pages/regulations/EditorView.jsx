@@ -95,6 +95,7 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
             <Field label="這次改了什麼（給審核人看）" style={{ marginTop: 12 }}>
               <input style={input} value={note} onChange={e => { setNote(e.target.value); setDirty(true); }} placeholder="例如：結帳時間改成 21:00 前" />
             </Field>
+            <DocxImport title={doc.title} onApply={(d) => change(d, { pushUndo: true })} doc={doc} />
             <DocEditor doc={doc} roles={roles} categories={categories} onChange={(d) => change(d)} />
             {preview && (
               <div style={{ border: `1px solid ${C.line}`, borderRadius: 10, padding: 10, marginTop: 14, background: '#fcfaf6' }}>
@@ -336,6 +337,65 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 上傳 Word → AI 轉成系統格式（套用到編輯器，還沒存檔；可復原）──
+export function DocxImport({ doc, title, onApply }) {
+  const api = useRegApi();
+  const [busy, setBusy] = useState('');
+  const [res, setRes] = useState(null);
+  const [err, setErr] = useState('');
+  const pick = async (f) => {
+    if (!f) return;
+    setErr(''); setRes(null); setBusy('上傳中…');
+    const r = await api.importDocx(f, title);
+    if (!r?.success) { setBusy(''); setErr(r?.message || '上傳失敗'); return; }
+    const t0 = Date.now();
+    setBusy('AI 轉換中（通常 1～3 分鐘，請不要關掉這頁）…');
+    const poll = async () => {
+      const p = await api.importDocxJob(r.data.job);
+      if (!p?.success) { setBusy(''); setErr(p?.message || '轉換失敗'); return; }
+      if (p.data.status === 'running') {
+        if (Date.now() - t0 > 12 * 60 * 1000) { setBusy(''); setErr('轉換太久，請稍後再試或把 Word 分成兩份'); return; }
+        setBusy(`AI 轉換中（已 ${Math.round((Date.now() - t0) / 1000)} 秒，通常 1～3 分鐘）…`); setTimeout(poll, 3000); return;
+      }
+      setBusy('');
+      if (p.data.status === 'error') { setErr(p.data.error || '轉換失敗'); return; }
+      setRes(p.data.result);
+    };
+    setTimeout(poll, 3000);
+  };
+  const hasContent = (doc?.sections || []).some(s => (s.items || []).length);
+  const apply = () => {
+    const x = res;
+    const next = { ...doc, sections: x.sections,
+      title: doc.title && doc.title !== '（未命名規範）' ? doc.title : (x.title || doc.title),
+      summary: doc.summary || x.summary, scenario: doc.scenario || x.scenario };
+    onApply(next); setRes(null);
+  };
+  return (
+    <div data-yaya="reg-docx" style={{ border: `1px dashed ${C.line}`, borderRadius: 10, padding: '8px 10px', marginTop: 12, background: '#fcfaf6' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <label style={{ ...btn, display: 'inline-block', opacity: busy ? 0.5 : 1, pointerEvents: busy ? 'none' : 'auto' }}>📄 上傳 Word 轉成系統格式
+          <input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; pick(f); }} />
+        </label>
+        <span style={{ fontSize: 12, color: C.mid }}>照平常習慣在 Word 寫好（可含表格、圖片），AI 轉成一條一條的條文，轉完還可以在下面繼續改。</span>
+      </div>
+      {busy && <div style={{ fontSize: 13, color: '#b7791f', marginTop: 6 }}>⏳ {busy}</div>}
+      {err && <div style={{ fontSize: 13, color: C.bad, marginTop: 6 }}>{err}</div>}
+      {res && (
+        <div style={{ marginTop: 8, fontSize: 13 }}>
+          <b>轉好了</b>：{res.stats.sections} 個大標題、{res.stats.clauses} 條條文、{res.stats.images} 張圖{res.stats.images_unplaced ? `（${res.stats.images_unplaced} 張沒放進條文，放在最後一條）` : ''}
+          {res.ai_notes?.length > 0 && <ul style={{ margin: '4px 0', paddingLeft: 18, color: C.mid }}>{res.ai_notes.map((n, i) => <li key={i}>{n}</li>)}</ul>}
+          {hasContent && <div style={{ color: '#b7791f' }}>⚠ 套用會取代目前編輯器裡的全部條文（可按「↶ 復原」回來；原本條文的代碼會變成新的）。</div>}
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <button style={btnP} onClick={apply}>套用到編輯器</button>
+            <button style={btn} onClick={() => setRes(null)}>不要</button>
+          </div>
         </div>
       )}
     </div>
