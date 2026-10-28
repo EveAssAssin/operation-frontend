@@ -74,7 +74,7 @@ export function DocView({ doc, highlight = {}, compact = false, toc = true }) {
     const h = c.code && highlight[c.code];
     return (
       <>
-        <div id={c.code ? `c-${c.code}` : undefined} style={{ display: 'grid', gridTemplateColumns: `${compact ? 0 : 92}px 1fr`, gap: 6, padding: '6px 4px', borderBottom: '1px dashed #efe6d8', marginLeft: (level - 1) * (compact ? 12 : 20),
+        <div id={c.code ? `c-${c.code}` : undefined} style={{ display: 'grid', gridTemplateColumns: compact ? 'minmax(0,1fr)' : '92px minmax(0,1fr)', gap: compact ? 0 : 6, overflowWrap: 'anywhere',   /* 手機版只有一欄：原本 0px＋1fr 會把唯一的內容塞進 0 寬那欄、一字一行（10-28 修） */ padding: '6px 4px', borderBottom: '1px dashed #efe6d8', marginLeft: (level - 1) * (compact ? 12 : 20),
           background: h === 'add' ? '#f0fff4' : h === 'mod' ? '#fffbea' : h === 'focus' ? '#fff3bf' : undefined,
           borderLeft: h ? `3px solid ${h === 'add' ? '#38a169' : h === 'focus' ? '#f59f00' : '#d69e2e'}` : '3px solid transparent', scrollMarginTop: 70 }}>
           {!compact && <div style={{ fontFamily: 'ui-monospace,Consolas,monospace', fontSize: 11, color: '#8b6f4e', paddingTop: 2 }}>{c.code}</div>}
