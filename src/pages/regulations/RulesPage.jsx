@@ -16,7 +16,7 @@ export default function RulesPage() {
   const [app, setApp] = useState(() => (params.get('app_number') || localStorage.getItem(LS_KEY) || '').trim());
   const [me, setMe] = useState(null);
   const [err, setErr] = useState('');
-  const [tab, setTab] = useState(params.get('q') ? 'search' : 'ask');
+  const [tab, setTab] = useState(() => { const t = params.get('tab'); if (['ask', 'search', 'recent', 'mine', 'all'].includes(t)) return t; return params.get('q') ? 'search' : 'ask'; }); // ?tab=search＝營運工具「規範查詢」直接進搜尋（2026-10-28）
   const [viewer, setViewer] = useState(params.get('reg') ? { id: Number(params.get('reg')), code: params.get('code') } : null);
 
   const login = useCallback(async (a) => {
