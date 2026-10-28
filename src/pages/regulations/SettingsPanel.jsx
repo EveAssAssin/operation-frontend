@@ -55,6 +55,30 @@ export default function SettingsPanel({ settings, reload }) {
         <button style={btnP} disabled={imp.running} onClick={startImport}>{imp.running ? '匯入中…' : '開始匯入'}</button>
         <div style={{ fontSize: 12, color: C.mid, marginTop: 10 }}>AI 功能（編輯助理、AI 檢查、審核摘要、每週巡檢）：{settings?.ai ? <b style={{ color: C.ok }}>已啟用</b> : '未啟用（Render 的 operation-backend 設定 ANTHROPIC_API_KEY 後啟用；未啟用時審核摘要改用規則產生，其他 AI 功能不能用）'}</div>
       </div>
+      <ProposeRule />
+    </div>
+  );
+}
+
+// App「查規範」誰可以提出新增／修改規範（依左手權限／稱號）2026-10-28
+function ProposeRule() {
+  const [perm, setPerm] = useState('');
+  const [titles, setTitles] = useState('');
+  const [msg, setMsg] = useState(null);
+  useEffect(() => { api.proposeRule().then(r => { if (r?.success) { setPerm((r.data.permissions || []).join('、')); setTitles((r.data.titles || []).join('、')); } }); }, []);
+  const split = (t) => t.split(/[、,，\n]/).map(x => x.trim()).filter(Boolean);
+  const save = async () => {
+    const r = await api.setProposeRule({ permissions: split(perm), titles: split(titles) });
+    setMsg(r?.success ? { text: '✓ 已儲存（約 10 分鐘內生效）' } : { err: true, text: r?.message || '儲存失敗' });
+  };
+  return (
+    <div style={{ ...card, padding: 14 }}>
+      <b style={{ fontSize: 16 }}>誰可以從 App 提出新增／修改</b>
+      <div style={{ fontSize: 13, color: C.mid, margin: '4px 0 10px' }}>人員在 App「查規範 → ✏️ 提出修改」寫好送審，一樣送給上面的審核人，同意後才上線。下面兩欄任一符合就可以提（讀左手，多個用頓號分開）。</div>
+      <Field label="左手權限名稱（權限稱號底下的權限，例：規範修改）"><input style={{ width: '100%', boxSizing: 'border-box', padding: 8, border: `1px solid ${C.line}`, borderRadius: 8 }} value={perm} onChange={e => setPerm(e.target.value)} /></Field>
+      <Field label="左手稱號名稱（權限／獎金／兌換稱號都比，例：樂活MAP文案編輯認證）"><input style={{ width: '100%', boxSizing: 'border-box', padding: 8, border: `1px solid ${C.line}`, borderRadius: 8 }} value={titles} onChange={e => setTitles(e.target.value)} /></Field>
+      <button style={btnP} onClick={save}>儲存</button>
+      {msg && <div style={{ fontSize: 13, marginTop: 8, color: msg.err ? C.bad : C.ok }}>{msg.text}</div>}
     </div>
   );
 }

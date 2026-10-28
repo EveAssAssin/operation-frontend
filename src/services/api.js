@@ -906,6 +906,8 @@ export const regulationApi = safeApi({
   rejectDeduction:(id, reason)       => api.post(`/regulations/deductions/${id}/reject`, { reason }),
   settings:      ()                  => api.get('/regulations/settings'),
   setReviewer:   (erpid)             => api.put('/regulations/settings/reviewer', { erpid }),
+  proposeRule:   ()                  => api.get('/regulations/settings/propose'),
+  setProposeRule:(body)              => api.put('/regulations/settings/propose', body),
   importFromMap: ()                  => api.post('/regulations/import'),
   upload:        (file)              => { const fd = new FormData(); fd.append('file', file); return api.post('/regulations/upload', fd, { timeout: 60000 }); },
   assist:        (vid, body)         => api.post(`/regulations/versions/${vid}/assist`, body, { timeout: 120000 }),
@@ -920,6 +922,26 @@ export const regulationApi = safeApi({
   draftFromFinding: (id)             => api.post(`/regulations/audit/findings/${id}/draft`, {}, { timeout: 30000 }),
   questions:     (found)             => api.get('/regulations/questions', { params: { found } }),
 });
+
+// App「查規範」人員提出新增／修改規範（左手稱號符合才可以）；方法名稱跟 regulationApi 一樣，給 EditorView 共用
+export const regulationProposeApi = (app) => {
+  const q = { params: { app_number: app } }, b = (x = {}) => ({ ...x, app_number: app });
+  return safeApi({
+    me:            ()             => api.get('/regulations-public/propose/me', q),
+    newRegulation: (body)         => api.post('/regulations-public/propose/new', b(body)),
+    startDraft:    (id)           => api.post(`/regulations-public/propose/${id}/draft`, b()),
+    version:       (vid)          => api.get(`/regulations-public/propose/versions/${vid}`, q),
+    saveDraft:     (vid, body)    => api.put(`/regulations-public/propose/versions/${vid}`, b(body)),
+    preview:       (vid)          => api.post(`/regulations-public/propose/versions/${vid}/preview`, b()),
+    submit:        (vid)          => api.post(`/regulations-public/propose/versions/${vid}/submit`, b(), { timeout: 60000 }),
+    discard:       (vid)          => api.post(`/regulations-public/propose/versions/${vid}/discard`, b()),
+    upload:        (file)         => { const fd = new FormData(); fd.append('file', file); return api.post('/regulations-public/propose/upload', fd, { ...q, timeout: 60000 }); },
+    assist:        (vid, body)    => api.post(`/regulations-public/propose/versions/${vid}/assist`, b(body), { timeout: 120000 }),
+    chooseOption:  (vid, log_index, key) => api.post(`/regulations-public/propose/versions/${vid}/assist/choose`, b({ log_index, key })),
+    aiCheck:       (vid)          => api.post(`/regulations-public/propose/versions/${vid}/ai-check`, b(), { timeout: 120000 }),
+    resolveIssue:  (vid, iid, body) => api.post(`/regulations-public/propose/versions/${vid}/ai-check/${iid}/resolve`, b(body)),
+  });
+};
 
 // 人員「查規範」（不需登入，用 APP 編號確認身分）
 export const regulationPublicApi = safeApi({

@@ -2,7 +2,7 @@
 // 條文代碼由後端存檔時配發；新條文顯示「（存檔後配發）」
 import React from 'react';
 import { C, input, btn, btnSm, cnNo, noOf, clone, Field } from './ui';
-import { regulationApi } from '../../services/api';
+import { useRegApi } from './regApi';
 
 const DOC_TYPES = ['作業流程', '行政規定', '產品知識', '工作職掌', '人事規範', '其他'];
 
@@ -14,6 +14,7 @@ function listAt(doc, path) {
 }
 
 function ClauseEd({ c, path, level, upd }) {
+  const regulationApi = useRegApi();
   // path = [si, i0, i1, ...]，最後一個是自己的 index
   const parentPath = path.slice(0, -1), idx = path[path.length - 1];
   const set = (k, v) => upd(d => { listAt(d, parentPath)[idx][k] = v; });

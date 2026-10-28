@@ -1,8 +1,10 @@
 // 人員「查規範」手機頁：/rules?app_number=XXXXXXXX（也可帶 &reg=規範編號、&q=關鍵字）
 //   問 AI（只根據規範回答、附條文出處）／搜尋／最近更新／我的扣分／全部規範
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { regulationPublicApi as api } from '../../services/api';
-import { DocView, fmtTime } from './ui';
+import { regulationPublicApi as api, regulationProposeApi } from '../../services/api';
+import { DocView, fmtTime, StatusBadge } from './ui';
+import EditorView from './EditorView';
+import { RegApiCtx } from './regApi';
 
 const LS_KEY = 'rules_app_number';
 const C = { bg: '#f6f2ec', card: '#fff', ink: '#2d2416', mid: '#6b5640', line: '#e6dccd', brand: '#50422d', ok: '#2f855a', bad: '#c53030' };
@@ -16,7 +18,7 @@ export default function RulesPage() {
   const [app, setApp] = useState(() => (params.get('app_number') || localStorage.getItem(LS_KEY) || '').trim());
   const [me, setMe] = useState(null);
   const [err, setErr] = useState('');
-  const [tab, setTab] = useState(() => { const t = params.get('tab'); if (['ask', 'search', 'recent', 'mine', 'all'].includes(t)) return t; return params.get('q') ? 'search' : 'ask'; }); // ?tab=search＝營運工具「規範查詢」直接進搜尋（2026-10-28）
+  const [tab, setTab] = useState(() => { const t = params.get('tab'); if (['ask', 'search', 'recent', 'mine', 'all', 'propose'].includes(t)) return t; return params.get('q') ? 'search' : 'ask'; }); // ?tab=search＝營運工具「規範查詢」直接進搜尋（2026-10-28）
   const [viewer, setViewer] = useState(params.get('reg') ? { id: Number(params.get('reg')), code: params.get('code') } : null);
 
   const login = useCallback(async (a) => {
@@ -26,11 +28,23 @@ export default function RulesPage() {
     localStorage.setItem(LS_KEY, a); setMe(r.data);
   }, []);
   useEffect(() => { if (app) login(app); }, []); // eslint-disable-line
+  // 提出新增／修改規範：左手權限／稱號符合才有（2026-10-28）
+  const papi = useMemo(() => (me ? regulationProposeApi(app) : null), [me, app]);
+  const [prop, setProp] = useState(null);       // { can, reason, matched, meta, mine }
+  const [editing, setEditing] = useState(null); // versionId
+  const reloadProp = useCallback(() => { if (papi) papi.me().then(r => setProp(r?.success ? r.data : { can: false, reason: r?.message || '讀不到權限' })); }, [papi]);
+  useEffect(() => { reloadProp(); }, [reloadProp]);
+  const startEdit = async (regId) => {
+    const r = await papi.startDraft(regId);
+    if (!r?.success) { window.alert(r?.message || '開始修改失敗'); return; }
+    setViewer(null); setEditing(r.data.id);
+  };
 
   if (!me) return <Login app={app} setApp={setApp} err={err} onLogin={() => login(app.trim())} />;
 
   const open = (id, code) => setViewer({ id: Number(id), code });
   const TABS = [['ask', '💬', '問 AI'], ['search', '🔍', '搜尋'], ['recent', '🆕', '最近更新'], ['mine', '📌', '我的扣分'], ['all', '📚', '全部']];
+  if (prop?.can || tab === 'propose') TABS.push(['propose', '✏️', '提出修改']);
   return (
     <div style={{ background: C.bg, minHeight: '100vh', fontFamily: '-apple-system,"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif', color: C.ink, paddingBottom: 72 }}>
       <div style={{ background: C.brand, color: '#fff', padding: '12px 16px', position: 'sticky', top: 0, zIndex: 5 }}>
@@ -44,6 +58,7 @@ export default function RulesPage() {
         {tab === 'recent' && <Recent app={app} open={open} />}
         {tab === 'mine' && <Mine app={app} open={open} />}
         {tab === 'all' && <All app={app} open={open} />}
+        {tab === 'propose' && <Propose app={app} prop={prop} open={open} onEdit={setEditing} reload={reloadProp} papi={papi} />}
       </div>
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: `1px solid ${C.line}`, display: 'flex', zIndex: 6, paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {TABS.map(([k, i, l]) => (
@@ -52,7 +67,17 @@ export default function RulesPage() {
           </button>
         ))}
       </div>
-      {viewer && <Viewer app={app} id={viewer.id} code={viewer.code} onClose={() => setViewer(null)} />}
+      {viewer && <Viewer app={app} id={viewer.id} code={viewer.code} onClose={() => setViewer(null)} onPropose={prop?.can ? startEdit : null} />}
+      {editing && papi && (
+        <div style={{ position: 'fixed', inset: 0, background: C.bg, zIndex: 30, overflow: 'auto', padding: 8 }}>
+          <div style={{ fontSize: 12, color: C.mid, margin: '2px 4px 8px' }}>改完按「送審」，審核人同意後才會上線；送審前都只有你看得到。</div>
+          <RegApiCtx.Provider value={papi}>
+            <EditorView stack versionId={editing} roles={prop?.meta?.roles || []} categories={prop?.meta?.categories || []} aiEnabled={!!prop?.meta?.ai}
+              onClose={() => { setEditing(null); reloadProp(); }}
+              onSubmitted={() => { window.alert('已送審，審核人同意後會通知你'); setEditing(null); reloadProp(); setTab('propose'); }} />
+          </RegApiCtx.Provider>
+        </div>
+      )}
     </div>
   );
 }
@@ -289,7 +314,7 @@ function All({ app, open }) {
   );
 }
 
-function Viewer({ app, id, code, onClose }) {
+function Viewer({ app, id, code, onClose, onPropose }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
   useEffect(() => {
@@ -308,6 +333,7 @@ function Viewer({ app, id, code, onClose }) {
           <div style={{ fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r?.title || '載入中…'}</div>
           {r && <div style={{ fontSize: 11, opacity: 0.85 }}>規範 {r.id}・第 {r.current_version} 版・{fmtTime(data.published_at)}</div>}
         </div>
+        {onPropose && r && <button data-yaya="rules-propose-edit" onClick={() => onPropose(r.id)} style={{ border: '1px solid #fff', background: 'transparent', color: '#fff', borderRadius: 8, padding: '4px 10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>✏️ 提出修改</button>}
       </div>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '8px 12px 40px', fontSize: 15 }}>
         {err && <div style={{ color: C.bad }}>{err}</div>}
@@ -323,6 +349,80 @@ function Viewer({ app, id, code, onClose }) {
             <div style={{ fontSize: 12, color: C.mid, marginTop: 14 }}>每一條都可能被引用扣分；沒有另外標扣分的，依規範預設分數（{r.score}）。</div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── 提出新增／修改規範（左手權限／稱號符合才可以；送審後審核人同意才上線）──
+function Propose({ app, prop, open, onEdit, reload, papi }) {
+  const [title, setTitle] = useState('');
+  const [cat, setCat] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState(null);
+  useEffect(() => {
+    const s = q.trim(); if (!s) { setHits(null); return; }
+    const t = setTimeout(() => api.search(app, s, true).then(r => setHits(r?.success ? r.data.regulations : [])), 350);
+    return () => clearTimeout(t);
+  }, [q, app]);
+  if (!prop) return <div style={{ color: C.mid }}>讀取權限中…</div>;
+  if (!prop.can) return <div style={{ ...card, padding: 14, fontSize: 14 }}>🔒 {prop.reason || '你目前沒有提出新增或修改規範的權限'}<div style={{ fontSize: 12, color: C.mid, marginTop: 6 }}>權限依左手稱號判斷，取得稱號後約 10 分鐘生效。</div></div>;
+  const create = async () => {
+    if (!title.trim()) { window.alert('請填規範標題'); return; }
+    setBusy(true);
+    const r = await papi.newRegulation({ title: title.trim(), category: cat.trim() });
+    setBusy(false);
+    if (!r?.success) { window.alert(r?.message || '建立失敗'); return; }
+    setTitle(''); setCat(''); onEdit(r.data.id); reload();
+  };
+  const edit = async (id) => {
+    const r = await papi.startDraft(id);
+    if (!r?.success) { window.alert(r?.message || '開始修改失敗'); return; }
+    onEdit(r.data.id);
+  };
+  const stHint = { draft: '還沒送審，點進去繼續改', returned: '被退回，點進去修改後再送審', pending: '等審核人審核', approved: '已上線', discarded: '已捨棄' };
+  return (
+    <div>
+      <div data-yaya="rules-propose-head" style={{ ...card, padding: 12, fontSize: 13, color: C.mid, marginBottom: 10 }}>
+        你可以提出新增或修改規範。改好按「送審」，<b style={{ color: C.ink }}>審核人同意後才會上線</b>，結果會推播通知你。
+        {prop.matched?.length > 0 && <div style={{ marginTop: 4, fontSize: 12 }}>依據：{prop.matched.join('、')}</div>}
+      </div>
+
+      <div data-yaya="rules-propose-edit-search" style={{ ...card, padding: 12, marginBottom: 10 }}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>修改現有規範</div>
+        <input style={input} value={q} onChange={e => setQ(e.target.value)} placeholder="輸入規範標題關鍵字" />
+        {hits && hits.length === 0 && <div style={{ fontSize: 13, color: C.mid, marginTop: 6 }}>找不到標題有這個字的規範</div>}
+        {(hits || []).map(r => (
+          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: `1px solid ${C.line}` }}>
+            <span onClick={() => open(r.id)} style={{ flex: 1, fontSize: 14, cursor: 'pointer' }}>{r.title}<span style={{ fontSize: 11, color: C.mid }}>　{r.category}</span></span>
+            <button style={{ ...btnP, padding: '6px 10px', fontSize: 13 }} onClick={() => edit(r.id)}>修改</button>
+          </div>
+        ))}
+        <div style={{ fontSize: 12, color: C.mid, marginTop: 6 }}>也可以在任何規範全文右上角按「✏️ 提出修改」。</div>
+      </div>
+
+      <div data-yaya="rules-propose-new" style={{ ...card, padding: 12, marginBottom: 10 }}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>新增一份規範</div>
+        <input style={input} value={title} onChange={e => setTitle(e.target.value)} placeholder="規範標題" />
+        <input style={{ ...input, marginTop: 6 }} value={cat} onChange={e => setCat(e.target.value)} placeholder="分類（選填）" list="rules-cats" />
+        <datalist id="rules-cats">{(prop.meta?.categories || []).map(c => <option key={c} value={c} />)}</datalist>
+        <button style={{ ...btnP, width: '100%', marginTop: 8 }} disabled={busy} onClick={create}>{busy ? '建立中…' : '建立草稿並開始寫'}</button>
+      </div>
+
+      <div data-yaya="rules-propose-mine" style={{ ...card, padding: 12 }}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>我提出的</div>
+        {!(prop.mine || []).length && <div style={{ fontSize: 13, color: C.mid }}>還沒有</div>}
+        {(prop.mine || []).map(v => {
+          const canOpen = ['draft', 'returned', 'pending'].includes(v.status);
+          return (
+            <div key={v.id} onClick={() => (canOpen ? onEdit(v.id) : v.status === 'approved' && open(v.regulation_id))} style={{ padding: '8px 0', borderBottom: `1px solid ${C.line}`, cursor: 'pointer' }}>
+              <div style={{ fontSize: 14 }}><StatusBadge s={v.status} /> {v.title || `規範 ${v.regulation_id}`}<span style={{ fontSize: 11, color: C.mid }}>　第 {v.version} 版</span></div>
+              <div style={{ fontSize: 12, color: C.mid }}>{stHint[v.status] || ''}{v.change_note ? `・${v.change_note}` : ''}{v.updated_at ? `・${fmtTime(v.updated_at)}` : ''}</div>
+              {v.status === 'returned' && v.review_note && <div style={{ fontSize: 12, color: C.bad }}>退回原因：{v.review_note}</div>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

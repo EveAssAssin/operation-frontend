@@ -1,11 +1,12 @@
 // 修改中的版本（草稿／被退回）：編輯器＋右側 AI 面板（編輯助理、AI 檢查）
 import React, { useEffect, useRef, useState } from 'react';
-import { regulationApi as api } from '../../services/api';
+import { useRegApi } from './regApi';
 import DocEditor from './DocEditor';
 import { applyOps, changeLabel } from './docOps';
 import { C, card, input, btn, btnP, btnD, btnOk, btnSm, RiskBadge, StatusBadge, Field, clone, fmtTime } from './ui';
 
-export default function EditorView({ versionId, roles, categories, aiEnabled, onClose, onSubmitted }) {
+export default function EditorView({ versionId, roles, categories, aiEnabled, onClose, onSubmitted, stack = false }) {   // stack＝手機（App 查規範）上下排
+  const api = useRegApi();
   const [v, setV] = useState(null);
   const [doc, setDoc] = useState(null);
   const [note, setNote] = useState('');
@@ -70,7 +71,7 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
   if (!v || !doc) return <div style={{ ...card, padding: 20 }}>{msg?.text || '載入中…'}</div>;
   const editable = ['draft', 'returned'].includes(v.status);
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: editable ? 'minmax(0,1fr) minmax(320px,400px)' : '1fr', gap: 12, alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: editable && !stack ? 'minmax(0,1fr) minmax(320px,400px)' : '1fr', gap: 12, alignItems: 'start' }}>
       <div style={{ ...card, padding: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div>
@@ -118,7 +119,7 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
       </div>
 
       {editable && (
-        <div style={{ ...card, position: 'sticky', top: 8, maxHeight: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ ...card, position: stack ? 'static' : 'sticky', top: 8, maxHeight: stack ? '75vh' : 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', borderBottom: `1px solid ${C.line}` }}>
             {[['assist', '💬 編輯助理'], ['check', `🛡 AI 檢查${checks ? `（${(checks.issues || []).filter(i => i.level === 'warn' && !checks.resolved?.[i.id]).length}）` : ''}`]].map(([k, l]) => (
               <button key={k} onClick={() => setAiTab(k)} style={{ flex: 1, background: 'none', border: 'none', padding: '9px 6px', cursor: 'pointer', fontWeight: 700, fontSize: 13,
@@ -141,6 +142,7 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
 
 // ── 編輯助理 ────────────────────────────────────────────────
 export function AssistPanel({ versionId, doc, onApply }) {
+  const api = useRegApi();
   const [text, setText] = useState('');
   const [img, setImg] = useState(null);         // { url, preview }
   const [busy, setBusy] = useState('');
@@ -253,6 +255,7 @@ export function AssistPanel({ versionId, doc, onApply }) {
 
 // ── AI 檢查 ─────────────────────────────────────────────────
 export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onApply }) {
+  const api = useRegApi();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [ignoring, setIgnoring] = useState(null);
