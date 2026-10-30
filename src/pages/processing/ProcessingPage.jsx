@@ -1,4 +1,4 @@
-// pages/processing/ProcessingPage.jsx — 加工中心開帳（2026-10-20）
+// pages/processing/ProcessingPage.jsx — 加工中心開帳（2026-10-20；2026-10-30 改依下單日期、週期上月 21～本月 20 日）
 // 獨立入口 /processing：加工中心主管用獨立帳密登入（proc_token）；營運部帳號（operation_token）也能直接進
 // 流程：選月份 → 填這個月收到、還沒設金額的品項 → 看各店 → 點店看逐單、追加金額 → 正確就「開帳」（寫進門市月報 代工中心代工費）
 import { useEffect, useMemo, useState } from 'react';
@@ -18,7 +18,8 @@ const call = async (fn) => { try { return (await fn()).data; } catch (e) { retur
 
 const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString('zh-TW', { maximumFractionDigits: 2 }));
 const thisYm = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 7);
-const lastYm = () => { const d = new Date(Date.now() + 8 * 3600e3); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 7); };
+// 最近一期已結束的期別：今天 21 日以後＝這個月期（上月 21～本月 20 已過完），20 日以前＝上個月期
+const lastYm = () => { const d = new Date(Date.now() + 8 * 3600e3); const back = d.getUTCDate() > 20 ? 0 : 1; d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - back); return d.toISOString().slice(0, 7); };
 
 const C = {
   page: { minHeight: '100vh', background: '#f4f6f8', fontFamily: 'system-ui, -apple-system, "PingFang TC", sans-serif', color: '#1f2933' },
@@ -91,11 +92,12 @@ function Guide({ onClose }) {
     <div style={{ ...C.card, background: '#fffbea', border: '1px solid #f0d78c' }}>
       <div style={{ fontWeight: 700, marginBottom: 6 }}>📖 怎麼用（第一次使用請看一下）</div>
       <div style={C.help}>
-        ① <b>填金額</b>：選開帳月份後，上方會列出「這個月收到、還沒設定金額的品項」，直接在每一列填金額（不收費就按「不收費」＝0 元）→ 按「全部存」。存過的品項之後的月份都會自動帶入，不用再填；要改價到「主檔金額」分頁。<br />
-        ② <b>開帳</b>：選月份 → 看每家店的張數與金額。算法＝這個月在加工站第一次到「品管消毒完待返回」的單；一張單同一個品項只算一次；沒設金額的品項不算錢。<br />
+        ① <b>填金額</b>：選開帳期別後，上方會列出「這一期收到、還沒設定金額的品項」，直接在每一列填金額（不收費就按「不收費」＝0 元）→ 按「全部存」。存過的品項之後的月份都會自動帶入，不用再填；要改價到「主檔金額」分頁。<br />
+        ② <b>開帳</b>：選期別 → 看每家店的張數與金額。算法跟以前一樣看<b>下單日期</b>：每一期＝上個月 21 日～這個月 20 日（例：10 月期＝9/21～10/20，列入 10 月門市月報），跟加工後台「報表統計」用同樣日期搜尋的單一樣；一張單同一個品項只算一次；沒設金額的品項不算錢。<br />
         ③ 點一家店 → 逐單看品項與金額；要多收或沖銷就按「追加金額」（減少填負數，一定要寫原因）。<br />
         ④ 確認正確 → 按「開帳」，金額就進那家店的門市月報（代工中心代工費）。開帳後要改先按「重新開帳」（門市月報那個月已關帳就只能記在下個月）。<br />
-        ⚠ 已取消的單、之前月份已開帳過的單（重工）不會算進來。
+        ⚠ 已取消的單：加工已經做完的照算、沒做完的不算。開帳之後才取消、加工沒做完的，下一期會自動「沖回」（扣掉）。<br />
+        ⚠ ERP 比較晚送進加工站的單（下單日期在已開帳的期別）會在下一期「晚到補開」，不會漏掉也不會重複。
       </div>
       <button style={{ ...C.btn('g'), marginTop: 8 }} onClick={onClose}>知道了</button>
     </div>
@@ -202,11 +204,14 @@ function StoreDetail({ ym, store, onBack }) {
   };
   useEffect(() => { load(); }, [ym, store]);
   if (err) return <div style={C.card}>⚠ {err} <button style={C.btn('g')} onClick={onBack}>返回</button></div>;
-  if (!d) return <div style={C.card}>讀取加工站資料中…（一個月的單大約要幾秒）</div>;
+  if (!d) return <div style={C.card}>讀取加工站資料中…（一期的單大約要幾秒）</div>;
   const opened = d.opened;
-  const rows = (d.orders || []).filter((o) => filter === 'all' || (filter === 'zero' ? o.state === 'count' && !o.amount : filter === 'skip' ? o.state !== 'count' : o.state === 'count' && o.amount));
+  const cnt = (o) => o.state === 'count' || o.state === 'late';
+  const rows = (d.orders || []).filter((o) => filter === 'all' || (filter === 'zero' ? cnt(o) && !o.amount : filter === 'skip' ? !cnt(o) : filter === 'late' ? o.state === 'late' : cnt(o) && o.amount));
+  const credits = d.credits || [];
+  const cyc = d.cycle ? `${ym} 期（下單日期 ${d.cycle.label}）` : ym;
   const doOpen = async () => {
-    const body = `${d.store_name}｜${ym}\n計價 ${d.counted} 張單 ${fmt(d.order_amount)} 元＋追加 ${fmt(d.extra_amount)} 元＝${fmt(d.total)} 元\n開帳後會寫進門市月報「代工中心代工費」。`;
+    const body = `${d.store_name}｜${cyc}\n計價 ${d.counted} 張單 ${fmt(d.order_amount)} 元${credits.length ? `＋沖回 ${credits.length} 張 ${fmt(d.credit_amount)} 元` : ''}＋追加 ${fmt(d.extra_amount)} 元＝${fmt(d.total)} 元\n開帳後會寫進 ${ym} 門市月報「代工中心代工費」。`;
     if (!(await ask({ title: '確定開帳？', body, ok: '開帳' }))) return;
     setBusy(true); const r = await call(() => http.post(`/months/${ym}/stores/${store}/open`)); setBusy(false);
     if (!r.success) return setErr(r.message); load();
@@ -230,45 +235,58 @@ function StoreDetail({ ym, store, onBack }) {
       {dlg}
       <div style={{ ...C.card, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <button style={C.btn('g')} onClick={onBack}>‹ 回各店</button>
-        <div style={{ fontSize: 18, fontWeight: 700 }}>{d.store_name}｜{ym}</div>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>{d.store_name}｜{cyc}</div>
         <div style={{ flex: 1 }} />
         {opened
           ? <><span style={C.tag('#2e9e5b')}>已開帳 {fmt(opened.amount)} 元</span><span style={C.help}>{opened.opened_by}｜{String(opened.opened_at).slice(0, 16).replace('T', ' ')}{opened.report_ym && opened.report_ym !== ym ? `（月報已關帳，列入 ${opened.report_ym}）` : ''}</span>
             <button style={C.btn('d')} disabled={busy} onClick={doReopen}>重新開帳</button></>
           : <button style={C.btn('ok')} disabled={busy} onClick={doOpen}>{busy ? '處理中…' : `開帳 ${fmt(d.total)} 元`}</button>}
       </div>
-      {opened && d.diff ? <div style={{ ...C.card, background: '#fff4e5' }}>⚠ 開帳之後資料有變（現在算出來 {fmt(d.total)} 元，比開帳時差 {fmt(d.diff)} 元）。要更新請按「重新開帳」，月報已關帳就記在下個月的追加金額。</div> : null}
+      {opened && d.diff ? <div style={{ ...C.card, background: '#fff4e5' }}>⚠ 開帳之後資料有變（現在算出來 {fmt(d.total)} 元，比開帳時差 {fmt(d.diff)} 元）。要更新請按「重新開帳」，月報已關帳就記在下一期的追加金額。</div> : null}
       <div style={C.card}>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 10 }}>
           <div>計價單：<b>{d.counted}</b> 張／<b>{fmt(d.order_amount)}</b> 元</div>
           <div>沒有計價品項：{d.zero} 張</div>
-          <div>不算（已取消／之前月份開帳過）：{(d.canceled || 0) + (d.other_month || 0)} 張</div>
+          {d.late ? <div>其中晚到補開：{d.late} 張</div> : null}
+          {d.canceled_done ? <div>其中已取消但加工已完成（照算）：{d.canceled_done} 張</div> : null}
+          <div>不算（已取消且加工沒做完／別期已開帳）：{(d.canceled || 0) + (d.other_month || 0)} 張</div>
+          {credits.length ? <div style={{ color: '#e5484d' }}>沖回：{credits.length} 張／{fmt(d.credit_amount)} 元</div> : null}
           {d.unsynced ? <div style={{ color: '#c05621' }}>⚠ {d.unsynced} 張品項還沒從 ERP 同步，金額可能不完整</div> : null}
         </div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-          {[['all', '全部'], ['priced', '有金額'], ['zero', '沒有計價品項'], ['skip', '不算的']].map(([k, l]) => (
+          {[['all', '全部'], ['priced', '有金額'], ['zero', '沒有計價品項'], ['late', '晚到補開'], ['skip', '不算的']].map(([k, l]) => (
             <button key={k} style={C.btn(filter === k ? 'p' : 'g')} onClick={() => setFilter(k)}>{l}</button>
           ))}
           <div style={{ flex: 1 }} />
           <button style={C.btn('g')} onClick={() => load(true)}>重新抓加工站資料</button>
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr><th style={C.th}>訂單</th><th style={C.th}>完成時間</th><th style={C.th}>品項（有金額的標藍）</th><th style={{ ...C.th, ...C.num }}>金額</th><th style={C.th}></th></tr></thead>
+          <thead><tr><th style={C.th}>訂單</th><th style={C.th}>下單日期</th><th style={C.th}>品項（有金額的標藍）</th><th style={{ ...C.th, ...C.num }}>金額</th><th style={C.th}></th></tr></thead>
           <tbody>
             {rows.length === 0 && <tr><td style={C.td} colSpan={5}>沒有資料</td></tr>}
             {rows.map((o) => (
-              <tr key={o.order_number} style={o.state !== 'count' ? { opacity: 0.5 } : null}>
-                <td style={C.td}>{o.order_number}{o.state === 'canceled' && <div><span style={C.tag('#9aa5b1')}>已取消</span></div>}{o.state === 'other_month' && <div><span style={C.tag('#9aa5b1')}>{o.other_month} 已開帳</span></div>}{!o.bind_synced && <div><span style={C.tag('#c05621')}>品項未同步</span></div>}</td>
-                <td style={C.td}>{o.done_at}</td>
+              <tr key={o.order_number} style={!cnt(o) ? { opacity: 0.5 } : null}>
+                <td style={C.td}>{o.order_number}{o.state === 'canceled' && <div><span style={C.tag('#9aa5b1')}>已取消・加工沒做完</span></div>}{o.canceled_done && <div><span style={C.tag('#8a5cf6')}>已取消・加工已完成（照算）</span></div>}{o.state === 'late' && <div><span style={C.tag('#0e7490')}>{o.own_ym} 期晚到補開</span></div>}{o.state === 'other_month' && <div><span style={C.tag('#9aa5b1')}>{o.other_month} 已開帳</span></div>}{!o.bind_synced && <div><span style={C.tag('#c05621')}>品項未同步</span></div>}</td>
+                <td style={C.td}>{o.order_date}</td>
                 <td style={C.td}>{o.lines.length === 0 ? <span style={C.help}>（沒有品項資料）</span> : o.lines.map((l) => (
                   <div key={l.bind_id} style={{ color: l.price != null ? '#1d4ed8' : '#9aa5b1', fontSize: 13 }}>{l.name || `#${l.bind_id}`}{l.price != null ? `　${fmt(l.price)}` : ''}</div>))}</td>
-                <td style={{ ...C.td, ...C.num, fontWeight: 600 }}>{o.state === 'count' ? fmt(o.amount) : '—'}</td>
-                <td style={C.td}>{!opened && o.state === 'count' && <button style={C.btn('g')} onClick={() => setEx({ order_number: o.order_number, amount: '', reason: '' })}>追加金額</button>}</td>
+                <td style={{ ...C.td, ...C.num, fontWeight: 600 }}>{cnt(o) ? fmt(o.amount) : '—'}</td>
+                <td style={C.td}>{!opened && cnt(o) && <button style={C.btn('g')} onClick={() => setEx({ order_number: o.order_number, amount: '', reason: '' })}>追加金額</button>}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {credits.length ? (
+        <div style={C.card}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>沖回（{credits.length}）合計 {fmt(d.credit_amount)} 元</div>
+          <div style={C.help}>之前的期別已開帳、之後客人取消且加工沒做完的單，這一期自動扣回。</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 6 }}>
+            <tbody>{credits.map((c) => (
+              <tr key={c.order_number}><td style={C.td}>{c.order_number}</td><td style={C.td}>{c.billed_ym} 期已開帳</td><td style={C.td}>{c.order_date || ''}</td><td style={{ ...C.td, ...C.num }}>{fmt(c.amount)}</td></tr>))}</tbody>
+          </table>
+        </div>
+      ) : null}
       <div style={C.card}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
           <div style={{ fontWeight: 700 }}>追加金額（{d.extras.length}）合計 {fmt(d.extra_amount)} 元</div>
@@ -368,11 +386,12 @@ function Months() {
   return (
     <>
       <div style={{ ...C.card, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <b>開帳月份</b>
+        <b>開帳期別</b>
         <input style={C.input} type="month" value={ym} onChange={(e) => e.target.value && setYm(e.target.value)} />
+        {d && d.cycle && <span>下單日期 <b>{d.cycle.label}</b>（列入 {ym} 門市月報）</span>}
         <button style={C.btn('g')} onClick={() => load(true)}>重新抓加工站資料</button>
         <div style={{ flex: 1 }} />
-        {d && <div>已開帳 <b>{done}</b>／{d.stores.length} 家｜合計 <b>{fmt(d.total)}</b> 元｜加工站本月完成 {d.feed.count} 張</div>}
+        {d && <div>已開帳 <b>{done}</b>／{d.stores.length} 家｜合計 <b>{fmt(d.total)}</b> 元</div>}
       </div>
       {err && <div style={{ ...C.card, color: '#e5484d' }}>⚠ {err}</div>}
       {!d && !err && <div style={C.card}>讀取加工站資料中…</div>}
@@ -380,14 +399,15 @@ function Months() {
       {d && (
         <div style={C.card}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr><th style={C.th}>門市</th><th style={{ ...C.th, ...C.num }}>計價單</th><th style={{ ...C.th, ...C.num }}>單據金額</th><th style={{ ...C.th, ...C.num }}>追加</th><th style={{ ...C.th, ...C.num }}>合計</th><th style={C.th}>狀態</th><th style={C.th}></th></tr></thead>
+            <thead><tr><th style={C.th}>門市</th><th style={{ ...C.th, ...C.num }}>計價單</th><th style={{ ...C.th, ...C.num }}>單據金額</th><th style={{ ...C.th, ...C.num }}>沖回</th><th style={{ ...C.th, ...C.num }}>追加</th><th style={{ ...C.th, ...C.num }}>合計</th><th style={C.th}>狀態</th><th style={C.th}></th></tr></thead>
             <tbody>
-              {d.stores.length === 0 && <tr><td style={C.td} colSpan={7}>這個月加工站沒有完成的單</td></tr>}
+              {d.stores.length === 0 && <tr><td style={C.td} colSpan={8}>這一期沒有單</td></tr>}
               {d.stores.map((s) => (
                 <tr key={s.store_erpid} style={{ cursor: 'pointer' }} onClick={() => setStore(s.store_erpid)}>
                   <td style={C.td}>{s.store_name}<div style={{ fontSize: 12, color: '#9aa5b1' }}>{s.store_erpid}</div></td>
-                  <td style={{ ...C.td, ...C.num }}>{s.counted}{s.zero ? <div style={{ fontSize: 12, color: '#9aa5b1' }}>0 元 {s.zero} 張</div> : null}</td>
+                  <td style={{ ...C.td, ...C.num }}>{s.counted}{s.zero ? <div style={{ fontSize: 12, color: '#9aa5b1' }}>0 元 {s.zero} 張</div> : null}{s.late ? <div style={{ fontSize: 12, color: '#0e7490' }}>晚到 {s.late} 張</div> : null}</td>
                   <td style={{ ...C.td, ...C.num }}>{fmt(s.order_amount)}</td>
+                  <td style={{ ...C.td, ...C.num, color: '#e5484d' }}>{s.credit_amount ? fmt(s.credit_amount) : ''}</td>
                   <td style={{ ...C.td, ...C.num }}>{s.extra_amount ? fmt(s.extra_amount) : ''}</td>
                   <td style={{ ...C.td, ...C.num, fontWeight: 700 }}>{fmt(s.opened ? s.opened.amount : s.total)}</td>
                   <td style={C.td}>{s.opened ? <span style={C.tag('#2e9e5b')}>已開帳</span> : <span style={C.tag('#f0a020')}>待開帳</span>}{s.opened && s.diff ? <span style={C.tag('#e5484d')}>資料有變</span> : null}{s.unsynced ? <span style={C.tag('#c05621')}>{s.unsynced} 張品項未同步</span> : null}</td>
