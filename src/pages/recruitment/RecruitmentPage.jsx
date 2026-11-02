@@ -376,7 +376,7 @@ function ResumesTab({ storeMap }) {
   const [loading, setLoading]     = useState(false);
   const [msg, setMsg]             = useState(null);
   const [showAdd, setShowAdd]     = useState(false);
-  const [addForm, setAddForm]     = useState({ name:'', code:'', phone:'', platform:'1111', target_need_id:'', target_store_erpid:'', target_store_name:'', target_store_note:'' });
+  const [addForm, setAddForm]     = useState({ name:'', code:'', phone:'', platform:'104', source:'主動投遞', target_need_id:'', target_store_erpid:'', target_store_name:'', target_store_note:'' });
   const [actionModal, setActionModal] = useState(null); // { applicant, type:'reject'|'invite' }
   const [actionForm, setActionForm]   = useState({ reject_reason:'', interview_date:'', interview_time:'' });
   // 編輯 / 刪除
@@ -485,7 +485,7 @@ function ResumesTab({ storeMap }) {
         : '投遞者已新增';
       setMsg({ type:'success', text: successMsg });
       setShowAdd(false);
-      setAddForm({ name:'', code:'', phone:'', platform: addForm.platform, target_need_id:'', target_store_erpid:'', target_store_name:'', target_store_note:'' });
+      setAddForm({ name:'', code:'', phone:'', platform: addForm.platform, source: addForm.source || '主動投遞', target_need_id:'', target_store_erpid:'', target_store_name:'', target_store_note:'' });
       setRejectionHistory({ has_history: false, count: 0, records: [] });
       load();
     } catch (e) { setMsg({ type:'error', text: e.message }); }
@@ -522,7 +522,8 @@ function ResumesTab({ storeMap }) {
       name:               a.name || '',
       code:               a.code || '',
       phone:              a.phone || '',
-      platform:           a.platform || '1111',
+      platform:           a.platform || '104',
+      source:             a.source   || '主動投遞',
       target_need_id:     '',  // 在 useEffect 裡自動配對填入
       target_store_erpid: a.target_store_erpid || '',
       target_store_name:  a.target_store_name  || '',
@@ -679,8 +680,8 @@ function ResumesTab({ storeMap }) {
         )}
         <select style={S.sel} value={platform} onChange={e=>setPlatform(e.target.value)}>
           <option value="">全部平台</option>
-          <option value="1111">1111</option>
           <option value="104">104</option>
+          <option value="1111">1111</option>
           <option value="518">518</option>
         </select>
         <select style={S.sel} value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
@@ -727,9 +728,17 @@ function ResumesTab({ storeMap }) {
               <div>
                 <label style={S.label}>平台</label>
                 <select style={S.sel} value={addForm.platform} onChange={e=>setAddForm(f=>({...f,platform:e.target.value}))} required>
-                  <option value="1111">1111</option>
                   <option value="104">104</option>
+                  <option value="1111">1111</option>
                   <option value="518">518</option>
+                </select>
+              </div>
+              <div>
+                <label style={S.label}>人才來源</label>
+                <select style={S.sel} value={addForm.source} onChange={e=>setAddForm(f=>({...f,source:e.target.value}))} required>
+                  <option value="主動投遞">主動投遞</option>
+                  <option value="關注者媒合">關注者媒合</option>
+                  <option value="條件媒合">條件媒合</option>
                 </select>
               </div>
               <div>
@@ -1002,9 +1011,17 @@ function ResumesTab({ storeMap }) {
                 <div>
                   <label style={S.label}>平台</label>
                   <select style={S.sel} value={editForm.platform} onChange={e=>setEditForm(f=>({...f,platform:e.target.value}))} required>
-                    <option value="1111">1111</option>
                     <option value="104">104</option>
+                    <option value="1111">1111</option>
                     <option value="518">518</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={S.label}>人才來源</label>
+                  <select style={S.sel} value={editForm.source || '主動投遞'} onChange={e=>setEditForm(f=>({...f,source:e.target.value}))} required>
+                    <option value="主動投遞">主動投遞</option>
+                    <option value="關注者媒合">關注者媒合</option>
+                    <option value="條件媒合">條件媒合</option>
                   </select>
                 </div>
                 <div>
