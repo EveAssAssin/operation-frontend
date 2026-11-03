@@ -7,7 +7,7 @@ import { clearSubjects } from '../../components/ledger/SubjectSelect';
 
 const errMsg = (e) => (e && (e.message || e.error)) || '失敗';
 
-export default function SubjectsManager({ accs }) {
+export default function SubjectsManager({ accs, manageCells, onCellsChanged }) {
   const [list, setList] = useState([]);
   const [msg, setMsg] = useState('');
   const [nw, setNw] = useState({ ledger_code: '', name: '' });
@@ -20,7 +20,22 @@ export default function SubjectsManager({ accs }) {
     try { await ledgerApi.subjectAdd(nw); done(`已新增「${nw.name}」`); setNw({ ...nw, name: '' }); } catch (e) { setMsg(errMsg(e)); }
   };
   const patch = async (s, body, m) => { try { await ledgerApi.subjectPatch(s.id, body); done(m); setEdit(null); } catch (e) { setMsg(errMsg(e)); } };
-  const groups = (accs || []).map((a) => ({ a, items: list.filter((s) => s.ledger_code === a.code && (showOff || s.is_active)) })).filter((g) => g.items.length);
+  const delSubject = async (s) => {
+    if (!window.confirm(`刪除科目「${s.name}」？\n只有沒被任何帳用過的才能刪；用過的請改用「停用」。`)) return;
+    try { await ledgerApi.subjectDel(s.id); done(`已刪除「${s.name}」`); } catch (e) { setMsg(errMsg(e)); }
+  };
+  // 月報格子：停用／啟用／刪除（只在「營運管理 → 會計科目」頁開放）
+  const cellActive = async (a, on) => {
+    if (!on && !window.confirm(`停用月報格子「${a.name}」？\n停用後月報不再顯示這一格、也選不到底下的科目；有帳在用的格子不能停用。`)) return;
+    try { await ledgerApi.patchAccount(a.code, { is_active: on }); setMsg(on ? `已啟用「${a.name}」` : `已停用「${a.name}」`); clearSubjects(); onCellsChanged && onCellsChanged(); } catch (e) { setMsg(errMsg(e)); }
+  };
+  const cellDelete = async (a) => {
+    if (!window.confirm(`刪除月報格子「${a.name}」？\n只有自己新增、而且完全沒被用過的格子才能刪（例：建錯的）。`)) return;
+    try { await ledgerApi.delAccount(a.code); setMsg(`已刪除「${a.name}」`); clearSubjects(); load(); onCellsChanged && onCellsChanged(); } catch (e) { setMsg(errMsg(e)); }
+  };
+  const groups = (accs || []).filter((a) => showOff || a.is_active !== false)
+    .map((a) => ({ a, items: list.filter((s) => s.ledger_code === a.code && (showOff || s.is_active)) }))
+    .filter((g) => g.items.length || manageCells);
 
   return (
     <div style={{ marginTop: 14 }} data-yaya="mr-subjects">
@@ -39,7 +54,15 @@ export default function SubjectsManager({ accs }) {
         <thead><tr><th style={S.th}>月報格子</th><th style={S.th}>會計科目</th></tr></thead>
         <tbody>{groups.map(({ a, items }) => (
           <tr key={a.code}>
-            <td style={{ ...S.td, whiteSpace: 'nowrap', verticalAlign: 'top' }}>{a.name}</td>
+            <td style={{ ...S.td, whiteSpace: 'nowrap', verticalAlign: 'top', opacity: a.is_active === false ? 0.5 : 1 }}>
+              {a.name}{a.is_active === false && <span style={S.sub}>（已停用）</span>}
+              {manageCells && (
+                <div style={{ marginTop: 2 }}>
+                  <button style={{ ...S.link, paddingLeft: 0 }} onClick={() => cellActive(a, a.is_active === false)}>{a.is_active === false ? '啟用格子' : '停用格子'}</button>
+                  {String(a.code).startsWith('x_') && <button style={{ ...S.link, color: '#c53030' }} onClick={() => cellDelete(a)}>刪除格子</button>}
+                </div>
+              )}
+            </td>
             <td style={S.td}>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {items.map((s) => edit && edit.id === s.id ? (
@@ -53,6 +76,7 @@ export default function SubjectsManager({ accs }) {
                     {s.name}{s.is_default ? <span style={S.sub}>（預設）</span> : ''}
                     <button style={S.link} onClick={() => setEdit({ id: s.id, name: s.name })}>改名</button>
                     {!s.is_default && <button style={S.link} onClick={() => patch(s, { is_active: !s.is_active }, s.is_active ? `已停用「${s.name}」（舊帳照舊顯示，之後不能再選）` : `已重新啟用「${s.name}」`)}>{s.is_active ? '停用' : '啟用'}</button>}
+                    {!s.is_default && <button style={{ ...S.link, color: '#c53030' }} onClick={() => delSubject(s)}>刪除</button>}
                   </span>
                 ))}
               </div>

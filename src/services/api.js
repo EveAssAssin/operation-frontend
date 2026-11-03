@@ -881,6 +881,9 @@ export const ledgerApi = {
   importTemplate: ()      => api.get('/ledger/import/template', { responseType: 'blob' }),
   importExcel: (file, dry) => { const fd = new FormData(); fd.append('file', file); return api.post(`/ledger/import${dry ? '?dry=1' : ''}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
   patchAccount:(code, b)  => api.patch(`/ledger/accounts/${code}`, b),
+  accountsAll: ()         => api.get('/ledger/accounts', { params: { all: '1' } }),
+  delAccount: (code)      => api.delete(`/ledger/accounts/${code}`),
+  subjectDel: (id)        => api.delete(`/ledger/subjects/${id}`),
 };
 
 // 結帳資料（門市每月繳交清點；代理市場部，2026-10-21）

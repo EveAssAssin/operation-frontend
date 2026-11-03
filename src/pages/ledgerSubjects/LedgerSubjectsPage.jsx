@@ -7,20 +7,20 @@ import SubjectsManager from '../monthlyReport/SubjectsManager';
 export default function LedgerSubjectsPage() {
   const [accs, setAccs] = useState([]);
   const [err, setErr] = useState('');
-  useEffect(() => {
-    ledgerApi.accounts()
-      .then((a) => setAccs((a.data || []).filter((x) => x.kind === 'expense')))
-      .catch((e) => setErr((e && e.message) || '讀取失敗'));
-  }, []);
+  const loadAccs = () => ledgerApi.accountsAll()
+    .then((a) => setAccs((a.data || []).filter((x) => x.kind === 'expense')))
+    .catch((e) => setErr((e && e.message) || '讀取失敗'));
+  useEffect(() => { loadAccs(); }, []);
   return (
     <div style={{ padding: 20, background: '#faf8f5', minHeight: '100vh' }}>
       <h2 style={{ margin: '0 0 12px', color: '#50422d' }}>🗂 會計科目</h2>
       {err && <div style={{ color: '#c53030', marginBottom: 10 }}>⚠ {err}</div>}
       <div style={{ background: '#fff', border: '1px solid #e0d5c8', borderRadius: 10, padding: 16 }}>
-        <SubjectsManager accs={accs} />
+        <SubjectsManager accs={accs} manageCells onCellsChanged={loadAccs} />
       </div>
       <div style={{ fontSize: 12, color: '#8a7a66', marginTop: 10 }}>
-        要新增「月報格子」（大分類）請到 門市月報 → ⚙ 科目與廠商 → ① 新增月報科目。
+        要新增「月報格子」（大分類）請到 門市月報 → ⚙ 科目與廠商 → ① 新增月報科目。<br />
+        停用：舊帳照舊、之後選不到（有帳在用的格子不能停用）。刪除：只有沒被任何帳用過的才能刪（例：建錯的）。
       </div>
     </div>
   );
