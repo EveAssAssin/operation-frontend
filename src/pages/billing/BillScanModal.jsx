@@ -182,7 +182,10 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
     setRow(r.uid, next);
   }
   function setSplit(r, i, patch) {
-    setRow(r.uid, { splits: r.splits.map((x, j) => j === i ? { ...x, ...patch } : x), splitEdited: true });
+    let splits = r.splits.map((x, j) => j === i ? { ...x, ...patch } : x);
+    // 改了某一期的月份：後面幾期自動接著往後排（10 月改 9 月 → 下一期變 10 月）
+    if (patch.ym && YM_OK(patch.ym)) splits = splits.map((x, j) => j > i ? { ...x, ym: addYm(patch.ym, j - i) } : x);
+    setRow(r.uid, { splits, splitEdited: true });
   }
   const splitSum = r => (r.splits || []).reduce((s, x) => s + (Number(x.amount) || 0), 0);
   const splitOk = r => !r.splits || (r.splits.length > 0 && r.splits.every(x => YM_OK(x.ym) && Number(x.amount) > 0)
