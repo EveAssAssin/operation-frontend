@@ -5,7 +5,7 @@
 //      - 其他帳單：掃完輸入金額按 Enter 成一張
 //   2. 第一次出現的帳單 → 選一次對應的帳號/電號，之後自動帶出
 //   3. 重複（同帳號同月已入帳）自動標示、預設不送
-//   4. 一次送出 → 建營運費用 + 分帳（掛帳年月 = 帳單年月），月報自動帶入
+//   4. 一次送出 → 建營運費用 + 分帳（預設掛帳單年月；雙月帳號自動分 2 個月，可改），月報自動帶入
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { operationalExpensesApi } from '../../services/api';
@@ -13,6 +13,21 @@ import { feed, emptyBuf, bufEmpty, toBill, describeBuf } from './billBarcode';
 
 const fmt = n => Number(n || 0).toLocaleString('zh-TW');
 let seq = 0;
+
+const addYm = (ym, k) => { const [y, m] = ym.split('-').map(Number); return new Date(Date.UTC(y, m - 1 + k, 1)).toISOString().slice(0, 7); };
+const YM_OK = v => /^\d{4}-\d{2}$/.test(v || '');
+// 平均分 n 個月，零頭放最後一個月
+function makeSplit(total, startYm, n) {
+  const t = Math.round(Number(total) || 0);
+  const each = Math.floor(t / n);
+  return Array.from({ length: n }, (_, i) => ({ ym: YM_OK(startYm) ? addYm(startYm, i) : '', amount: i === n - 1 ? t - each * (n - 1) : each }));
+}
+const isBimonthly = f => Object.values(f?.data || {}).some(v => /雙月/.test(String(v ?? '')));
+// 依目前列狀態套上預設分帳（雙月帳單 → 分 2 個月）
+function withAutoSplit(row, fact) {
+  if (row.splitEdited || row.splits || !isBimonthly(fact)) return row;
+  return { ...row, splits: makeSplit(row.amount, row.bill_ym, 2), autoSplit: true };
+}
 
 const isEmptyFact = f => !f?.data || Object.values(f.data).every(v => v == null || String(v).trim() === '');
 
@@ -99,15 +114,18 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
         if (i < 0) return row;
         const res = list[i] || null;
         const patch = { res };
+        let fact = null;
         if (res?.binding) {
           patch.category_id = res.binding.category_id || res.binding.fact?.category_id || row.category_id;
           patch.fact_id = res.binding.fact_id || '';
+          fact = res.binding.fact;
         } else if (res?.guesses?.length === 1) {
           patch.category_id = res.guesses[0].category_id;
           patch.fact_id = res.guesses[0].id;
+          fact = res.guesses[0];
         }
         if (res?.duplicate) patch.include = false;
-        return { ...row, ...patch };
+        return withAutoSplit({ ...row, ...patch }, fact);
       }));
       const cats = new Set(rows.map(r => r.category_id).filter(Boolean));
       for (const x of list) {
@@ -140,7 +158,10 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
 
   function setRow(uid, patch) { setQueue(q => q.map(r => r.uid === uid ? { ...r, ...patch } : r)); }
   async function pickFact(row, factId) {
-    setRow(row.uid, { fact_id: factId });
+    const fact = (factsByCat[row.category_id] || []).find(f => String(f.id) === String(factId));
+    setQueue(q => q.map(x => x.uid === row.uid
+      ? withAutoSplit({ ...x, fact_id: factId, ...(x.autoSplit && !isBimonthly(fact) ? { splits: null, autoSplit: false } : {}) }, fact)
+      : x));
     if (!factId || !row.bill_ym) return;
     try {
       const r = await operationalExpensesApi.getFactAllocatedMonths(factId);
@@ -154,9 +175,22 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
       }
     } catch { /* ignore */ }
   }
+  // 金額或帳單年月改了：沒手動改過的分帳跟著重算
+  function setBase(r, patch) {
+    const next = { ...r, ...patch };
+    if (next.splits && !next.splitEdited) next.splits = makeSplit(next.amount, next.bill_ym, next.splits.length);
+    setRow(r.uid, next);
+  }
+  function setSplit(r, i, patch) {
+    setRow(r.uid, { splits: r.splits.map((x, j) => j === i ? { ...x, ...patch } : x), splitEdited: true });
+  }
+  const splitSum = r => (r.splits || []).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const splitOk = r => !r.splits || (r.splits.length > 0 && r.splits.every(x => YM_OK(x.ym) && Number(x.amount) > 0)
+    && Math.abs(splitSum(r) - Number(r.amount || 0)) < 0.5);
+
   function delRow(uid) { setQueue(q => q.filter(r => r.uid !== uid)); }
 
-  const ready = r => r.include && !r.result?.ok && r.bill.key && r.fact_id && Number(r.amount) > 0 && /^\d{4}-\d{2}$/.test(r.bill_ym);
+  const ready = r => r.include && !r.result?.ok && r.bill.key && r.fact_id && Number(r.amount) > 0 && YM_OK(r.bill_ym) && splitOk(r);
   const toSend = queue.filter(ready);
   const sendTotal = toSend.reduce((s, r) => s + Number(r.amount || 0), 0);
 
@@ -166,6 +200,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
     try {
       const items = toSend.map(r => ({
         key: r.bill.key, bill_ym: r.bill_ym, amount: Number(r.amount),
+        allocations: r.splits ? r.splits.map(x => ({ year_month: x.ym, amount: Number(x.amount) })) : undefined,
         due_date: r.bill.due_date, raw: r.bill.raw, fact_id: r.fact_id,
       }));
       const res = await operationalExpensesApi.scanCommit(items);
@@ -271,13 +306,46 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
                     </td>
                     <td style={S.td}>
                       <input type="month" style={{ ...S.input, width: 140 }} value={r.bill_ym}
-                        disabled={!!r.result?.ok} onChange={e => setRow(r.uid, { bill_ym: e.target.value })} />
+                        disabled={!!r.result?.ok} onChange={e => setBase(r, { bill_ym: e.target.value })} />
                       {r.bill.due_date && <div style={S.sub}>代收期限 {r.bill.due_date}</div>}
+                      {!r.result?.ok && !r.splits && (
+                        <button style={S.link} onClick={() => setRow(r.uid, { splits: makeSplit(r.amount, r.bill_ym, 2), splitEdited: false })}>
+                          ＋ 分月（雙月帳單）
+                        </button>
+                      )}
+                      {r.splits && (
+                        <div style={S.splitBox}>
+                          <div style={{ fontSize: 11, color: '#4a5568', marginBottom: 4 }}>
+                            分帳到月報{r.autoSplit && !r.splitEdited ? '（雙月帳號，自動分 2 個月）' : ''}
+                          </div>
+                          {r.splits.map((x, i) => (
+                            <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 3 }}>
+                              <input type="month" style={{ ...S.input, width: 130, padding: '3px 6px' }} value={x.ym}
+                                disabled={!!r.result?.ok} onChange={e => setSplit(r, i, { ym: e.target.value })} />
+                              <input style={{ ...S.input, width: 72, padding: '3px 6px', textAlign: 'right' }} value={x.amount}
+                                disabled={!!r.result?.ok} onChange={e => setSplit(r, i, { amount: e.target.value.replace(/[^\d.]/g, '') })} />
+                              {!r.result?.ok && r.splits.length > 1 && (
+                                <button style={S.link} onClick={() => setRow(r.uid, { splits: r.splits.filter((_, j) => j !== i), splitEdited: true })}>✕</button>
+                              )}
+                            </div>
+                          ))}
+                          {!r.result?.ok && (
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 11 }}>
+                              <button style={S.link} onClick={() => setRow(r.uid, { splits: makeSplit(r.amount, r.splits[0]?.ym || r.bill_ym, r.splits.length + 1), splitEdited: false })}>＋ 一個月</button>
+                              <button style={S.link} onClick={() => setRow(r.uid, { splits: makeSplit(r.amount, r.splits[0]?.ym || r.bill_ym, r.splits.length), splitEdited: false })}>平均分</button>
+                              <button style={S.link} onClick={() => setRow(r.uid, { splits: null, splitEdited: false, autoSplit: false })}>不分帳</button>
+                              <span style={{ marginLeft: 'auto', color: splitOk(r) ? '#276749' : '#c53030' }}>
+                                合計 ${fmt(splitSum(r))}{!splitOk(r) && Math.abs(splitSum(r) - Number(r.amount || 0)) >= 0.5 ? `（差 ${fmt(Number(r.amount || 0) - splitSum(r))}）` : ''}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td style={S.td}>
                       <input style={{ ...S.input, width: 100, textAlign: 'right' }} value={r.amount}
                         disabled={!!r.result?.ok || r.bill.format === 'std'}
-                        onChange={e => setRow(r.uid, { amount: e.target.value.replace(/[^\d.]/g, '') })} />
+                        onChange={e => setBase(r, { amount: e.target.value.replace(/[^\d.]/g, '') })} />
                     </td>
                     <td style={S.td}>
                       {bound ? (
@@ -316,7 +384,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
                       )}
                       {!r.result && !dup && !r.bill.missing?.length && !ready(r) && r.include && (
                         <span style={S.tagWarn}>
-                          {!r.fact_id ? '待選帳號' : !(Number(r.amount) > 0) ? '待填金額' : '待確認'}
+                          {!r.fact_id ? '待選帳號' : !(Number(r.amount) > 0) ? '待填金額' : !splitOk(r) ? '分帳合計不符' : '待確認'}
                         </span>
                       )}
                       {!r.result && ready(r) && <span style={S.tagNew}>可送出</span>}
@@ -364,6 +432,7 @@ const S = {
   table:     { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
   th:        { padding: '8px 10px', textAlign: 'left', fontWeight: 600, background: '#f7fafc', borderBottom: '2px solid #e2e8f0', color: '#4a5568', whiteSpace: 'nowrap' },
   td:        { padding: '8px 10px', borderBottom: '1px solid #edf2f7', verticalAlign: 'top' },
+  splitBox:  { marginTop: 6, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 6, background: '#f7fafc', minWidth: 250 },
   sub:       { fontSize: 11, color: '#a0aec0', marginTop: 3, fontFamily: 'monospace' },
   empty:     { textAlign: 'center', padding: 30, color: '#a0aec0' },
   tagOk:     { fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#c6f6d5', color: '#22543d' },
