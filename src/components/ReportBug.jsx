@@ -54,6 +54,57 @@ function shrink(file) {
   });
 }
 
+// 截目前畫面：優先用瀏覽器內建「分享畫面」（Chrome／Edge 會直接選這個分頁，畫面最準），
+// 不支援或被拒就退回 html2canvas（依網頁內容重畫，不用權限但少數圖可能畫不出來）
+function canvasToJpeg(c) {
+  let w = c.width, h = c.height, q = 0.82, out = '';
+  for (let i = 0; i < 5; i++) {
+    const k = Math.min(1, 1600 / Math.max(w, h));
+    const d = document.createElement('canvas');
+    d.width = Math.round(w * k); d.height = Math.round(h * k);
+    const g = d.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, d.width, d.height);
+    g.drawImage(c, 0, 0, d.width, d.height);
+    out = d.toDataURL('image/jpeg', q);
+    if (out.length * 0.75 < 760 * 1024) break;
+    w = Math.round(w * 0.8); h = Math.round(h * 0.8); q = Math.max(0.6, q - 0.08);
+  }
+  return out;
+}
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+async function grabWithDisplayMedia(stream) {
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true; v.srcObject = stream;
+  await v.play();
+  await wait(500); // 等對話框收起來、畫面更新
+  const c = document.createElement('canvas');
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext('2d').drawImage(v, 0, 0);
+  stream.getTracks().forEach(t => t.stop());
+  return canvasToJpeg(c);
+}
+let h2cLoading = null;
+function loadHtml2canvas() {
+  if (window.html2canvas) return Promise.resolve(window.html2canvas);
+  if (!h2cLoading) h2cLoading = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload = () => res(window.html2canvas); s.onerror = () => { h2cLoading = null; rej(new Error('截圖工具載入失敗')); };
+    document.head.appendChild(s);
+  });
+  return h2cLoading;
+}
+async function grabWithHtml2canvas() {
+  const h2c = await loadHtml2canvas();
+  await wait(200);
+  const c = await h2c(document.body, {
+    useCORS: true, logging: false, scale: Math.min(2, window.devicePixelRatio || 1),
+    x: window.scrollX, y: window.scrollY, width: window.innerWidth, height: window.innerHeight,
+    ignoreElements: (el) => el.getAttribute && el.getAttribute('data-yaya') === 'op-report-mask',
+  });
+  return canvasToJpeg(c);
+}
+
 async function post(path, body) {
   const r = await fetch(PET + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => null);
@@ -67,6 +118,7 @@ export default function ReportBug({ user, onClose }) {
   const [text, setText] = useState('');
   const [shots, setShots] = useState([]); // dataURL
   const [busy, setBusy] = useState(false);
+  const [capturing, setCapturing] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(null);
   const fileRef = useRef(null);
@@ -97,6 +149,35 @@ export default function ReportBug({ user, onClose }) {
     return () => { window.removeEventListener('paste', onPaste); window.removeEventListener('keydown', onKey); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
+
+  async function captureScreen() {
+    if (shots.length >= 3) { setErr('最多附 3 張圖'); return; }
+    setErr('');
+    let stream = null;
+    const md = navigator.mediaDevices;
+    if (md && md.getDisplayMedia) {
+      setCapturing(true);
+      try {
+        // 要在點擊當下呼叫（瀏覽器規定）；Chrome／Edge 會優先選這個分頁
+        stream = await md.getDisplayMedia({
+          video: { displaySurface: 'browser' }, audio: false,
+          preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude',
+        });
+      } catch (e) {
+        stream = null; // 按了取消或不支援 → 改用重畫的方式
+      }
+    }
+    setCapturing(true);
+    try {
+      const d = stream ? await grabWithDisplayMedia(stream) : await grabWithHtml2canvas();
+      setShots(s => (s.length >= 3 ? s : [...s, d]));
+    } catch (e) {
+      setErr('截不到畫面：' + (e.message || '請改用鍵盤截圖後 Ctrl+V 貼上'));
+    } finally {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      setCapturing(false);
+    }
+  }
 
   async function submit() {
     if (busy) return;
@@ -133,7 +214,7 @@ export default function ReportBug({ user, onClose }) {
   }
 
   return (
-    <div style={S.mask} onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+    <div style={{ ...S.mask, ...(capturing ? { visibility: 'hidden' } : null) }} data-yaya="op-report-mask" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
       <div style={S.box} data-yaya="op-report">
         {done ? (
           <>
@@ -164,7 +245,12 @@ export default function ReportBug({ user, onClose }) {
                 </div>
               ))}
               {shots.length < 3 && (
-                <button style={S.add} onClick={() => fileRef.current?.click()}>＋ 截圖<br /><span style={{ fontSize: 11 }}>或 Ctrl+V 貼上</span></button>
+                <button style={{ ...S.add, borderStyle: 'solid', background: '#fff5e6', fontWeight: 700 }} data-yaya="op-report-shot"
+                  disabled={capturing || busy} onClick={captureScreen}
+                  title="把目前看到的畫面截下來（這個視窗會先藏起來）">📸 截目前<br />畫面</button>
+              )}
+              {shots.length < 3 && (
+                <button style={S.add} onClick={() => fileRef.current?.click()}>＋ 選圖片<br /><span style={{ fontSize: 11 }}>或 Ctrl+V 貼上</span></button>
               )}
               <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={e => { addFiles(e.target.files); e.target.value = ''; }} />
             </div>
