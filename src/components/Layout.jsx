@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import ReportBug, { useReportDebug } from './ReportBug';
+import ReportBug, { useReportDebug, ReportFab } from './ReportBug';
 import { vendorPaymentApi } from '../services/api';
 
 // ── 導覽項目定義 ─────────────────────────────────────────────
@@ -264,10 +264,6 @@ export default function Layout({ children }) {
               {ROLE_LABELS[user?.role] || user?.role || '—'}
             </div>
           </div>
-          <button style={styles.reportBtn} data-yaya="op-report-btn" onClick={() => setReportOpen(true)}
-            title="系統有問題或想改哪裡，直接寫給負責的同仁（會自動附上目前頁面）">
-            🐞 回報問題／優化需求
-          </button>
           <a
             href={
               user?.line_uid
@@ -296,6 +292,7 @@ export default function Layout({ children }) {
       <main style={styles.main}>
         {children}
       </main>
+      <ReportFab hidden={reportOpen} onOpen={() => setReportOpen(true)} />
       {reportOpen && <ReportBug user={user} onClose={() => setReportOpen(false)} />}
     </div>
   );

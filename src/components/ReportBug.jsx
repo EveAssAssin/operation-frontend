@@ -6,6 +6,7 @@
 // 截圖：選檔或直接 Ctrl+V 貼上，瀏覽器先縮成 JPEG（伺服器上限 800KB、最多 3 張）
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 
 const PET = 'https://lohas-pet.onrender.com';
@@ -100,7 +101,7 @@ async function grabWithHtml2canvas() {
   const c = await h2c(document.body, {
     useCORS: true, logging: false, scale: Math.min(2, window.devicePixelRatio || 1),
     x: window.scrollX, y: window.scrollY, width: window.innerWidth, height: window.innerHeight,
-    ignoreElements: (el) => el.getAttribute && el.getAttribute('data-yaya') === 'op-report-mask',
+    ignoreElements: (el) => el.getAttribute && /^op-report-(mask|fab)$/.test(el.getAttribute('data-yaya') || ''),
   });
   return canvasToJpeg(c);
 }
@@ -213,7 +214,7 @@ export default function ReportBug({ user, onClose }) {
     } finally { setBusy(false); }
   }
 
-  return (
+  return createPortal(
     <div style={{ ...S.mask, ...(capturing ? { visibility: 'hidden' } : null) }} data-yaya="op-report-mask" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
       <div style={S.box} data-yaya="op-report">
         {done ? (
@@ -262,12 +263,63 @@ export default function ReportBug({ user, onClose }) {
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
+  );
+}
+
+// 懸浮回報鈕（2026-11-03 營運：側邊欄按鈕在其他彈跳視窗開著時按不到）
+// 掛在 body 最上層、z-index 最大，任何視窗開著都點得到；可拖曳移位（記在 localStorage）
+const FAB_KEY = 'op_report_fab_pos';
+export function ReportFab({ onOpen, hidden }) {
+  const [pos, setPos] = useState(() => {
+    try { const p = JSON.parse(localStorage.getItem(FAB_KEY) || 'null'); if (p && p.r >= 0 && p.b >= 0) return p; } catch { /* 略 */ }
+    return { r: 18, b: 18 };
+  });
+  const drag = useRef(null);
+  const clamp = (p) => ({
+    r: Math.max(4, Math.min(window.innerWidth - 56, p.r)),
+    b: Math.max(4, Math.min(window.innerHeight - 56, p.b)),
+  });
+  useEffect(() => {
+    const onResize = () => setPos(p => clamp(p));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  function onPointerDown(e) {
+    drag.current = { x: e.clientX, y: e.clientY, r: pos.r, b: pos.b, moved: false };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+  function onPointerMove(e) {
+    const d = drag.current; if (!d) return;
+    const dx = e.clientX - d.x, dy = e.clientY - d.y;
+    if (!d.moved && Math.abs(dx) + Math.abs(dy) < 6) return;
+    d.moved = true;
+    setPos(clamp({ r: d.r - dx, b: d.b - dy }));
+  }
+  function onPointerUp() {
+    const d = drag.current; drag.current = null;
+    if (!d) return;
+    if (d.moved) { try { localStorage.setItem(FAB_KEY, JSON.stringify(pos)); } catch { /* 略 */ } return; }
+    onOpen();
+  }
+  if (hidden) return null;
+  return createPortal(
+    <button type="button" data-yaya="op-report-fab"
+      title="回報問題／優化需求（可拖曳移到別的位置）"
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+      style={{
+        position: 'fixed', right: pos.r, bottom: pos.b, zIndex: 2147483000,
+        width: 52, height: 52, borderRadius: 26, border: '2px solid #fff',
+        background: '#c05621', color: '#fff', fontSize: 24, lineHeight: '48px', padding: 0,
+        boxShadow: '0 4px 14px rgba(0,0,0,.3)', cursor: 'grab', touchAction: 'none', userSelect: 'none',
+      }}>🐞</button>,
+    document.body,
   );
 }
 
 const S = {
-  mask: { position: 'fixed', inset: 0, background: 'rgba(30,24,16,.45)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  mask: { position: 'fixed', inset: 0, background: 'rgba(30,24,16,.45)', zIndex: 2147483001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
   box: { background: '#fff', borderRadius: 12, width: 'min(520px, 100%)', maxHeight: '90vh', overflowY: 'auto', padding: 22, boxShadow: '0 12px 40px rgba(0,0,0,.25)' },
   title: { fontSize: 18, fontWeight: 700, color: '#50422d', marginBottom: 12 },
   p: { fontSize: 14, color: '#4a4033', lineHeight: 1.7 },
