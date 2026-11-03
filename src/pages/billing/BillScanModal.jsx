@@ -5,7 +5,7 @@
 //      - 其他帳單：掃完輸入金額按 Enter 成一張
 //   2. 第一次出現的帳單 → 選一次對應的帳號/電號，之後自動帶出
 //   3. 重複（同帳號同月已入帳）自動標示、預設不送
-//   4. 一次送出 → 建營運費用 + 分帳（預設掛帳單年月；雙月帳號自動分 2 個月，可改），月報自動帶入
+//   4. 一次送出 → 建營運費用 + 分帳（掛帳月份預設接在該帳號最後入帳月份的下一個月；雙月帳號自動分 2 個月，可改），月報自動帶入
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { operationalExpensesApi } from '../../services/api';
@@ -26,7 +26,7 @@ const isBimonthly = f => Object.values(f?.data || {}).some(v => /雙月/.test(St
 // 依目前列狀態套上預設分帳（雙月帳單 → 分 2 個月）
 function withAutoSplit(row, fact) {
   if (row.splitEdited || row.splits || !isBimonthly(fact)) return row;
-  return { ...row, splits: makeSplit(row.amount, row.bill_ym, 2), autoSplit: true };
+  return { ...row, splits: makeSplit(row.amount, row.ym, 2), autoSplit: true };
 }
 
 const isEmptyFact = f => !f?.data || Object.values(f.data).every(v => v == null || String(v).trim() === '');
@@ -103,11 +103,12 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
       uid: ++seq, bill, res: null,
       category_id: bill.format === 'std' ? telecomId : '',
       fact_id: '', amount: bill.amount ?? '', bill_ym: bill.bill_ym || '',
+      ym: bill.bill_ym || '',   // 掛帳月份：預設接在這個帳號最後入帳月份的下一個月
       include: true, result: null,
     }));
     setQueue(q => [...q, ...rows]);
     try {
-      const r = await operationalExpensesApi.scanResolve(bills.map(b => ({ key: b.key, bill_ym: b.bill_ym })));
+      const r = await operationalExpensesApi.scanResolve(bills.map(b => ({ key: b.key, bill_ym: b.bill_ym, amount: b.amount })));
       const list = r.success ? r.data : [];
       setQueue(q => q.map(row => {
         const i = rows.findIndex(x => x.uid === row.uid);
@@ -124,9 +125,15 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
           patch.fact_id = res.guesses[0].id;
           fact = res.guesses[0];
         }
+        if (res?.next_ym) patch.ym = res.next_ym;
         if (res?.duplicate) patch.include = false;
         return withAutoSplit({ ...row, ...patch }, fact);
       }));
+      // 系統猜到帳號（沒綁定過）的：再問一次該帳號入帳到哪個月
+      rows.forEach((row, i) => {
+        const res = list[i];
+        if (res && !res.binding && res.guesses?.length === 1) refreshFact({ ...row, fact_id: res.guesses[0].id }, res.guesses[0].id);
+      });
       const cats = new Set(rows.map(r => r.category_id).filter(Boolean));
       for (const x of list) {
         if (x?.binding?.category_id) cats.add(x.binding.category_id);
@@ -157,28 +164,33 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
   }
 
   function setRow(uid, patch) { setQueue(q => q.map(r => r.uid === uid ? { ...r, ...patch } : r)); }
+  // 帳號確定後：查這個帳號入帳到哪個月（掛帳接下一個月）＋疑似重複
+  async function refreshFact(row, factId) {
+    try {
+      const r = await operationalExpensesApi.scanResolve([{ key: row.bill.key, bill_ym: row.bill_ym, amount: Number(row.amount) || 0, fact_id: factId }]);
+      const x = (r.success ? r.data : [])[0];
+      if (!x) return;
+      setQueue(q => q.map(it => {
+        if (it.uid !== row.uid || String(it.fact_id) !== String(factId)) return it;
+        const ym = x.next_ym || it.bill_ym;
+        const next = { ...it, ym, res: { ...(it.res || {}), last_ym: x.last_ym, next_ym: x.next_ym, duplicate: x.duplicate } };
+        next.include = !x.duplicate;
+        if (next.splits && !next.splitEdited) next.splits = makeSplit(next.amount, ym, next.splits.length);
+        return next;
+      }));
+    } catch { /* ignore */ }
+  }
   async function pickFact(row, factId) {
     const fact = (factsByCat[row.category_id] || []).find(f => String(f.id) === String(factId));
     setQueue(q => q.map(x => x.uid === row.uid
       ? withAutoSplit({ ...x, fact_id: factId, ...(x.autoSplit && !isBimonthly(fact) ? { splits: null, autoSplit: false } : {}) }, fact)
       : x));
-    if (!factId || !row.bill_ym) return;
-    try {
-      const r = await operationalExpensesApi.getFactAllocatedMonths(factId);
-      if (r.success && (r.data?.allocated || []).includes(row.bill_ym)) {
-        setQueue(q => q.map(x => x.uid === row.uid
-          ? { ...x, include: false, res: { ...(x.res || {}), duplicate: { type: 'allocated', amount: 0 } } }
-          : x));
-      } else {
-        setQueue(q => q.map(x => x.uid === row.uid && x.res?.duplicate?.type === 'allocated'
-          ? { ...x, include: true, res: { ...x.res, duplicate: null } } : x));
-      }
-    } catch { /* ignore */ }
+    if (factId) refreshFact(row, factId);
   }
   // 金額或帳單年月改了：沒手動改過的分帳跟著重算
   function setBase(r, patch) {
     const next = { ...r, ...patch };
-    if (next.splits && !next.splitEdited) next.splits = makeSplit(next.amount, next.bill_ym, next.splits.length);
+    if (next.splits && !next.splitEdited) next.splits = makeSplit(next.amount, next.ym, next.splits.length);
     setRow(r.uid, next);
   }
   function setSplit(r, i, patch) {
@@ -193,7 +205,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
 
   function delRow(uid) { setQueue(q => q.filter(r => r.uid !== uid)); }
 
-  const ready = r => r.include && !r.result?.ok && r.bill.key && r.fact_id && Number(r.amount) > 0 && YM_OK(r.bill_ym) && splitOk(r);
+  const ready = r => r.include && !r.result?.ok && r.bill.key && r.fact_id && Number(r.amount) > 0 && YM_OK(r.ym) && splitOk(r);
   const toSend = queue.filter(ready);
   const sendTotal = toSend.reduce((s, r) => s + Number(r.amount || 0), 0);
 
@@ -203,7 +215,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
     try {
       const items = toSend.map(r => ({
         key: r.bill.key, bill_ym: r.bill_ym, amount: Number(r.amount),
-        allocations: r.splits ? r.splits.map(x => ({ year_month: x.ym, amount: Number(x.amount) })) : undefined,
+        allocations: r.splits ? r.splits.map(x => ({ year_month: x.ym, amount: Number(x.amount) })) : [{ year_month: r.ym, amount: Number(r.amount) }],
         due_date: r.bill.due_date, raw: r.bill.raw, fact_id: r.fact_id,
       }));
       const res = await operationalExpensesApi.scanCommit(items);
@@ -286,7 +298,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
             <thead>
               <tr>
                 <th style={S.th}>送</th>
-                <th style={S.th}>帳單年月</th>
+                <th style={S.th}>掛帳月份</th>
                 <th style={S.th}>金額</th>
                 <th style={S.th}>對應帳號 / 門市</th>
                 <th style={S.th}>狀態</th>
@@ -308,11 +320,15 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
                         onChange={e => setRow(r.uid, { include: e.target.checked })} />
                     </td>
                     <td style={S.td}>
-                      <input type="month" style={{ ...S.input, width: 140 }} value={r.bill_ym}
-                        disabled={!!r.result?.ok} onChange={e => setBase(r, { bill_ym: e.target.value })} />
+                      <input type="month" style={{ ...S.input, width: 140 }} value={r.ym}
+                        disabled={!!r.result?.ok} onChange={e => setBase(r, { ym: e.target.value })} />
+                      <div style={S.sub}>
+                        {r.res?.last_ym ? `已入帳到 ${r.res.last_ym} → 接 ${r.res.next_ym}` : r.fact_id ? '此帳號還沒入帳過' : ''}
+                        {r.bill_ym ? `${r.res?.last_ym || r.fact_id ? '・' : ''}條碼 ${r.bill_ym}` : ''}
+                      </div>
                       {r.bill.due_date && <div style={S.sub}>代收期限 {r.bill.due_date}</div>}
                       {!r.result?.ok && !r.splits && (
-                        <button style={S.link} onClick={() => setRow(r.uid, { splits: makeSplit(r.amount, r.bill_ym, 2), splitEdited: false })}>
+                        <button style={S.link} onClick={() => setRow(r.uid, { splits: makeSplit(r.amount, r.ym, 2), splitEdited: false })}>
                           ＋ 分月（雙月帳單）
                         </button>
                       )}
@@ -334,8 +350,8 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
                           ))}
                           {!r.result?.ok && (
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 11 }}>
-                              <button style={S.link} onClick={() => setRow(r.uid, { splits: makeSplit(r.amount, r.splits[0]?.ym || r.bill_ym, r.splits.length + 1), splitEdited: false })}>＋ 一個月</button>
-                              <button style={S.link} onClick={() => setRow(r.uid, { splits: makeSplit(r.amount, r.splits[0]?.ym || r.bill_ym, r.splits.length), splitEdited: false })}>平均分</button>
+                              <button style={S.link} onClick={() => setRow(r.uid, { splits: makeSplit(r.amount, r.splits[0]?.ym || r.ym, r.splits.length + 1), splitEdited: false })}>＋ 一個月</button>
+                              <button style={S.link} onClick={() => setRow(r.uid, { splits: makeSplit(r.amount, r.splits[0]?.ym || r.ym, r.splits.length), splitEdited: false })}>平均分</button>
                               <button style={S.link} onClick={() => setRow(r.uid, { splits: null, splitEdited: false, autoSplit: false })}>不分帳</button>
                               <span style={{ marginLeft: 'auto', color: splitOk(r) ? '#276749' : '#c53030' }}>
                                 合計 ${fmt(splitSum(r))}{!splitOk(r) && Math.abs(splitSum(r) - Number(r.amount || 0)) >= 0.5 ? `（差 ${fmt(Number(r.amount || 0) - splitSum(r))}）` : ''}
@@ -379,7 +395,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
                       {r.result && !r.result.ok && <span style={S.tagErr}>✕ {r.result.message}</span>}
                       {!r.result && dup && (
                         <span style={S.tagWarn}>
-                          ⚠ {dup.type === 'scanned' ? '這張已掃過入帳' : '此帳號該月已有費用'}{dup.amount ? `（$${fmt(dup.amount)}）` : ''}
+                          ⚠ {dup.type === 'scanned' ? `這張已掃過入帳（$${fmt(dup.amount)}）` : `疑似重複：${(dup.months || []).join('、')} 已有相同金額 $${fmt(dup.amount)}，確定不是同一張再勾送出`}
                         </span>
                       )}
                       {!r.result && !dup && r.bill.missing?.length > 0 && (
