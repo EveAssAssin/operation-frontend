@@ -14,13 +14,49 @@ import { feed, emptyBuf, bufEmpty, toBill, describeBuf } from './billBarcode';
 const fmt = n => Number(n || 0).toLocaleString('zh-TW');
 let seq = 0;
 
+const isEmptyFact = f => !f?.data || Object.values(f.data).every(v => v == null || String(v).trim() === '');
+
 function factLabel(f) {
   if (!f) return '';
   const d = f.data || {};
-  const nums = ['account_id', 'meter_id', 'water_id', 'account_no', 'full_phone', 'service_type']
+  const store = f.store_name || f.store_erpid;
+  if (isEmptyFact(f)) return `${store} · （舊匯入資料，未填帳號）`;
+  const vals = ['service_type', 'account_id', 'account_no', 'full_phone', 'user_name', 'meter_id', 'water_id']
     .map(k => d[k]).filter(v => v != null && String(v).trim() !== '');
-  const rest = nums.length ? nums : Object.values(d).filter(v => v != null && String(v).trim() !== '').slice(0, 2);
-  return [f.store_name || f.store_erpid, ...rest.slice(0, 3)].filter(Boolean).join(' · ');
+  const rest = vals.length ? vals : Object.values(d).filter(v => v != null && String(v).trim() !== '').slice(0, 3);
+  return [store, ...rest.slice(0, 4)].filter(Boolean).join(' · ');
+}
+
+// 可搜尋的帳號選擇：預設隱藏 7 月一次匯入、沒填任何帳號的舊資料
+function FactPicker({ facts, value, disabled, onOpen, onChange }) {
+  const [q, setQ] = useState('');
+  const [showOld, setShowOld] = useState(false);
+  const list = useMemo(() => {
+    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return facts
+      .filter(f => showOld || !isEmptyFact(f) || String(f.id) === String(value))
+      .map(f => ({ f, label: factLabel(f) }))
+      .filter(x => words.every(w => x.label.toLowerCase().includes(w)))
+      .sort((a, b) => a.label.localeCompare(b.label, 'zh-Hant'));
+  }, [facts, q, showOld, value]);
+  const oldN = facts.filter(isEmptyFact).length;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 320, flex: 1 }}>
+      <input style={S.input} placeholder="搜尋：門市、帳號、電話、市話／遠傳…" value={q}
+        disabled={disabled} onFocus={onOpen} onChange={e => setQ(e.target.value)} />
+      <select style={S.select} value={value} disabled={disabled} onFocus={onOpen}
+        onChange={e => onChange(e.target.value)}>
+        <option value="">{list.length ? `第一次掃到，請選對應帳號…（${list.length} 筆）` : '找不到，換個關鍵字'}</option>
+        {list.map(({ f, label }) => <option key={f.id} value={f.id}>{label}</option>)}
+      </select>
+      {oldN > 0 && (
+        <label style={{ fontSize: 11, color: '#a0aec0' }}>
+          <input type="checkbox" checked={showOld} disabled={disabled} onChange={e => setShowOld(e.target.checked)} />
+          {' '}顯示沒填帳號的舊匯入資料（{oldN} 筆）
+        </label>
+      )}
+    </div>
+  );
 }
 
 export default function BillScanModal({ categories = [], onClose, onSaved }) {
@@ -259,13 +295,10 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
                             <option value="">分類…</option>
                             {categories.map(c => <option key={c.id} value={c.id}>{c.icon || ''} {c.name}</option>)}
                           </select>
-                          <select style={{ ...S.select, minWidth: 260 }} value={r.fact_id}
+                          <FactPicker facts={facts} value={r.fact_id}
                             disabled={!r.category_id || !!r.result?.ok}
-                            onFocus={() => loadFacts(r.category_id)}
-                            onChange={e => pickFact(r, e.target.value)}>
-                            <option value="">第一次掃到，請選對應帳號…</option>
-                            {facts.map(f => <option key={f.id} value={f.id}>{factLabel(f)}</option>)}
-                          </select>
+                            onOpen={() => loadFacts(r.category_id)}
+                            onChange={v => pickFact(r, v)} />
                         </div>
                       )}
                       <div style={S.sub} title={r.bill.raw.join('\n')}>識別碼 {r.bill.key || '（無）'}</div>
