@@ -52,11 +52,22 @@ export default function VendorManagePage() {
   const [sel, setSel] = useState(null);
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState('');
+  const [sorting, setSorting] = useState(null);   // null＝一般模式；陣列＝排序中的廠商 id 順序
+  const [dragId, setDragId] = useState(null);
+  const [savingOrder, setSavingOrder] = useState(false);
   const { start, overlay } = useCoachMarks(TOUR, 'tour_vendor_manage_v1', true);
   const load = useCallback(async () => { setErr(''); try { const r = await vendorManageApi.list(); setList(r.data || []); } catch (e) { setErr(e.message || '讀取失敗'); } }, []);
   useEffect(() => { load(); }, [load]);
   const shown = list.filter((v) => !q || (v.name + (v.tax_id || '') + (v.contact_name || '')).includes(q));
   const current = list.find((v) => v.id === sel);
+  const byId = Object.fromEntries(list.map((v) => [v.id, v]));
+  const moveTo = (id, to) => setSorting((o) => { const a = o.filter((x) => x !== id); a.splice(Math.max(0, Math.min(a.length, to)), 0, id); return a; });
+  const saveOrder = async () => {
+    setSavingOrder(true); setErr('');
+    try { await vendorManageApi.order(sorting); setSorting(null); await load(); }
+    catch (e) { setErr(e.message || '排序儲存失敗'); }
+    finally { setSavingOrder(false); }
+  };
   return (
     <div style={{ padding: 20, background: C.bg, minHeight: '100vh' }}>
       {overlay}
@@ -64,11 +75,44 @@ export default function VendorManagePage() {
         <h2 style={{ margin: 0, color: C.primary }}>🏭 廠商管理<HelpTip title="廠商管理" body={HELP.page} /></h2>
         <input placeholder="搜尋名稱／統編" value={q} onChange={(e) => setQ(e.target.value)} style={{ ...input, width: 200 }} />
         <div style={{ flex: 1 }} />
+        {sorting ? (
+          <>
+            <span style={{ fontSize: 13, color: C.muted }}>拖曳或按 ▲▼ 調整順序</span>
+            <button style={ghost} onClick={() => setSorting(null)}>取消</button>
+            <button style={btn(C.primary)} disabled={savingOrder} onClick={saveOrder}>{savingOrder ? '儲存中…' : '儲存排序'}</button>
+          </>
+        ) : (
+          <button style={ghost} onClick={() => { setSorting(list.map((v) => v.id)); setQ(''); }}>↕ 調整排序</button>
+        )}
         <button style={ghost} onClick={start}>📖 使用說明</button>
         <button data-tour="vm-new" style={btn(C.primary)} onClick={() => { setCreating(true); setSel(null); }}>＋ 新建廠商</button>
       </div>
       {err && <div style={{ ...card, color: C.danger }}>⚠ {err}</div>}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 360px) 1fr', gap: 14, alignItems: 'start' }}>
+        {sorting ? (
+          <div style={card}>
+            {sorting.map((id, i) => {
+              const v = byId[id]; if (!v) return null;
+              const sb = { ...ghost, padding: '2px 7px', fontSize: 12 };
+              return (
+                <div key={id} draggable
+                  onDragStart={() => setDragId(id)}
+                  onDragOver={(e) => { e.preventDefault(); if (dragId && dragId !== id) moveTo(dragId, i); }}
+                  onDragEnd={() => setDragId(null)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 6px', borderBottom: `1px solid ${C.border}`, cursor: 'grab',
+                    background: dragId === id ? '#f5f0ea' : 'transparent', opacity: v.is_active ? 1 : 0.5 }}>
+                  <span style={{ color: C.muted, width: 26, textAlign: 'right', fontSize: 12 }}>{i + 1}</span>
+                  <span style={{ color: C.muted }}>⠿</span>
+                  <b style={{ flex: 1, fontSize: 14 }}>{v.name}</b>
+                  <button style={sb} title="置頂" disabled={i === 0} onClick={() => moveTo(id, 0)}>⤒</button>
+                  <button style={sb} title="上移" disabled={i === 0} onClick={() => moveTo(id, i - 1)}>▲</button>
+                  <button style={sb} title="下移" disabled={i === sorting.length - 1} onClick={() => moveTo(id, i + 1)}>▼</button>
+                  <button style={sb} title="置底" disabled={i === sorting.length - 1} onClick={() => moveTo(id, sorting.length)}>⤓</button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
         <div data-tour="vm-list" style={card}>
           {shown.map((v) => {
             const def = (v.banks || []).find((b) => b.is_default) || (v.banks || [])[0];
@@ -82,6 +126,7 @@ export default function VendorManagePage() {
           })}
           {!shown.length && <div style={{ color: C.muted, fontSize: 13 }}>沒有廠商</div>}
         </div>
+        )}
         <div>
           {creating ? <CreateForm onDone={async (s) => { setCreating(false); await load(); setSel(s.id); }} onCancel={() => setCreating(false)} />
             : current ? <Edit v={current} reload={load} /> : <div style={{ ...card, color: C.muted }}>點左邊一家廠商修改，或按「＋ 新建廠商」</div>}

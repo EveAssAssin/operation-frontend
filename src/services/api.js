@@ -766,6 +766,7 @@ export const vendorManageApi = {
   addBank:    (id, body)         => api.post(`/vendor-manage/${id}/banks`, body),
   updateBank: (id, bankId, body) => api.patch(`/vendor-manage/${id}/banks/${bankId}`, body),
   deleteBank: (id, bankId)       => api.delete(`/vendor-manage/${id}/banks/${bankId}`),
+  order:      (ids)              => api.put('/vendor-manage/order', { ids }),
 };
 
 // 人事工具：離職後續（2026-10-20；資料在市場部）
