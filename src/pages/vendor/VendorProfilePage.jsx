@@ -50,6 +50,7 @@ export default function VendorProfilePage() {
         {[
           { k: 'contact', l: '聯絡資料' },
           { k: 'bank',    l: `銀行帳號 (${banks.length})` },
+          { k: 'password', l: '🔑 修改密碼' },
         ].map(t => (
           <button key={t.k} onClick={() => setTab(t.k)} style={{
             padding: '10px 18px', border: 'none', background: 'none', cursor: 'pointer',
@@ -63,6 +64,7 @@ export default function VendorProfilePage() {
 
       {tab === 'contact' && <ContactTab profile={profile} onSaved={(m) => { setMsg(m); loadAll(); }} />}
       {tab === 'bank'    && <BankTab banks={banks} onChanged={loadAll} />}
+      {tab === 'password' && <PasswordTab onDone={(m) => setMsg(m)} />}
     </div>
   );
 }
@@ -243,3 +245,38 @@ function Field({ label, children }) {
 
 const th = { padding: '10px 12px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: C.textDark, borderBottom: `1px solid ${C.border}` };
 const td = { padding: '10px 12px', fontSize: 13, color: C.textDark, borderTop: `1px solid ${C.border}` };
+
+// 修改密碼（2026-11）：要先輸入目前的密碼
+function PasswordTab({ onDone }) {
+  const [f, setF] = useState({ old_password: '', new_password: '', confirm: '' });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  async function save() {
+    setErr('');
+    if (!f.old_password || !f.new_password) { setErr('請輸入目前密碼與新密碼'); return; }
+    if (f.new_password.length < 6) { setErr('新密碼至少 6 個字元'); return; }
+    if (f.new_password !== f.confirm) { setErr('兩次輸入的新密碼不一樣'); return; }
+    setBusy(true);
+    try {
+      const r = await vendorApi.changePassword({ old_password: f.old_password, new_password: f.new_password });
+      if (r && r.success === false) { setErr(r.message || '修改失敗'); return; }
+      setF({ old_password: '', new_password: '', confirm: '' });
+      onDone('✓ 密碼已修改，下次登入請用新密碼');
+    } catch (e) { setErr(e?.response?.data?.message || e.message || '修改失敗'); }
+    finally { setBusy(false); }
+  }
+  const row = { marginBottom: 12 };
+  const lab = { display: 'block', fontSize: 13, color: C.textMid, marginBottom: 4, fontWeight: 600 };
+  return (
+    <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: 18, maxWidth: 420 }}>
+      <div style={row}><label style={lab}>目前密碼</label><input type="password" autoComplete="current-password" style={inputStyle} value={f.old_password} onChange={set('old_password')} /></div>
+      <div style={row}><label style={lab}>新密碼（至少 6 個字元）</label><input type="password" autoComplete="new-password" style={inputStyle} value={f.new_password} onChange={set('new_password')} /></div>
+      <div style={row}><label style={lab}>再輸入一次新密碼</label><input type="password" autoComplete="new-password" style={inputStyle} value={f.confirm} onChange={set('confirm')}
+        onKeyDown={(e) => { if (e.key === 'Enter') save(); }} /></div>
+      {err && <div style={{ color: '#c53030', fontSize: 13, marginBottom: 10 }}>{err}</div>}
+      <button style={btn.primary} disabled={busy} onClick={save}>{busy ? '修改中…' : '修改密碼'}</button>
+      <div style={{ fontSize: 12, color: C.textLight, marginTop: 10 }}>忘記目前密碼的話，請聯絡樂活會計幫您重設。</div>
+    </div>
+  );
+}

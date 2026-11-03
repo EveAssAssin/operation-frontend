@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { vendorManageApi } from '../../services/api';
 import HelpTip from '../../components/help/HelpTip';
+import SubjectSelect, { loadSubjects } from '../../components/ledger/SubjectSelect';
 import { useCoachMarks } from '../../components/help/CoachMarks';
 
 const C = { primary: '#50422d', bg: '#faf8f5', border: '#e0d5c8', muted: '#8a7a66', ok: '#2d6a4f', danger: '#c53030' };
@@ -16,6 +17,7 @@ const VENDOR_LOGIN = 'https://operation-frontend.onrender.com/vendor/login';
 const HELP = {
   page: '廠商在這裡建立一次就好：基本資料、廠商入口登入帳號密碼、出款資訊（收款銀行帳號）。\n廠商用帳號密碼登入廠商入口上傳帳單請款；會計通過、排出款日後，元大出款檔會自動帶這裡設定的收款帳號。',
   account: '廠商登入廠商入口用的帳號密碼。建好後把登入網址和帳號密碼給廠商；廠商也可以登入後自己改資料。',
+  subjects: '指定這家廠商可以用的會計科目。廠商在廠商入口分配請款時，每一列只能從這幾個科目選（只指定 1 個就自動帶入，不用選）。\n付款後進門市月報時，每一列照它的科目歸到月報格子。\n不指定＝跟以前一樣，由會計按「通過」時選整張的科目。',
   bank: '廠商的收款帳號。勾「預設」的那個會自動帶進元大出款檔。戶名要跟存摺一樣，不然匯款會被退回。\n銀行代碼 3 碼（元大 806、台新 812、國泰 013…），分行代碼 4 碼。',
 };
 const TOUR = [
@@ -199,6 +201,7 @@ function Edit({ v, reload }) {
           </div>
         )}
       </div>
+      <SubjectsCard v={v} act={act} />
       <div style={card}>
         <b>出款資訊（收款銀行帳號）</b><HelpTip title="出款資訊" body={HELP.bank} />
         <table style={{ width: '100%', fontSize: 13, marginTop: 8, borderCollapse: 'collapse' }}>
@@ -223,6 +226,41 @@ function Edit({ v, reload }) {
           <BankFields b={nb} set={setNb} />
           <button style={{ ...btn(C.primary), marginTop: 8 }} onClick={() => act(async () => { await vendorManageApi.addBank(v.id, nb); setNb({ bank_code: '', branch_code: '', account_no: '', account_name: '' }); }, '已新增收款帳號')}>新增</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// 指定科目（2026-11）：廠商分配請款時，每一列只能選這些科目
+function SubjectsCard({ v, act }) {
+  const [ids, setIds] = useState(v.allowed_subject_ids || []);
+  const [all, setAll] = useState([]);
+  const [pick, setPick] = useState('');
+  useEffect(() => { setIds(v.allowed_subject_ids || []); }, [v]);
+  useEffect(() => { loadSubjects().then(setAll).catch(() => {}); }, []);
+  const dirty = JSON.stringify(ids) !== JSON.stringify(v.allowed_subject_ids || []);
+  const info = (id) => all.find((s) => s.id === id);
+  return (
+    <div style={card}>
+      <b>指定會計科目</b><HelpTip title="指定會計科目" body={HELP.subjects} />
+      <span style={{ fontSize: 12, color: C.muted, marginLeft: 8 }}>{ids.length ? `廠商只能選這 ${ids.length} 個科目` : '沒指定（由會計通過時選）'}</span>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+        {ids.map((id) => {
+          const s = info(id);
+          return (
+            <span key={id} style={{ background: '#f0ebe3', borderRadius: 14, padding: '4px 10px', fontSize: 13 }}>
+              {s ? `${s.name}（${s.ledger_name}）` : '（科目已停用或不存在）'}
+              <button style={{ border: 'none', background: 'none', cursor: 'pointer', color: C.danger, marginLeft: 4 }} onClick={() => setIds(ids.filter((x) => x !== id))}>✕</button>
+            </span>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+        <SubjectSelect value={pick} placeholder="＋ 加一個科目" style={{ minWidth: 240 }}
+          onChange={(sj) => { if (sj && !ids.includes(sj.id)) setIds([...ids, sj.id]); setPick(''); loadSubjects().then(setAll).catch(() => {}); }} />
+        <button style={btn(dirty ? C.primary : '#cbd5e0')} disabled={!dirty}
+          onClick={() => act(() => vendorManageApi.update(v.id, { allowed_subject_ids: ids }), '指定科目已儲存')}>儲存指定科目</button>
+        {dirty && <span style={{ fontSize: 12, color: C.danger }}>還沒存</span>}
       </div>
     </div>
   );

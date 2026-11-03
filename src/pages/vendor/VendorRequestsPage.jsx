@@ -392,14 +392,18 @@ export function AllocEditor({ data, canEdit, onSaved, save, loadTargets, account
   const [dirty, setDirty] = useState(false);
   const [msg, setMsg] = useState('');
   useEffect(() => { loadTargets().then((r) => setTargets(r?.data || r || [])).catch(() => {}); }, [loadTargets]);
-  useEffect(() => { setRows((data.allocations || []).map((a) => ({ id: a.id, item_name: a.item_name, store_erpid: a.store_erpid, amount: a.amount, vendor_amount: a.vendor_amount, vendor_store: a.vendor_store, adjusted_by: a.adjusted_by }))); setDirty(false); }, [data]);
+  // 廠商指定科目（樂活在廠商檔案設定；空＝不用選）
+  const subs = data.allowed_subjects || [];
+  const oneSub = subs.length === 1 ? subs[0].id : '';
+  useEffect(() => { setRows((data.allocations || []).map((a) => ({ id: a.id, item_name: a.item_name, store_erpid: a.store_erpid, amount: a.amount, subject_id: a.subject_id || oneSub, vendor_amount: a.vendor_amount, vendor_store: a.vendor_store, adjusted_by: a.adjusted_by }))); setDirty(false); }, [data, oneSub]);
   const total = rows.reduce((a, r) => a + (Number(r.amount) || 0), 0);
   const set = (i, k, v) => { setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r))); setDirty(true); };
-  const add = () => { setRows([...rows, { item_name: '', store_erpid: rows.length ? rows[rows.length - 1].store_erpid : '', amount: '' }]); setDirty(true); };
+  const add = () => { setRows([...rows, { item_name: '', store_erpid: rows.length ? rows[rows.length - 1].store_erpid : '', amount: '', subject_id: oneSub || (rows.length ? rows[rows.length - 1].subject_id : '') }]); setDirty(true); };
   const del = (i) => { setRows(rows.filter((_, j) => j !== i)); setDirty(true); };
   const doSave = async () => {
     setMsg('');
-    try { await save(rows.map((r) => ({ id: r.id, item_name: r.item_name, store_erpid: r.store_erpid, amount: Number(r.amount) }))); setMsg('已存'); setDirty(false); onSaved && onSaved(); }
+    if (subs.length && !accountant && rows.some((r) => !r.subject_id)) { setMsg('每一列都要選科目'); return; }
+    try { await save(rows.map((r) => ({ id: r.id, item_name: r.item_name, store_erpid: r.store_erpid, amount: Number(r.amount), subject_id: r.subject_id || null }))); setMsg('已存'); setDirty(false); onSaved && onSaved(); }
     catch (e) { setMsg(e.message || '存檔失敗'); }
   };
   const name = (id) => (targets.find((t) => String(t.store_erpid) === String(id)) || {}).store_name || id;
@@ -407,6 +411,7 @@ export function AllocEditor({ data, canEdit, onSaved, save, loadTargets, account
   return (
     <div>
       <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>🏪 項目與分配門市 <span style={{ fontWeight: 400, fontSize: 12, color: C.textLight }}>合計 NT$ {total.toLocaleString()}（＝請款總額）</span></div>
+      {subs.length > 1 && !accountant && canEdit && <div style={{ fontSize: 12, color: C.textLight, marginBottom: 6 }}>每一列請選科目（只能選樂活指定的 {subs.length} 個科目）</div>}
       {rows.length === 0 && <div style={{ fontSize: 12, color: C.textLight, marginBottom: 6 }}>{canEdit ? '按「＋ 加一列」填項目名稱、金額、門市' : '沒有分配'}</div>}
       {rows.map((r, i) => {
         const adj = r.adjusted_by && (r.vendor_amount == null || Number(r.vendor_amount) !== Number(r.amount) || (r.vendor_store && r.vendor_store !== r.store_erpid));
@@ -419,6 +424,12 @@ export function AllocEditor({ data, canEdit, onSaved, save, loadTargets, account
               <optgroup label="門市">{stores.map((t) => <option key={t.store_erpid} value={t.store_erpid}>{t.store_name}</option>)}</optgroup>
               <optgroup label="部門">{depts.map((t) => <option key={t.store_erpid} value={t.store_erpid}>{t.store_name}</option>)}</optgroup>
             </select>
+            {subs.length > 0 && (
+              <select style={{ ...inputStyle, width: 170, borderColor: !r.subject_id && !accountant ? '#fc8181' : undefined }} value={r.subject_id || ''} disabled={!canEdit || (subs.length === 1 && !accountant)} onChange={(e) => set(i, 'subject_id', e.target.value)}>
+                <option value="">{accountant ? '— 科目（不指定）—' : '— 選科目 —'}</option>
+                {subs.map((sj) => <option key={sj.id} value={sj.id}>{sj.name}{sj.ledger_name && sj.ledger_name !== sj.name ? `（${sj.ledger_name}）` : ''}</option>)}
+              </select>
+            )}
             {canEdit && <button onClick={() => del(i)} style={btn.danger}>刪</button>}
             {adj && <span style={{ fontSize: 11, color: '#b7791f' }}>會計已調整{r.vendor_amount != null ? `（原 ${Number(r.vendor_amount).toLocaleString()}${r.vendor_store && r.vendor_store !== r.store_erpid ? `、${name(r.vendor_store)}` : ''}）` : '（會計新增）'}</span>}
           </div>

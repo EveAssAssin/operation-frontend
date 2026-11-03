@@ -960,6 +960,11 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
           <div>
             <PostingFields value={acct} onChange={(v) => { setAcct(v); setAcctDirty(true); }} feeYm={data.period}
               stores={[...new Set([...(data.allocations || []).map((x) => x.store_erpid), ...(Array.isArray(data.ticket_details) ? data.ticket_details.map((x) => x.store_erpid) : [])].filter(Boolean).map(String))]} />
+            {(data.allocations || []).length > 0 && (data.allocations || []).every((x) => x.subject_id) && (
+              <div style={{ fontSize: 12, color: '#2c5282', marginTop: 4 }}>
+                ℹ 廠商每一列都已選科目：月報會依各列科目歸格子，這裡的會計科目可以不選（不選就用金額最大那列的科目當代表）。
+              </div>
+            )}
             {data.status === 'approved' && acctDirty && (
               <div style={{ textAlign: 'right', marginTop: 6 }}><button onClick={saveAcct} disabled={busy} style={primaryBtn}>儲存入帳設定</button></div>
             )}

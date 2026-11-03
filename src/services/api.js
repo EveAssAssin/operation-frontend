@@ -215,6 +215,8 @@ export const vendorApi = {
   targets:           ()               => vendorApi_base.get('/targets'),
   saveAllocations:   (id, rows)       => vendorApi_base.put(`/requests/${id}/allocations`, { rows }),
   contracts:         ()               => vendorApi_base.get('/contracts'),
+  subjects:          ()               => vendorApi_base.get('/subjects'),
+  changePassword:    (body)           => vendorApi_base.post('/change-password', body),
 };
 
 // Checks API（支票紀錄系統 v2）
