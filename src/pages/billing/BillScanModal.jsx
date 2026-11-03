@@ -236,7 +236,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
                     <td style={S.td}>
                       <input type="month" style={{ ...S.input, width: 140 }} value={r.bill_ym}
                         disabled={!!r.result?.ok} onChange={e => setRow(r.uid, { bill_ym: e.target.value })} />
-                      {r.bill.due_date && <div style={S.sub}>繳費期限 {r.bill.due_date}</div>}
+                      {r.bill.due_date && <div style={S.sub}>代收期限 {r.bill.due_date}</div>}
                     </td>
                     <td style={S.td}>
                       <input style={{ ...S.input, width: 100, textAlign: 'right' }} value={r.amount}

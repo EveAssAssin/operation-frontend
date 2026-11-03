@@ -3,7 +3,7 @@
 //
 // 支援格式
 //   A. 超商三段式（中華電信市話等）
-//      第一段  9 碼：繳費期限 YYMMDD(民國末兩碼) + 代收代號 3 碼     例 151110001
+//      第一段  9 碼：代收期限 YYMMDD(民國末兩碼) + 代收代號 3 碼     例 151110001
 //      第二段 ≤20 碼：銷帳編號（可能含空白）→ 當作「識別碼」        例 "  42  8 24491279"
 //      第三段 15 碼：帳單年月 YYMM + 檢碼 2 + 金額 9 碼            例 151016000000377 → 2026-10、$377
 //   B. 代收代號 + 年月識別碼（遠傳、自來水、中華電信其他帳單…）
@@ -29,6 +29,7 @@ export function classify(raw) {
   const s = String(raw || '').replace(/\r/g, '').replace(/\s+$/, '');
   const t = s.trim().toUpperCase();
   if (!t) return null;
+  if (/^HTTPS?:\/\//.test(t)) return { type: 'url', raw: s };   // 帳單上的 QR 網址：不參與解析
   let m;
   if ((m = t.match(RE_S1)) && validMD(+m[2], +m[3]))
     return { type: 's1', raw: s, due_date: `${rocYY(m[1])}-${m[2]}-${m[3]}`, collector: m[4] };
@@ -66,18 +67,22 @@ export function feed(buf, raw) {
       if (b.coll || isStd(b) || b.alt) flush();
       b.coll = c; break;
     case 'alt':
+      // 三段式還缺第二段時，這種長碼就是第二段（銷帳編號）
+      if (isStd(b) && !b.s2) { b.s2 = c; break; }
       if (b.alt || isStd(b)) flush();
       b.alt = c; break;
+    case 'url':
+      break;
     case 'date':
       if (b.date) flush();
       b.date = c; break;
     default:
-      if (isStd(b) && !b.s2 && c.raw.length <= 20) b.s2 = c;
+      if (isStd(b) && !b.s2 && c.raw.trim().length <= 24) b.s2 = c;
       else b.extras.push(c);
   }
   // 三段式先掃第二段的情況：補位
   if (isStd(b) && !b.s2) {
-    const i = b.extras.findIndex(x => x.raw.length <= 20);
+    const i = b.extras.findIndex(x => x.raw.trim().length <= 24);
     if (i >= 0) { b.s2 = b.extras[i]; b.extras.splice(i, 1); }
   }
   if (isComplete(b)) flush();
@@ -125,7 +130,7 @@ export function toBill(b) {
 
 export function describeBuf(b) {
   const parts = [];
-  if (b.s1) parts.push(`期限 ${b.s1.due_date}`);
+  if (b.s1) parts.push(`代收期限 ${b.s1.due_date}`);
   if (b.s2) parts.push(`識別 ${normKey(b.s2.raw)}`);
   if (b.s3) parts.push(`${b.s3.bill_ym} $${b.s3.amount.toLocaleString()}`);
   if (b.coll) parts.push(`代收 ${b.coll.collector}`);
