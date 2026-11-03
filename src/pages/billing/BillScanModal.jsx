@@ -214,7 +214,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
               }}
             />
             <div style={S.hint}>
-              中華電信三段式條碼：三條掃完自動成一張。其他帳單：掃完在右邊輸入金額按 Enter。
+              帳單上有兩組條碼時，刷「超商代收」那組（第一條是 9 碼）：三條刷完自動成一張，年月、金額都自動帶出（中華電信、遠傳、台電）。其他帳單：刷完在右邊輸入金額按 Enter。
             </div>
 
             {!bufEmpty(buf) && (

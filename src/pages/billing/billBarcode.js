@@ -53,6 +53,7 @@ export function feed(buf, raw) {
   const c = classify(raw);
   if (!c) return { buf, flushed: [] };
   let b = { ...buf, extras: [...buf.extras] };
+  if (c.type !== 'other' && c.type !== 'url') b.afterStd = false;
   const flushed = [];
   const flush = () => { if (!bufEmpty(b)) flushed.push(toBill(b)); b = emptyBuf(); };
 
@@ -61,7 +62,9 @@ export function feed(buf, raw) {
       if (b.s1 || b.coll || b.alt) flush();
       b.s1 = c; break;
     case 's3':
-      if (b.s3 || b.coll || b.alt) flush();
+      // 郵局／銀行那組（EJ0115、ED0003 開頭）裡碰巧像第三段的長碼 → 當附屬條碼
+      if ((b.coll || b.alt) && !b.s1) { b.extras.push(c); break; }
+      if (b.s3) flush();
       b.s3 = c; break;
     case 'coll':
       if (b.coll || isStd(b) || b.alt) flush();
@@ -76,16 +79,25 @@ export function feed(buf, raw) {
     case 'date':
       if (b.date) flush();
       b.date = c; break;
-    default:
-      if (isStd(b) && !b.s2 && c.raw.trim().length <= 24) b.s2 = c;
+    default: {
+      const t = c.raw.trim().toUpperCase();
+      // 第三段前 6 碼不是年月的（台電）：已有第一、二段時，15 碼尾 9 碼數字就當金額
+      if (b.s1 && b.s2 && !b.s3 && /^[0-9A-Z]{6}\d{9}$/.test(t)) {
+        b.s3 = { type: 's3', raw: c.raw, bill_ym: '', amount: Number(t.slice(6)) };
+        break;
+      }
+      // 三段式剛完成，帳單上多出來的條碼（例：台電第 4 條）→ 略過
+      if (bufEmpty(b) && b.afterStd) return { buf: b, flushed: [], ignored: c.raw };
+      if (isStd(b) && !b.s2 && t.length <= 24) b.s2 = c;
       else b.extras.push(c);
+    }
   }
   // 三段式先掃第二段的情況：補位
   if (isStd(b) && !b.s2) {
     const i = b.extras.findIndex(x => x.raw.trim().length <= 24);
     if (i >= 0) { b.s2 = b.extras[i]; b.extras.splice(i, 1); }
   }
-  if (isComplete(b)) flush();
+  if (isComplete(b)) { flush(); b.afterStd = true; }
   return { buf: b, flushed };
 }
 
@@ -102,8 +114,16 @@ export function toBill(b) {
   if (isStd(b)) {
     format = 'std';
     const coll = b.s1?.collector || '';
-    key = b.s2 ? `STD:${coll}:${normKey(b.s2.raw)}` : '';
-    bill_ym = b.s3?.bill_ym || '';
+    const s2n = b.s2 ? normKey(b.s2.raw) : '';
+    // 台電：第二段 = 電號 11 碼 + 民國 YYMMDD（帳單日）→ 用電號當識別、帳單日的月份當掛帳月
+    const tp = s2n.match(/^(\d{11})(\d{2})(\d{2})(\d{2})$/);
+    if (tp && validMD(+tp[3], +tp[4])) {
+      key = `TPC:${tp[1]}`;
+      bill_ym = b.s3?.bill_ym || `${rocYY(tp[2])}-${tp[3]}`;
+    } else {
+      key = s2n ? `STD:${coll}:${s2n}` : '';
+      bill_ym = b.s3?.bill_ym || '';
+    }
     amount = b.s3 ? b.s3.amount : null;
     due_date = b.s1?.due_date || null;
   } else if (b.alt || b.coll) {
