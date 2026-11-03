@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import ReportBug, { useReportDebug } from './ReportBug';
 import { vendorPaymentApi } from '../services/api';
 
 // ── 導覽項目定義 ─────────────────────────────────────────────
@@ -119,6 +120,8 @@ export default function Layout({ children }) {
       it.children.some(c => location.pathname.startsWith(c.path)))
     .map(it => it.key);
   const [expanded, setExpanded] = useState(new Set(initiallyExpanded));
+  const [reportOpen, setReportOpen] = useState(false);
+  useReportDebug();
 
   // ─── 外部請款未審核紅點（每 60 秒 poll）─────────────
   const [pendingExtCount, setPendingExtCount] = useState(0);
@@ -260,6 +263,10 @@ export default function Layout({ children }) {
               {ROLE_LABELS[user?.role] || user?.role || '—'}
             </div>
           </div>
+          <button style={styles.reportBtn} data-yaya="op-report-btn" onClick={() => setReportOpen(true)}
+            title="系統有問題或想改哪裡，直接寫給負責的同仁（會自動附上目前頁面）">
+            🐞 回報問題／優化需求
+          </button>
           <a
             href={
               user?.line_uid
@@ -288,6 +295,7 @@ export default function Layout({ children }) {
       <main style={styles.main}>
         {children}
       </main>
+      {reportOpen && <ReportBug user={user} onClose={() => setReportOpen(false)} />}
     </div>
   );
 }
@@ -368,6 +376,12 @@ const styles = {
     color: '#cdbea2', fontSize: '13px',
     textAlign: 'center', textDecoration: 'none',
     cursor: 'pointer',
+  },
+  reportBtn: {
+    display: 'block', width: 'calc(100% - 24px)', margin: '8px 12px 6px',
+    padding: '8px', borderRadius: '6px',
+    background: 'rgba(246,173,85,0.16)', border: '1px solid rgba(246,173,85,0.55)',
+    color: '#fbd38d', fontSize: '13px', fontWeight: 700, cursor: 'pointer', textAlign: 'center',
   },
   logoutBtn: {
     margin: '0 12px',
