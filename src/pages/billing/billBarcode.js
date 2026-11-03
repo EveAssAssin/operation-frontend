@@ -119,7 +119,8 @@ export function toBill(b) {
     const tp = s2n.match(/^(\d{11})(\d{2})(\d{2})(\d{2})$/);
     if (tp && validMD(+tp[3], +tp[4])) {
       key = `TPC:${tp[1]}`;
-      bill_ym = b.s3?.bill_ym || `${rocYY(tp[2])}-${tp[3]}`;
+      // 台電第三段前 4 碼不是年月（例 5101…），一律用第二段的收費日月份
+      bill_ym = `${rocYY(tp[2])}-${tp[3]}`;
     } else {
       key = s2n ? `STD:${coll}:${s2n}` : '';
       bill_ym = b.s3?.bill_ym || '';
@@ -137,6 +138,11 @@ export function toBill(b) {
     key = longest ? `RAW:${normKey(longest.raw)}` : '';
   }
   if (!due_date && b.date) due_date = b.date.due_date;
+  // 保險：年月跟期限差超過 12 個月，視為讀錯，改用期限前一個月
+  if (bill_ym && due_date) {
+    const [y1, m1] = bill_ym.split('-').map(Number), [y2, m2] = due_date.split('-').map(Number);
+    if (Math.abs((y1 * 12 + m1) - (y2 * 12 + m2)) > 12) bill_ym = monthBefore(due_date);
+  }
   if (!bill_ym && due_date) bill_ym = monthBefore(due_date);
 
   const missing = [];
