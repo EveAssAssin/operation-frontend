@@ -22,6 +22,7 @@ const NAV_ITEMS = [
       { path: '/personnel',  label: '人員管理', icon: '👥', moduleKey: 'personnel' },
       { path: '/basic-data', label: '基本資料', icon: '📚', moduleKey: 'basic_data' },
       { path: '/vendor-manage', label: '廠商管理', icon: '🏭', moduleKey: 'billing_v2' },
+      { path: '/ledger-subjects', label: '會計科目', icon: '🗂', moduleKey: 'billing' },
     ],
   },
   {

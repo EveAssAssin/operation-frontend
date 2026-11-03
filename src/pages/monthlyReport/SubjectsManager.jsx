@@ -1,4 +1,4 @@
-// 月報「⚙ 科目與廠商 → ④ 會計科目」（2026-10-21）
+// 會計科目管理（2026-10-21；2026-11 搬到「營運管理 → 會計科目」頁）
 // 會計科目＝月報格子底下的細項（例：雜費 → 營運雜貨、文具、清潔用品）。手填／調帳／分攤／開帳／廠商請款通過都要選。
 // 每一格有一個同名「預設科目」：系統自動進來的帳沒選科目就算在預設科目；預設科目不能停用。
 import { useEffect, useState, useCallback } from 'react';
@@ -24,7 +24,7 @@ export default function SubjectsManager({ accs }) {
 
   return (
     <div style={{ marginTop: 14 }} data-yaya="mr-subjects">
-      <div style={S.h}>④ 會計科目（月報格子底下的細項）</div>
+      <div style={S.h}>會計科目（月報格子底下的細項）</div>
       <div style={S.sub}>開帳、手填、調帳、分攤、廠商請款通過都要選會計科目；選了科目就決定列在月報哪一格。帳單管理「📒 帳本明細 → 依會計科目」可以看每個科目逐月變化。</div>
       {msg && <div style={{ fontSize: 13, color: '#2c5282', margin: '6px 0' }}>{msg}</div>}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', margin: '8px 0' }}>

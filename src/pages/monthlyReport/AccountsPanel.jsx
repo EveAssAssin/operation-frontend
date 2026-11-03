@@ -4,7 +4,7 @@
 // 帳單歸格順序：分攤列 → 帳單 → 廠商的會計科目 → 廠商預設 → 都沒設就落「其他」（查帳提醒會抓）
 import { useEffect, useState, useCallback } from 'react';
 import { ledgerApi } from '../../services/api';
-import SubjectsManager from './SubjectsManager';
+import { Link } from 'react-router-dom';
 
 const NEW_GROUPS = { revenue: '收入（手填，算進獲利用的實收）', opex: '營運支出', planning: '企劃品', ads: '廣告費', misc: '雜費', frame: '鏡框', lens: '鏡片', contact: '藥拋' };
 const GROUPS = { opex: '營運支出', planning: '企劃品', ads: '廣告費', misc: '雜費', frame: '鏡框', lens: '鏡片', contact: '藥拋' };
@@ -136,7 +136,9 @@ export default function AccountsPanel() {
             <div style={S.sub}>倉庫系統的常備品撥補分「店用商品、護理產品、配件組合…」區塊，可以各自放不同格子；同一張撥補單裡不同區塊會照品項拆開。要新的格子（例：營運雜貨）先在 ① 新增。</div>
           </>}
         </div>
-        <SubjectsManager accs={accs} />
+        <div style={{ marginTop: 14, fontSize: 13 }} data-yaya="mr-subjects">
+          <b>④ 會計科目</b>　已搬到 <Link to="/ledger-subjects" style={{ color: '#3182ce' }}>營運管理 → 🗂 會計科目</Link>
+        </div>
       </>}
     </div>
   );
