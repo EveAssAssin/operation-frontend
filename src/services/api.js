@@ -758,6 +758,19 @@ export const vendorPaymentApi = {
 };
 
 // 營運管理 → 廠商管理（2026-10-20）：新建廠商＋帳號密碼＋出款資訊
+// 零用金管理（2026-11）
+export const pettyCashApi = {
+  funds:       (all)        => api.get('/petty-cash/funds', { params: all ? { all: '1' } : {} }),
+  createFund:  (body)       => api.post('/petty-cash/funds', body),
+  updateFund:  (id, body)   => api.patch(`/petty-cash/funds/${id}`, body),
+  txns:        (params)     => api.get('/petty-cash/txns', { params }),
+  createTxn:   (body)       => api.post('/petty-cash/txns', body),
+  updateTxn:   (id, body)   => api.patch(`/petty-cash/txns/${id}`, body),
+  voidTxn:     (id, reason) => api.post(`/petty-cash/txns/${id}/void`, { reason }),
+  files:       (id)         => api.get(`/petty-cash/txns/${id}/files`),
+  uploadFiles: (id, files)  => { const fd = new FormData(); for (const f of files) fd.append('files', f); return api.post(`/petty-cash/txns/${id}/files`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
+};
+
 export const vendorManageApi = {
   list:       ()                 => api.get('/vendor-manage'),
   create:     (body)             => api.post('/vendor-manage', body),
