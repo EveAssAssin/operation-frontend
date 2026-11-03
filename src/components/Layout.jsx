@@ -92,6 +92,7 @@ const ROLE_LABELS = {
   operation_accounting: '營運部會計',
   operation_hr:         '營運部人事',
   operation_staff:      '營運部部員',
+  pr_staff:             '公關部',
 };
 
 const ROLE_COLORS = {
@@ -101,6 +102,7 @@ const ROLE_COLORS = {
   operation_accounting: '#dbeafe',
   operation_hr:         '#dcfce7',
   operation_staff:      '#f5f0ea',
+  pr_staff:             '#fefcbf',
 };
 const ROLE_TEXT = {
   super_admin:          '#c53030',
@@ -184,6 +186,9 @@ export default function Layout({ children }) {
               // adminOnly：僅全權角色（is_admin=true）能看
               if (item.adminOnly) return isAdmin();
               // 分權系統：有 moduleKey 就用 hasModule 過濾
+              // 群組：群組本身沒權限，但底下有任一子項有權限（例：公關部只開零用金）→ 群組還是要顯示
+              if (Array.isArray(item.children) && item.moduleKey && !hasModule(item.moduleKey))
+                return item.children.some((c) => c.moduleKey && hasModule(c.moduleKey));
               if (item.moduleKey) return hasModule(item.moduleKey);
               // 沒有 moduleKey 才退回原本的 minRole 檢查（向下相容）
               return !item.minRole || hasRole(item.minRole);
@@ -211,7 +216,7 @@ export default function Layout({ children }) {
                     </button>
                     {isExpanded && (
                       <div style={{ paddingLeft: 16, marginTop: 2 }}>
-                        {item.children.map(child => (
+                        {item.children.filter(child => !item.moduleKey || hasModule(item.moduleKey) || (child.moduleKey && hasModule(child.moduleKey))).map(child => (
                           <NavLink
                             key={child.path}
                             to={child.path}

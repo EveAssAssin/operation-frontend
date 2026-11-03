@@ -54,6 +54,15 @@ import ProcessingPage     from './pages/processing/ProcessingPage';
 // 通用簽收頁面（LINE LIFF / Web，不需登入）
 import UniversalSignPage from './pages/sign/UniversalSignPage';
 
+// 首頁：沒有「首頁」權限的角色（例：公關部只開零用金）→ 直接帶到第一個能用的功能
+function HomeGate() {
+  const { hasModule, myModules } = useAuth();
+  if (myModules && !hasModule('dashboard')) {
+    if (hasModule('petty_cash')) return <Navigate to="/petty-cash" replace />;
+  }
+  return <DashboardPage />;
+}
+
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return (
@@ -104,7 +113,7 @@ function AppRoutes() {
       <Route path="/rules" element={<RulesPage />} />
 
       {/* 主應用（需登入，套 Layout） */}
-      <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+      <Route path="/dashboard" element={<PrivateRoute><HomeGate /></PrivateRoute>} />
       <Route path="/personnel" element={<PrivateRoute><PersonnelPage /></PrivateRoute>} />
       <Route path="/billing-dept-summary" element={<PrivateRoute><BillingDeptSummaryPage /></PrivateRoute>} />
       <Route path="/billing"        element={<PrivateRoute><BillingPage /></PrivateRoute>} />

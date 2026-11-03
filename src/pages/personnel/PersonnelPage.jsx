@@ -12,6 +12,7 @@ const ROLES = [
   { value: 'operation_accounting', label: '營運部會計', bg: '#f0fff4', color: '#276749' },
   { value: 'operation_hr',         label: '營運部人事', bg: '#ebf8ff', color: '#2b6cb0' },
   { value: 'operation_staff',      label: '營運部部員', bg: '#f5f0ea', color: '#50422d' },
+  { value: 'pr_staff',             label: '公關部',     bg: '#fefcbf', color: '#744210' },
 ];
 
 const ROLE_MAP = Object.fromEntries(ROLES.map(r => [r.value, r]));
@@ -102,6 +103,7 @@ const ROLE_DESCS = {
   operation_accounting: '會計專屬：可管理支票、開帳',
   operation_hr:         '人事專屬：可管理招募、履歷',
   operation_staff:      '基本系統存取',
+  pr_staff:             '只能使用零用金管理',
 };
 
 // ── 推播群組：成員選擇 Modal ─────────────────────────────────
@@ -502,7 +504,7 @@ export default function PersonnelPage() {
   //   operation_lead：可授予基層三種（staff / accounting / hr）
   const allowedRoles = useMemo(() => {
     if (isSuperAdmin) return ROLES;
-    return ROLES.filter(r => ['operation_staff','operation_accounting','operation_hr'].includes(r.value));
+    return ROLES.filter(r => ['operation_staff','operation_accounting','operation_hr','pr_staff'].includes(r.value));
   }, [isSuperAdmin]);
 
   // 判斷某員工是否可被當前用戶操作
@@ -511,7 +513,7 @@ export default function PersonnelPage() {
     if (isSuperAdmin) return true;
     // operation_lead：只能操作未授權者、或已是基層三種角色（staff/accounting/hr）
     return !emp.has_access
-        || ['operation_staff','operation_accounting','operation_hr'].includes(emp.role);
+        || ['operation_staff','operation_accounting','operation_hr','pr_staff'].includes(emp.role);
   }
 
   // ── 授權 / 修改角色 ─────────────────────────────────────

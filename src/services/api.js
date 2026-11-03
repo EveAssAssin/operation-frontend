@@ -761,6 +761,8 @@ export const vendorPaymentApi = {
 // 零用金管理（2026-11）
 export const pettyCashApi = {
   funds:       (all)        => api.get('/petty-cash/funds', { params: all ? { all: '1' } : {} }),
+  stores:      ()           => api.get('/petty-cash/stores'),
+  subjects:    ()           => api.get('/petty-cash/subjects'),
   createFund:  (body)       => api.post('/petty-cash/funds', body),
   updateFund:  (id, body)   => api.patch(`/petty-cash/funds/${id}`, body),
   txns:        (params)     => api.get('/petty-cash/txns', { params }),

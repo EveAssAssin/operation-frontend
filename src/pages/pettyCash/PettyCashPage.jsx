@@ -1,8 +1,7 @@
 // pages/pettyCash/PettyCashPage.jsx —— 營運管理 → 零用金管理（2026-11）
 // 金庫（可多個）→ 收入／支出流水、即時餘額；支出可勾「同步開帳」列入門市月報（選門市＋會計科目，可拆多間店）
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { pettyCashApi, personnelApi } from '../../services/api';
-import SubjectSelect from '../../components/ledger/SubjectSelect';
+import { pettyCashApi } from '../../services/api';
 
 const C = { primary: '#50422d', bg: '#faf8f5', border: '#e0d5c8', muted: '#8a7a66', ok: '#2d6a4f', danger: '#c53030', in: '#2f855a', out: '#c05621' };
 const card = { background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, marginBottom: 12 };
@@ -32,12 +31,11 @@ export default function PettyCashPage() {
     } catch (e) { setErr(errMsg(e)); }
   }, [showOff]);
   useEffect(() => { loadFunds(); }, [loadFunds]);
+  const [subjects, setSubjects] = useState([]);
   useEffect(() => {
-    personnelApi.getDepartments().then((r) => {
-      const m = new Map();
-      for (const d of r.data || []) if (d.store_erpid && !m.has(d.store_erpid)) m.set(d.store_erpid, { store_erpid: d.store_erpid, store_name: d.store_name });
-      setStores([...m.values()].sort((a, b) => String(a.store_name).localeCompare(String(b.store_name), 'zh-Hant')));
-    }).catch(() => {});
+    // 門市＋部門（門市在前）；會計科目（支出）——都走零用金自己的 API，公關部不用其他權限
+    pettyCashApi.stores().then((r) => setStores(r.data || [])).catch((e) => setErr('門市清單讀取失敗：' + errMsg(e)));
+    pettyCashApi.subjects().then((r) => setSubjects(r.data || [])).catch(() => {});
   }, []);
 
   const fund = funds.find((f) => f.id === fundId);
@@ -66,7 +64,7 @@ export default function PettyCashPage() {
       </div>
 
       {fundForm && <FundForm f={fundForm} stores={stores} onClose={() => setFundForm(null)} onSaved={async (x) => { setFundForm(null); await loadFunds(); if (x && x.id) setFundId(x.id); }} />}
-      {fund && <FundBook key={fund.id} fund={fund} stores={stores} storeName={storeName} onChanged={loadFunds} onEditFund={() => setFundForm(fund)} />}
+      {fund && <FundBook key={fund.id} fund={fund} stores={stores} subjects={subjects} storeName={storeName} onChanged={loadFunds} onEditFund={() => setFundForm(fund)} />}
     </div>
   );
 }
@@ -97,7 +95,7 @@ function FundForm({ f, stores, onClose, onSaved }) {
   );
 }
 
-function FundBook({ fund, stores, storeName, onChanged, onEditFund }) {
+function FundBook({ fund, stores, subjects, storeName, onChanged, onEditFund }) {
   const [filter, setFilter] = useState({ from: '', to: '', direction: '', keyword: '', include_void: false });
   const [data, setData] = useState({ rows: [], opening_balance: 0, balance: 0 });
   const [adding, setAdding] = useState(null);   // 'in' | 'out'
@@ -142,7 +140,7 @@ function FundBook({ fund, stores, storeName, onChanged, onEditFund }) {
         <button style={btn(C.out)} onClick={() => setAdding('out')}>－ 支出</button>
       </div>
 
-      {adding && <TxnForm fund={fund} direction={adding} stores={stores} onClose={() => setAdding(null)}
+      {adding && <TxnForm fund={fund} direction={adding} stores={stores} subjects={subjects} onClose={() => setAdding(null)}
         onSaved={(m) => { setAdding(null); setMsg(m); load(); onChanged(); }} />}
       {msg && <div style={{ ...card, color: msg.startsWith('⚠') ? C.danger : C.ok, padding: 10 }}>{msg}</div>}
 
@@ -272,7 +270,7 @@ function TxnRow({ t, open, onToggle, storeName, onChanged }) {
   );
 }
 
-function TxnForm({ fund, direction, stores, onClose, onSaved }) {
+function TxnForm({ fund, direction, stores, subjects, onClose, onSaved }) {
   const isOut = direction === 'out';
   const [f, setF] = useState({ txn_date: today(), amount: '', category: '', description: '', payee: '', receipt_no: '', handled_by: fund.keeper_name || '',
     post_to_ledger: false, report_ym: today().slice(0, 7) });
@@ -334,10 +332,16 @@ function TxnForm({ fund, direction, stores, onClose, onSaved }) {
               {allocs.map((a, i) => (
                 <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
                   <select style={{ ...input, width: 150 }} value={a.store_erpid} onChange={(e) => setA(i, { store_erpid: e.target.value })}>
-                    <option value="">— 門市／部門 —</option>
-                    {stores.map((s) => <option key={s.store_erpid} value={s.store_erpid}>{s.store_name}</option>)}
+                    <option value="">— 開帳門市／部門 —</option>
+                    <optgroup label="門市">{stores.filter((s) => s.kind === 'store').map((s) => <option key={s.store_erpid} value={s.store_erpid}>{s.store_name}</option>)}</optgroup>
+                    <optgroup label="部門">{stores.filter((s) => s.kind !== 'store').map((s) => <option key={s.store_erpid} value={s.store_erpid}>{s.store_name}</option>)}</optgroup>
                   </select>
-                  <SubjectSelect value={a.subject_id} onChange={(sj) => setA(i, { subject_id: sj ? sj.id : '' })} />
+                  <select style={{ ...input, minWidth: 200 }} value={a.subject_id} onChange={(e) => setA(i, { subject_id: e.target.value })}>
+                    <option value="">— 會計科目 —</option>
+                    {Object.entries(subjects.reduce((o, s) => { (o[s.ledger_name] = o[s.ledger_name] || []).push(s); return o; }, {})).map(([g, list]) => (
+                      <optgroup key={g} label={g}>{list.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</optgroup>
+                    ))}
+                  </select>
                   <input style={{ ...input, width: 100 }} placeholder={allocs.length === 1 ? `${fmt(total)}` : '金額'} value={a.amount} onChange={(e) => setA(i, { amount: e.target.value.replace(/[^\d.]/g, '') })} />
                   {allocs.length > 1 && <button style={{ ...ghost, padding: '3px 8px' }} onClick={() => setAllocs(allocs.filter((_, j) => j !== i))}>✕</button>}
                 </div>
