@@ -361,6 +361,11 @@ export const operationalExpensesApi = {
     }),
   getReport:       (params = {})   => api.get('/operational-expenses/report', { params }),
   exportReport:    (params = {})   => api.get('/operational-expenses/report/export', { params, responseType: 'blob' }),
+  // 掃碼入帳
+  scanResolve:     (items)         => api.post('/operational-expenses/scan/resolve', { items }),
+  scanCommit:      (items)         => api.post('/operational-expenses/scan/commit', { items }),
+  scanBindings:    ()              => api.get('/operational-expenses/scan/bindings'),
+  deleteScanBinding: (id)          => api.delete(`/operational-expenses/scan/bindings/${id}`),
 };
 
 export const recurringExpensesApi = {

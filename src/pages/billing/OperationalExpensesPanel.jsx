@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { operationalExpensesApi, personnelApi, basicDataApi } from '../../services/api';
+import BillScanModal from './BillScanModal';
 
 const fmt = n => Number(n || 0).toLocaleString('zh-TW');
 function today() { return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' }); }
@@ -24,6 +25,7 @@ export default function OperationalExpensesPanel() {
   const [storeMap, setStoreMap]     = useState({});
   const [anomalies, setAnomalies]   = useState({ month: '', anomalies: [], thresholds: null });
   const [anomalyCollapsed, setAnomalyCollapsed] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -168,6 +170,7 @@ export default function OperationalExpensesPanel() {
             </div>
           );
         })()}
+        <button style={{ ...S.btnPrimary, background: '#2b6cb0' }} onClick={() => setScanning(true)}>📷 掃碼入帳</button>
         <button style={S.btnPrimary} onClick={() => setEditing({})}>＋ 新增</button>
       </div>
 
@@ -220,6 +223,14 @@ export default function OperationalExpensesPanel() {
           </tbody>
         </table>
       </div>
+
+      {scanning && (
+        <BillScanModal
+          categories={categories}
+          onClose={() => setScanning(false)}
+          onSaved={() => load()}
+        />
+      )}
 
       {editing && (
         <ExpenseModal
