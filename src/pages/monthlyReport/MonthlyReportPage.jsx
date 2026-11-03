@@ -9,6 +9,7 @@ import AccountsPanel from './AccountsPanel';
 import CardFeePanel from './CardFeePanel';
 import ImportPanel from './ImportPanel';
 import AmortPanel from './AmortPanel';
+import ScanBillPanel from './ScanBillPanel';
 import HelpTip from '../../components/help/HelpTip';
 import { useCoachMarks } from '../../components/help/CoachMarks';
 import { ROW_HELP, REV_HELP, SECTION_HELP, DEFAULT_ROW_HELP, TOUR_OVERVIEW, TOUR_STORE } from './helpTexts';
@@ -177,6 +178,7 @@ export default function MonthlyReportPage() {
       {!store && <CloseBar ym={ym} onDone={loadOverview} />}
       {!store && <CardFeePanel ym={ym} />}
       {!store && <ImportPanel onDone={loadOverview} />}
+      {!store && <ScanBillPanel onDone={loadOverview} />}
       {!store && <AmortPanel ym={ym} stores={ov ? ov.stores : []} onDone={loadOverview} />}
       {!store && <AccountsPanel />}
       {!store && <AuditPanel ym={ym} onPickStore={(id) => setStore(id)} />}
