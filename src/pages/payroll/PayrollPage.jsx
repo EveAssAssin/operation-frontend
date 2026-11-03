@@ -7,7 +7,7 @@ const BASE = import.meta.env.VITE_PAYROLL_URL || 'https://lohas-payroll-web.onre
 
 export default function PayrollPage() {
   const { user } = useAuth();
-  const app = user?.app_number || user?.memberId || '';
+  const app = user?.app_number || user?.memberId || user?.member_id || '';
   const src = `${BASE}/?app_number=${encodeURIComponent(app)}&embed=1`;
   return (
     <div style={{ height: 'calc(100vh - 24px)', display: 'flex', flexDirection: 'column' }}>
