@@ -816,6 +816,7 @@ export const ledgerApi = {
   storeProfile:(store, ym)=> api.get('/ledger/store-profile', { params: { store, ym } }),
   addFixed:   (body)      => api.post('/ledger/fixed', body),
   delFixed:   (id)        => api.delete(`/ledger/fixed/${id}`),
+  updFixed:   (id, body)  => api.patch(`/ledger/fixed/${id}`, body),
   addHolder:  (body)      => api.post('/ledger/shareholders', body),
   patchHolder:(id, body)  => api.patch(`/ledger/shareholders/${id}`, body),
   delHolder:  (id)        => api.delete(`/ledger/shareholders/${id}`),

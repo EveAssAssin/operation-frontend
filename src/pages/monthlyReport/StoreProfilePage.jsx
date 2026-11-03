@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { ledgerApi, recurringExpensesApi, contractsApi } from '../../services/api';
+import SubjectSelect, { loadSubjects } from '../../components/ledger/SubjectSelect';
 
 const fmt = (n) => (n == null || n === '' ? '—' : Math.round(Number(n)).toLocaleString('zh-TW'));
 const errMsg = (e) => (e && e.response && e.response.data && e.response.data.message) || (e && e.message) || '讀取失敗';
@@ -133,30 +134,75 @@ const S = {
   btnLink: { border: 'none', background: 'none', color: '#3182ce', cursor: 'pointer', padding: 0, fontSize: 12 },
 };
 
-// 行銷基金／折舊：每月固定金額（月報「可分配盈餘」先扣這兩項）
+// 每月固定費用（2026-11）：行銷基金／折舊（月報「可分配盈餘」先扣）＋任何會計科目（設起訖後每月自動列入月報）
 function FixedEditor({ store, items, onDone }) {
-  const [f, setF] = useState({ ledger_code: 'marketing_fund', amount: '', from_ym: thisYm(), to_ym: '', note: '' });
+  const empty = { kind: 'subject', subject_id: '', amount: '', from_ym: thisYm(), to_ym: '', note: '' };
+  const [f, setF] = useState(empty);
   const [msg, setMsg] = useState('');
-  const add = async () => {
-    try { await ledgerApi.addFixed({ store, ...f, amount: Number(f.amount) }); setF({ ...f, amount: '', note: '' }); setMsg('已新增'); onDone(); } catch (e) { setMsg(errMsg(e)); }
+  const [subs, setSubs] = useState([]);
+  const [edit, setEdit] = useState(null);   // { id, amount, from_ym, to_ym, note }
+  useEffect(() => { loadSubjects().then(setSubs).catch(() => {}); }, [items]);
+  const label = (x) => {
+    if (x.ledger_code === 'marketing_fund' && !x.subject_id) return '行銷基金';
+    if (x.ledger_code === 'depreciation' && !x.subject_id) return '折舊';
+    const sj = subs.find((s) => s.id === x.subject_id);
+    return sj ? `${sj.name}${sj.ledger_name && sj.ledger_name !== sj.name ? `（${sj.ledger_name}）` : ''}` : x.ledger_code;
   };
-  const del = async (id) => { try { await ledgerApi.delFixed(id); onDone(); } catch (e) { setMsg(errMsg(e)); } };
+  const cur = thisYm();
+  const add = async () => {
+    setMsg('');
+    const body = { store, amount: Number(f.amount), from_ym: f.from_ym, to_ym: f.to_ym || null, note: f.note };
+    if (f.kind === 'subject') { if (!f.subject_id) { setMsg('請選會計科目'); return; } body.subject_id = f.subject_id; } else body.ledger_code = f.kind;
+    try { await ledgerApi.addFixed(body); setF({ ...empty, kind: f.kind, subject_id: f.subject_id }); setMsg('已新增，月報會從開始月份起每月自動列入'); onDone(); } catch (e) { setMsg(errMsg(e)); }
+  };
+  const save = async () => {
+    try { await ledgerApi.updFixed(edit.id, { amount: Number(edit.amount), from_ym: edit.from_ym, to_ym: edit.to_ym || null, note: edit.note }); setEdit(null); setMsg('已更新'); onDone(); } catch (e) { setMsg(errMsg(e)); }
+  };
+  const del = async (x) => {
+    if (!window.confirm(`刪除「${label(x)} ${fmt(x.amount)}／月」？\n已關帳的月份不受影響；要保留過去的紀錄、只是之後不再收，請改用「改」設定結束月份。`)) return;
+    try { await ledgerApi.delFixed(x.id); onDone(); } catch (e) { setMsg(errMsg(e)); }
+  };
+  const sorted = [...items].sort((a, b) => ((a.to_ym && a.to_ym < cur) - (b.to_ym && b.to_ym < cur)) || String(a.from_ym).localeCompare(String(b.from_ym)));
   return (
     <div style={S.card} data-yaya="sp-fixed">
-      <div style={S.h}>📈 行銷基金／折舊（每月固定）</div>
+      <div style={S.h}>📌 每月固定費用</div>
+      <div style={{ ...S.sub, marginBottom: 6 }}>選會計科目、填每月金額和起訖月份，月報每個月會自動列這筆（結束月份空白＝一直持續）。</div>
       {items.length === 0 && <div style={S.sub}>還沒設。</div>}
-      {items.map((x) => <div key={x.id} style={{ fontSize: 13, display: 'flex', gap: 8 }}>
-        <span>{x.ledger_code === 'marketing_fund' ? '行銷基金' : '折舊'} {fmt(x.amount)}／月｜{x.from_ym} ～ {x.to_ym || '至今'}{x.note ? `｜${x.note}` : ''}</span>
-        <button style={S.btnLink} onClick={() => del(x.id)}>刪除</button></div>)}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-        <select style={S.input} value={f.ledger_code} onChange={(e) => setF({ ...f, ledger_code: e.target.value })}><option value="marketing_fund">行銷基金</option><option value="depreciation">折舊</option></select>
+      {sorted.map((x) => {
+        const ended = x.to_ym && x.to_ym < cur;
+        if (edit && edit.id === x.id) return (
+          <div key={x.id} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', padding: '4px 0', fontSize: 13 }}>
+            <b>{label(x)}</b>
+            <input style={{ ...S.input, width: 90 }} value={edit.amount} onChange={(e) => setEdit({ ...edit, amount: e.target.value })} />
+            <input style={S.input} type="month" value={edit.from_ym} onChange={(e) => setEdit({ ...edit, from_ym: e.target.value })} />
+            <span>～</span>
+            <input style={S.input} type="month" value={edit.to_ym || ''} onChange={(e) => setEdit({ ...edit, to_ym: e.target.value })} title="結束月份（空白＝至今）" />
+            <input style={{ ...S.input, minWidth: 100 }} placeholder="備註" value={edit.note || ''} onChange={(e) => setEdit({ ...edit, note: e.target.value })} />
+            <button style={S.btn} onClick={save}>存</button>
+            <button style={S.btnLink} onClick={() => setEdit(null)}>取消</button>
+          </div>
+        );
+        return (
+          <div key={x.id} style={{ fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', padding: '3px 0', opacity: ended ? 0.5 : 1 }}>
+            <span><b>{label(x)}</b> {fmt(x.amount)}／月｜{x.from_ym} ～ {x.to_ym || '至今'}{x.note ? `｜${x.note}` : ''}{ended ? '（已結束）' : ''}</span>
+            <button style={S.btnLink} onClick={() => setEdit({ id: x.id, amount: x.amount, from_ym: x.from_ym, to_ym: x.to_ym || '', note: x.note || '' })}>改</button>
+            <button style={S.btnLink} onClick={() => del(x)}>刪除</button>
+          </div>
+        );
+      })}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10, alignItems: 'center' }}>
+        <select style={S.input} value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>
+          <option value="subject">會計科目</option><option value="marketing_fund">行銷基金</option><option value="depreciation">折舊</option>
+        </select>
+        {f.kind === 'subject' && <SubjectSelect value={f.subject_id} onChange={(sj) => setF({ ...f, subject_id: sj ? sj.id : '' })} />}
         <input style={{ ...S.input, width: 100 }} placeholder="每月金額" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
-        <input style={S.input} type="month" value={f.from_ym} onChange={(e) => setF({ ...f, from_ym: e.target.value })} />
+        <input style={S.input} type="month" value={f.from_ym} onChange={(e) => setF({ ...f, from_ym: e.target.value })} title="開始月份" />
+        <span>～</span>
         <input style={S.input} type="month" value={f.to_ym} onChange={(e) => setF({ ...f, to_ym: e.target.value })} title="結束月份（空白＝至今）" />
-        <input style={{ ...S.input, minWidth: 120 }} placeholder="備註" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
+        <input style={{ ...S.input, minWidth: 120 }} placeholder="備註（月報上會顯示）" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
         <button style={S.btn} disabled={!f.amount} onClick={add}>新增</button>
       </div>
-      {msg && <div style={S.sub}>{msg}</div>}
+      {msg && <div style={{ ...S.sub, marginTop: 6 }}>{msg}</div>}
     </div>
   );
 }
