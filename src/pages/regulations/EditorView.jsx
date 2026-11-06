@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useRegApi } from './regApi';
 import DocEditor from './DocEditor';
 import { applyOps, changeLabel } from './docOps';
+import RelatedEdits, { RelatedList } from './RelatedEdits';
 import { C, card, input, btn, btnP, btnD, btnOk, btnSm, RiskBadge, StatusBadge, Field, clone, fmtTime } from './ui';
 import { uiAlert, uiConfirm } from '../../components/uiDialog';   // 陷阱 143：App 內建瀏覽器沒有 alert／confirm
 
@@ -223,10 +224,9 @@ export function AssistPanel({ versionId, doc, onApply }) {
                     {(o.preview?.meta || []).map((m, k) => <div key={`m${k}`} style={{ fontSize: 12, color: '#22543d' }}>欄位「{m.field}」→ {Array.isArray(m.new) ? m.new.join('、') : m.new}</div>)}
                     {(o.other_regs || []).length > 0 && (
                       <div style={{ fontSize: 12, marginTop: 4, background: '#fffaf0', borderRadius: 6, padding: '4px 6px' }}>
-                        📎 其他規範也建議跟著改（這次不會改到）：
-                        {o.other_regs.map((r, k) => (
-                          <div key={k}><a href={`/regulations?reg=${String(r.code || '').split('-')[0]}`} target="_blank" rel="noreferrer">{r.title}</a> <span style={{ fontFamily: 'monospace' }}>{r.code}</span>：{r.suggestion}</div>
-                        ))}
+                        其他規範也建議跟著改（可在下面一起改）：
+                        <RelatedList items={o.other_regs} />
+                        <RelatedEdits versionId={versionId} items={o.other_regs} doc={doc} />
                       </div>
                     )}
                     <button style={{ ...(x.chosen === o.key ? btnOk : btnP), ...btnSm, marginTop: 6 }} disabled={!!x.chosen} onClick={() => choose(i, o)}>
@@ -286,6 +286,11 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
     const r = await api.resolveIssue(versionId, issue.id, { how: 'ignored', reason: reason.trim() });
     if (r?.success) { setChecks(r.data); setIgnoring(null); setReason(''); } else setErr(r?.message || '失敗');
   };
+  const markRelatedDone = async (issue, list) => {
+    const reason = '已另外修改：' + list.map(x => `《${x.title}》${x.state === 'submitted' ? '（已送審）' : '（草稿）'}`).join('、');
+    const r = await api.resolveIssue(versionId, issue.id, { how: 'applied', reason });
+    if (r?.success) setChecks(r.data);
+  };
   const reopen = async (issue) => { const r = await api.resolveIssue(versionId, issue.id, { how: 'reopen' }); if (r?.success) setChecks(r.data); };
 
   const issues = checks?.issues || [];
@@ -308,11 +313,13 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
                 <div>{i.level === 'warn' ? '⚠️' : '💡'} <span style={{ fontSize: 11, background: '#edf2f7', borderRadius: 6, padding: '0 5px' }}>{i.kind}</span> <b>{i.title}</b></div>
                 <div style={{ marginTop: 2 }}>{i.detail}</div>
                 {i.codes?.length > 0 && <div style={{ fontSize: 11, fontFamily: 'monospace', color: '#8b6f4e', marginTop: 2 }}>{i.codes.join('、')}</div>}
-                {(i.other_regs || []).map((r, k) => (
-                  <div key={k} style={{ fontSize: 12, marginTop: 3 }}>📎 <a href={`/regulations?reg=${String(r.code || '').split('-')[0]}`} target="_blank" rel="noreferrer">{r.title}</a> {r.code}：{r.suggestion}</div>
-                ))}
+                <RelatedList items={i.other_regs} />
+                {(i.other_regs || []).length > 0 && !res && (
+                  <RelatedEdits versionId={versionId} items={i.other_regs} doc={doc}
+                    onAllDone={(list) => { if (!i.fix) markRelatedDone(i, list); }} />
+                )}
                 {res ? (
-                  <div style={{ fontSize: 12, color: C.mid, marginTop: 4 }}>{res.how === 'applied' ? '✓ 已套用修正' : `已忽略：${res.reason}`}（{res.by}） <button style={{ ...btn, ...btnSm }} onClick={() => reopen(i)}>復原</button></div>
+                  <div style={{ fontSize: 12, color: C.mid, marginTop: 4 }}>{res.how === 'applied' ? (res.reason ? `✓ ${res.reason}` : '✓ 已套用修正') : `已忽略：${res.reason}`}（{res.by}） <button style={{ ...btn, ...btnSm }} onClick={() => reopen(i)}>復原</button></div>
                 ) : (
                   <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                     {i.fix && <button style={{ ...btnOk, ...btnSm }} onClick={() => applyFix(i)}>✓ {i.fix.label}</button>}
