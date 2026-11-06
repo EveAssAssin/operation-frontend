@@ -4,6 +4,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useRegApi } from './regApi';
 import { C, input, btn, btnP, btnSm } from './ui';
+import ClarifyCard, { composeWithAnswers } from './Clarify';
 
 const listOf = (r) => (Array.isArray(r?.data) ? r.data : Array.isArray(r?.data?.data) ? r.data.data : []);
 
@@ -17,6 +18,8 @@ export default function RefGenerate({ doc, title, onApply }) {
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
   const [res, setRes] = useState(null);
+  const [clar, setClar] = useState(null);           // AI 先確認方向的結果
+  const [answers, setAnswers] = useState({});
   const tm = useRef(null);
 
   useEffect(() => {
@@ -29,14 +32,32 @@ export default function RefGenerate({ doc, title, onApply }) {
     return () => clearTimeout(tm.current);
   }, [q, open]); // eslint-disable-line
 
+  useEffect(() => { setClar(null); }, [need, refs]);
   const toggle = (r) => setRefs(x => (x.some(y => y.id === r.id) ? x.filter(y => y.id !== r.id) : x.length >= 3 ? x : [...x, { id: r.id, title: r.title }]));
 
-  const run = async () => {
+  const check = () => {
+    if (!refs.length) { setErr('請至少選一份參考規範'); return false; }
+    if (need.trim().length < 5) { setErr('請寫這次的新需求'); return false; }
+    return true;
+  };
+  // 第一步：AI 先說它的理解＋打算的大綱＋關鍵問題（recheck＝帶著已回答的內容再確認一次）
+  const askFirst = async (recheck = false) => {
     setErr(''); setRes(null);
-    if (!refs.length) { setErr('請至少選一份參考規範'); return; }
-    if (need.trim().length < 5) { setErr('請寫這次的新需求'); return; }
+    if (!check()) return;
+    setBusy('AI 正在理解需求、整理大綱…（約 10～30 秒）');
+    const requirement = recheck ? composeWithAnswers(need, clar, answers) : need.trim();
+    const r = await api.refClarify({ reference_ids: refs.map(x => x.id), requirement, title });
+    setBusy('');
+    if (!r?.success) { setErr(r?.message || 'AI 確認失敗，可以按「略過確認」直接產生'); return; }
+    setClar(r.data); if (!recheck) setAnswers({});
+  };
+  // 第二步：照確認過的方向產生（skip＝不經確認直接寫）
+  const run = async (skip = false) => {
+    setErr(''); setRes(null);
+    if (!check()) return;
+    const requirement = skip ? need.trim() : composeWithAnswers(need, clar, answers);
     setBusy('送出中…');
-    const r = await api.refGenerate({ reference_ids: refs.map(x => x.id), requirement: need.trim(), title });
+    const r = await api.refGenerate({ reference_ids: refs.map(x => x.id), requirement, title });
     if (!r?.success) { setBusy(''); setErr(r?.message || '送出失敗'); return; }
     const t0 = Date.now();
     const poll = async () => {
@@ -109,7 +130,17 @@ export default function RefGenerate({ doc, title, onApply }) {
 
       {err && <div style={{ color: C.bad, marginTop: 6 }}>{err}</div>}
       {busy && <div style={{ color: '#b7791f', marginTop: 6 }}>⏳ {busy}</div>}
-      {!res && <button style={{ ...btnP, marginTop: 8 }} disabled={!!busy} onClick={run}>✨ 開始產生</button>}
+      {!res && !clar && (
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button style={btnP} disabled={!!busy} onClick={() => askFirst(false)}>下一步：AI 先確認方向</button>
+          <button style={{ ...btn, ...btnSm }} disabled={!!busy} onClick={() => run(true)}>略過確認，直接產生</button>
+          <span style={{ fontSize: 11, color: C.mid }}>寫一份要好幾分鐘，先確認方向比較不會白寫</span>
+        </div>
+      )}
+      {!res && clar && (
+        <ClarifyCard data={clar} answers={answers} setAnswers={setAnswers} busy={!!busy}
+          confirmLabel="✨ 方向對，開始產生" onConfirm={() => run(false)} onRecheck={() => askFirst(true)} />
+      )}
 
       {res && (
         <div style={{ marginTop: 10, background: '#fff', border: `1px solid ${C.line}`, borderRadius: 8, padding: 10 }}>
@@ -131,7 +162,7 @@ export default function RefGenerate({ doc, title, onApply }) {
           {hasContent && <div style={{ color: '#b7791f', marginTop: 6 }}>⚠ 套用會取代目前編輯器裡的全部條文（可按「↶ 復原」回來）。</div>}
           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
             <button style={btnP} onClick={apply}>套用到編輯器</button>
-            <button style={btn} onClick={run}>重新產生</button>
+            <button style={btn} onClick={() => run(false)}>重新產生</button>
             <button style={btn} onClick={() => setRes(null)}>不要</button>
           </div>
         </div>

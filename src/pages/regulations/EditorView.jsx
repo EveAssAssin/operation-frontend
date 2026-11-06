@@ -5,6 +5,7 @@ import DocEditor from './DocEditor';
 import { applyOps, changeLabel } from './docOps';
 import RelatedEdits, { RelatedList } from './RelatedEdits';
 import RefGenerate from './RefGenerate';
+import ClarifyCard, { composeWithAnswers } from './Clarify';
 import { C, card, input, btn, btnP, btnD, btnOk, btnSm, RiskBadge, StatusBadge, Field, clone, fmtTime } from './ui';
 import { uiAlert, uiConfirm } from '../../components/uiDialog';   // 陷阱 143：App 內建瀏覽器沒有 alert／confirm
 
@@ -163,14 +164,28 @@ export function AssistPanel({ versionId, doc, onApply }) {
     if (!r?.success) { uiAlert(r?.message || '上傳失敗'); return; }
     setImg({ url: r.data.url });
   };
+  const patchEntry = (id, patch) => setThread(t => t.map(x => (x.id === id ? { ...x, ...(typeof patch === 'function' ? patch(x) : patch) } : x)));
+  // 產生修改方案（message＝原需求，或併入確認過的方向／回答）
+  const runAssist = async (entry, message) => {
+    patchEntry(entry.id, { waiting: true });
+    setBusy('ai');
+    const r = await api.assist(versionId, { message, image_url: entry.img, doc });
+    setBusy('');
+    patchEntry(entry.id, { waiting: false, clarifyDone: true, result: r?.success ? r.data : null, error: r?.success ? null : (r?.message || 'AI 失敗') });
+  };
+  // 先確認方向（2026-11）：需求清楚就直接出方案；不清楚就先在對話裡問，回答後才出方案
   const send = async () => {
     const ask = text.trim();
     if (!ask && !img) return;
-    const entry = { ask, img: img?.url || null };
-    setThread(t => [...t, entry]); setText(''); setImg(null); setBusy('ai');
-    const r = await api.assist(versionId, { message: ask, image_url: entry.img, doc });
-    setBusy('');
-    setThread(t => t.map(x => (x === entry ? { ...x, result: r?.success ? r.data : null, error: r?.success ? null : (r?.message || 'AI 失敗') } : x)));
+    const entry = { id: Date.now(), ask, img: img?.url || null };
+    setThread(t => [...t, entry]); setText(''); setImg(null);
+    if (ask) {
+      setBusy('clarify'); patchEntry(entry.id, { checking: true });
+      const c = await api.assistClarify(versionId, { message: ask, doc });
+      setBusy(''); patchEntry(entry.id, { checking: false });
+      if (c?.success && !c.data.ready) { patchEntry(entry.id, { clarify: c.data, answers: {} }); return; }
+    }
+    runAssist(entry, ask);
   };
   const choose = (i, o) => {
     try {
@@ -200,7 +215,14 @@ export function AssistPanel({ versionId, doc, onApply }) {
               {x.img && <img src={x.img} alt="" style={{ maxWidth: 160, maxHeight: 110, borderRadius: 6, display: 'block', marginBottom: 4 }} />}
               {x.ask || '（照片）'}
             </div>
-            {!x.result && !x.error && <div style={{ color: C.mid, marginTop: 6 }}>AI 正在搜尋全部規範、整理方案…（約 10～30 秒）</div>}
+            {x.checking && <div style={{ color: C.mid, marginTop: 6 }}>AI 先看一下你的需求…</div>}
+            {x.clarify && !x.clarifyDone && !x.waiting && (
+              <ClarifyCard compact data={x.clarify} answers={x.answers || {}} busy={!!busy}
+                setAnswers={(fn) => patchEntry(x.id, y => ({ answers: fn(y.answers || {}) }))}
+                confirmLabel="產生修改方案" onConfirm={() => runAssist(x, composeWithAnswers(x.ask, x.clarify, x.answers))}
+                onSkip={() => runAssist(x, x.ask)} />
+            )}
+            {x.waiting && <div style={{ color: C.mid, marginTop: 6 }}>AI 正在搜尋全部規範、整理方案…（約 10～30 秒）</div>}
             {x.error && <div style={{ color: C.bad, marginTop: 6 }}>{x.error}</div>}
             {x.result && (
               <div style={{ background: '#f6f1ea', borderRadius: 10, padding: 8, marginTop: 6 }}>
@@ -249,7 +271,7 @@ export function AssistPanel({ versionId, doc, onApply }) {
           <label style={{ ...btn, padding: '6px 9px' }} title="上傳照片">📷<input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { pickImage(e.target.files?.[0]); e.target.value = ''; }} /></label>
           <textarea style={{ ...input, minHeight: 38, resize: 'vertical' }} rows={2} value={text} onChange={e => setText(e.target.value)} placeholder="例如：結帳時間改成 21:00 前"
             onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(); }} />
-          <button style={btnP} disabled={!!busy || (!text.trim() && !img)} onClick={send}>{busy === 'ai' ? '…' : busy === 'upload' ? '上傳中' : '送出'}</button>
+          <button style={btnP} disabled={!!busy || (!text.trim() && !img)} onClick={send}>{busy === 'ai' || busy === 'clarify' ? '…' : busy === 'upload' ? '上傳中' : '送出'}</button>
         </div>
         <div style={{ fontSize: 11, color: '#a0aec0', marginTop: 3 }}>Ctrl＋Enter 送出</div>
       </div>
