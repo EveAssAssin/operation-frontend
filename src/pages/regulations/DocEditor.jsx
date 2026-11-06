@@ -3,6 +3,7 @@
 import React from 'react';
 import { C, input, btn, btnSm, cnNo, noOf, clone, Field } from './ui';
 import { useRegApi } from './regApi';
+import { uiAlert, uiConfirm } from '../../components/uiDialog';   // 陷阱 143：App 內建瀏覽器沒有 alert／confirm
 
 const DOC_TYPES = ['作業流程', '行政規定', '產品知識', '工作職掌', '人事規範', '其他'];
 
@@ -19,8 +20,8 @@ function ClauseEd({ c, path, level, upd }) {
   const parentPath = path.slice(0, -1), idx = path[path.length - 1];
   const set = (k, v) => upd(d => { listAt(d, parentPath)[idx][k] = v; });
   const move = (dir) => upd(d => { const a = listAt(d, parentPath); const j = idx + dir; if (j < 0 || j >= a.length) return; [a[idx], a[j]] = [a[j], a[idx]]; });
-  const remove = () => {
-    if ((c.subs || []).length && !window.confirm('這條底下還有子條文，會一起刪除。確定？')) return;
+  const remove = async () => {
+    if ((c.subs || []).length && !(await uiConfirm('這條底下還有子條文，會一起刪除。確定？'))) return;
     upd(d => { listAt(d, parentPath).splice(idx, 1); });
   };
   const addSub = () => upd(d => { const it = listAt(d, parentPath)[idx]; it.subs = it.subs || []; it.subs.push({ text: '', t: null, notes: [], subs: [] }); });
@@ -45,7 +46,7 @@ function ClauseEd({ c, path, level, upd }) {
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
               const f = e.target.files?.[0]; e.target.value = ''; if (!f) return;
               const r = await regulationApi.upload(f);
-              if (!r?.success) { window.alert(r?.message || '上傳失敗'); return; }
+              if (!r?.success) { uiAlert(r?.message || '上傳失敗'); return; }
               upd(d => { const it = listAt(d, parentPath)[idx]; it.images = it.images || []; it.images.push({ url: r.data.url, caption: '' }); });
             }} />
           </label>
@@ -114,7 +115,7 @@ export default function DocEditor({ doc, onChange, roles = [], categories = [] }
             <input style={{ ...input, fontWeight: 700, fontSize: 15 }} value={s.title || ''} placeholder="大項名稱" onChange={e => upd(d => { d.sections[si].title = e.target.value; })} />
             <button style={{ ...btn, ...btnSm }} onClick={() => upd(d => { if (si > 0) [d.sections[si - 1], d.sections[si]] = [d.sections[si], d.sections[si - 1]]; })}>↑</button>
             <button style={{ ...btn, ...btnSm }} onClick={() => upd(d => { if (si < d.sections.length - 1) [d.sections[si + 1], d.sections[si]] = [d.sections[si], d.sections[si + 1]]; })}>↓</button>
-            <button style={{ ...btn, ...btnSm, color: C.bad }} onClick={() => { if ((s.items || []).length && !window.confirm('整個大項（含所有條文）會刪除，確定？')) return; upd(d => { d.sections.splice(si, 1); }); }}>刪除大項</button>
+            <button style={{ ...btn, ...btnSm, color: C.bad }} onClick={async () => { if ((s.items || []).length && !(await uiConfirm('整個大項（含所有條文）會刪除，確定？'))) return; upd(d => { d.sections.splice(si, 1); }); }}>刪除大項</button>
           </div>
           {(s.items || []).map((c, i) => <ClauseEd key={c.code || `n${i}`} c={c} path={[si, i]} level={1} upd={upd} />)}
           <button style={{ ...btn, ...btnSm, marginTop: 8 }} onClick={() => upd(d => { d.sections[si].items.push({ text: '', t: null, notes: [], subs: [] }); })}>＋ 新增條文</button>

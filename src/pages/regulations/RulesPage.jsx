@@ -5,6 +5,7 @@ import { regulationPublicApi as api, regulationProposeApi } from '../../services
 import { DocView, fmtTime, StatusBadge, RecentChange } from './ui';
 import EditorView from './EditorView';
 import { RegApiCtx } from './regApi';
+import { uiAlert } from '../../components/uiDialog';   // 陷阱 143：App 內建瀏覽器沒有 alert
 
 const LS_KEY = 'rules_app_number';
 const C = { bg: '#f6f2ec', card: '#fff', ink: '#2d2416', mid: '#6b5640', line: '#e6dccd', brand: '#50422d', ok: '#2f855a', bad: '#c53030' };
@@ -36,7 +37,7 @@ export default function RulesPage() {
   useEffect(() => { reloadProp(); }, [reloadProp]);
   const startEdit = async (regId) => {
     const r = await papi.startDraft(regId);
-    if (!r?.success) { window.alert(r?.message || '開始修改失敗'); return; }
+    if (!r?.success) { uiAlert(r?.message || '開始修改失敗'); return; }
     setViewer(null); setEditing(r.data.id);
   };
 
@@ -73,7 +74,7 @@ export default function RulesPage() {
           <RegApiCtx.Provider value={papi}>
             <EditorView stack versionId={editing} roles={prop?.meta?.roles || []} categories={prop?.meta?.categories || []} aiEnabled={!!prop?.meta?.ai}
               onClose={() => { setEditing(null); reloadProp(); }}
-              onSubmitted={() => { window.alert('已送審，審核人同意後會通知你'); setEditing(null); reloadProp(); setTab('propose'); }} />
+              onSubmitted={() => { uiAlert('已送審，審核人同意後會通知你'); setEditing(null); reloadProp(); setTab('propose'); }} />
           </RegApiCtx.Provider>
         </div>
       )}
@@ -384,16 +385,16 @@ function Propose({ app, prop, open, onEdit, reload, papi }) {
   if (!prop) return <div style={{ color: C.mid }}>讀取權限中…</div>;
   if (!prop.can) return <div style={{ ...card, padding: 14, fontSize: 14 }}>🔒 {prop.reason || '你目前沒有提出新增或修改規範的權限'}<div style={{ fontSize: 12, color: C.mid, marginTop: 6 }}>權限依左手稱號判斷，取得稱號後約 10 分鐘生效。</div></div>;
   const create = async () => {
-    if (!title.trim()) { window.alert('請填規範標題'); return; }
+    if (!title.trim()) { uiAlert('請填規範標題'); return; }
     setBusy(true);
     const r = await papi.newRegulation({ title: title.trim(), category: cat.trim() });
     setBusy(false);
-    if (!r?.success) { window.alert(r?.message || '建立失敗'); return; }
+    if (!r?.success) { uiAlert(r?.message || '建立失敗'); return; }
     setTitle(''); setCat(''); onEdit(r.data.id); reload();
   };
   const edit = async (id) => {
     const r = await papi.startDraft(id);
-    if (!r?.success) { window.alert(r?.message || '開始修改失敗'); return; }
+    if (!r?.success) { uiAlert(r?.message || '開始修改失敗'); return; }
     onEdit(r.data.id);
   };
   const stHint = { draft: '還沒送審，點進去繼續改', returned: '被退回，點進去修改後再送審', pending: '等審核人審核', approved: '已上線', discarded: '已捨棄' };

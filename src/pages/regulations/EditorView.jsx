@@ -4,6 +4,7 @@ import { useRegApi } from './regApi';
 import DocEditor from './DocEditor';
 import { applyOps, changeLabel } from './docOps';
 import { C, card, input, btn, btnP, btnD, btnOk, btnSm, RiskBadge, StatusBadge, Field, clone, fmtTime } from './ui';
+import { uiAlert, uiConfirm } from '../../components/uiDialog';   // 陷阱 143：App 內建瀏覽器沒有 alert／confirm
 
 export default function EditorView({ versionId, roles, categories, aiEnabled, onClose, onSubmitted, stack = false }) {   // stack＝手機（App 查規範）上下排
   const api = useRegApi();
@@ -47,7 +48,7 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
   };
   const submit = async () => {
     if (dirty && !(await save())) return;
-    if (!window.confirm('確定送審？送出後到審核完成前不能再修改。' + (aiEnabled ? '\n（送審前會自動跑 AI 檢查）' : ''))) return;
+    if (!(await uiConfirm('確定送審？送出後到審核完成前不能再修改。' + (aiEnabled ? '\n（送審前會自動跑 AI 檢查）' : '')))) return;
     setBusy('submit'); setMsg(null);
     try {
       const r = await api.submit(versionId);
@@ -63,7 +64,7 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
     } catch (e) { setMsg({ err: true, text: e.message }); } finally { setBusy(''); }
   };
   const discard = async () => {
-    if (!window.confirm('捨棄這份草稿？所有修改都會丟掉。')) return;
+    if (!(await uiConfirm('捨棄這份草稿？所有修改都會丟掉。'))) return;
     const r = await api.discard(versionId);
     if (r?.success) onClose?.(); else setMsg({ err: true, text: r?.message || '捨棄失敗' });
   };
@@ -81,7 +82,7 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             {undo.length > 0 && <button style={btn} onClick={() => { const prev = undo[undo.length - 1]; setUndo(u => u.slice(0, -1)); setDoc(prev); setDirty(true); }}>↶ 復原</button>}
-            <button style={btn} onClick={() => { if (!dirty || window.confirm('有未儲存的修改，確定離開？')) onClose?.(); }}>← 返回</button>
+            <button style={btn} onClick={async () => { if (!dirty || await uiConfirm('有未儲存的修改，確定離開？')) onClose?.(); }}>← 返回</button>
           </div>
         </div>
         {v.status === 'returned' && v.review_note && (
@@ -156,7 +157,7 @@ export function AssistPanel({ versionId, doc, onApply }) {
     setBusy('upload');
     const r = await api.upload(f);
     setBusy('');
-    if (!r?.success) { window.alert(r?.message || '上傳失敗'); return; }
+    if (!r?.success) { uiAlert(r?.message || '上傳失敗'); return; }
     setImg({ url: r.data.url });
   };
   const send = async () => {
@@ -174,7 +175,7 @@ export function AssistPanel({ versionId, doc, onApply }) {
       onApply(d);
       setThread(t => t.map((x, k) => (k === i ? { ...x, chosen: o.key } : x)));
       api.chooseOption(versionId, thread[i].result.log_index, o.key);
-    } catch (e) { window.alert(`套用失敗：${e.message}（草稿內容可能在 AI 回覆後被改過，請重新詢問）`); }
+    } catch (e) { uiAlert(`套用失敗：${e.message}（草稿內容可能在 AI 回覆後被改過，請重新詢問）`); }
   };
 
   return (

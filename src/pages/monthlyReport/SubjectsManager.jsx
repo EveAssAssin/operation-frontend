@@ -41,7 +41,9 @@ export default function SubjectsManager({ accs, manageCells, onCellsChanged }) {
     <div style={{ marginTop: 14 }} data-yaya="mr-subjects">
       <div style={S.h}>會計科目（月報格子底下的細項）</div>
       <div style={S.sub}>開帳、手填、調帳、分攤、廠商請款通過都要選會計科目；選了科目就決定列在月報哪一格。帳單管理「📒 帳本明細 → 依會計科目」可以看每個科目逐月變化。</div>
-      {msg && <div style={{ fontSize: 13, color: '#2c5282', margin: '6px 0' }}>{msg}</div>}
+      {/* 訊息固定在畫面下方（芽芽回報 #123：捲到下面按「停用格子」被擋，原因印在最上面看不到，以為按了沒反應） */}
+      {msg && <div role="status" style={{ position: 'fixed', left: '50%', bottom: 20, transform: 'translateX(-50%)', zIndex: 1000, maxWidth: 'min(720px, 92vw)', background: '#fffbea', border: '1px solid #f6c343', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,.15)', padding: '10px 36px 10px 14px', fontSize: 14, color: '#2d2416', lineHeight: 1.6 }}>
+        {msg}<button onClick={() => setMsg('')} title="關閉" style={{ position: 'absolute', right: 8, top: 6, border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: '#8b6f4e' }}>×</button></div>}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', margin: '8px 0' }}>
         <select style={S.input} value={nw.ledger_code} onChange={(e) => setNw({ ...nw, ledger_code: e.target.value })}>
           <option value="">放在哪個月報格子</option>{(accs || []).map((a) => <option key={a.code} value={a.code}>{a.name}</option>)}
