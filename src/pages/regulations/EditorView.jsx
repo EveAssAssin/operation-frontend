@@ -4,6 +4,7 @@ import { useRegApi } from './regApi';
 import DocEditor from './DocEditor';
 import { applyOps, changeLabel } from './docOps';
 import RelatedEdits, { RelatedList } from './RelatedEdits';
+import RefGenerate from './RefGenerate';
 import { C, card, input, btn, btnP, btnD, btnOk, btnSm, RiskBadge, StatusBadge, Field, clone, fmtTime } from './ui';
 import { uiAlert, uiConfirm } from '../../components/uiDialog';   // 陷阱 143：App 內建瀏覽器沒有 alert／confirm
 
@@ -98,6 +99,7 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
               <input style={input} value={note} onChange={e => { setNote(e.target.value); setDirty(true); }} placeholder="例如：結帳時間改成 21:00 前" />
             </Field>
             <DocxImport title={doc.title} onApply={(d) => change(d, { pushUndo: true })} doc={doc} />
+            <RefGenerate title={doc.title} onApply={(d) => change(d, { pushUndo: true })} doc={doc} />
             <DocEditor doc={doc} roles={roles} categories={categories} onChange={(d) => change(d)} />
             {preview && (
               <div style={{ border: `1px solid ${C.line}`, borderRadius: 10, padding: 10, marginTop: 14, background: '#fcfaf6' }}>
