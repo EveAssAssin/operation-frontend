@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { regulationApi as api } from '../../services/api';
 import { C, card, input, btn, btnP, btnSm, fmtTime } from './ui';
+import { uiAlert, uiConfirm } from '../../components/uiDialog';
 
 const ST = [['open', '待處理'], ['drafted', '已開修正草稿'], ['resolved', '已修正上線'], ['ignored', '已忽略']];
 
@@ -31,7 +32,7 @@ export default function AuditPanel({ settings, reloadSettings, canRun, onEdit, a
   }, [rows]);
 
   const run = async () => {
-    if (!window.confirm('現在執行一次巡檢？（掃描最久沒檢查的 60 份規範，約 10～30 分鐘，完成後 LINE 通知審核人）')) return;
+    if (!(await uiConfirm('現在執行一次巡檢？（掃描最久沒檢查的 60 份規範，約 10～30 分鐘，完成後 LINE 通知審核人）'))) return;
     const r = await api.runAudit({});
     setMsg(r?.success ? { text: '巡檢已開始' } : { err: true, text: r?.message || '失敗' });
     reloadSettings();
@@ -39,7 +40,7 @@ export default function AuditPanel({ settings, reloadSettings, canRun, onEdit, a
   const draft = async (f) => {
     const r = await api.draftFromFinding(f.id);
     if (!r?.success) { setMsg({ err: true, text: r?.message || '失敗' }); return; }
-    if (r.data.note) window.alert(r.data.note);
+    if (r.data.note) await uiAlert(r.data.note);
     onEdit(r.data.version_id);
   };
   const runMeta = async () => {

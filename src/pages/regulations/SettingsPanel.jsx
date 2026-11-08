@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { regulationApi as api } from '../../services/api';
 import { C, card, btn, btnP, Field, EmployeePicker, fmtTime } from './ui';
+import { uiConfirm } from '../../components/uiDialog';
 
 export default function SettingsPanel({ settings, reload }) {
   const [emp, setEmp] = useState(null);
@@ -24,7 +25,7 @@ export default function SettingsPanel({ settings, reload }) {
     } catch (e) { setMsg({ err: true, text: e?.message || '儲存失敗' }); } finally { setSaving(false); }
   };
   const startImport = async () => {
-    if (!window.confirm('從左手 MAP 匯入全部規範？\n‧ 系統裡沒有的會新增\n‧ 已在本系統修改過的不會被覆蓋')) return;
+    if (!(await uiConfirm('從左手 MAP 匯入全部規範？\n‧ 系統裡沒有的會新增\n‧ 已在本系統修改過的不會被覆蓋'))) return;
     const r = await api.importFromMap();
     setMsg(r?.success ? { text: '匯入已開始，約 1～3 分鐘' } : { err: true, text: r?.message || '失敗' });
     reload();

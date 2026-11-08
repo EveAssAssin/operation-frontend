@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { regulationApi as api } from '../../services/api';
 import DocEditor from './DocEditor';
 import { C, card, btn, btnOk, btnD, btnSm, RiskBadge, StatusBadge, Modal, fmtTime, clone, linkify, input } from './ui';
+import { uiConfirm } from '../../components/uiDialog';
 
 const KIND = { add: ['新增', '#c6f6d5', '#22543d'], mod: ['修改', '#fefcbf', '#744210'], del: ['刪除', '#fed7d7', '#9b2c2c'], move: ['移動', '#e9d8fd', '#553c9a'] };
 const META_LABEL = { title: '標題', category: '分類', doc_type: '類型', summary: '摘要', scenario: '適用情境', owner_dept: '負責部門', keywords: '關鍵字', roles: '適用身分', sections: '大項' };
@@ -53,7 +54,7 @@ export default function ReviewPanel({ initialVid, isReviewer, roles, categories,
   };
   const lowCount = list.filter(x => x.risk === '低').length;
   const doLow = async () => {
-    if (!window.confirm(`把 ${lowCount} 件低風險送審全部通過？`)) return;
+    if (!(await uiConfirm(`把 ${lowCount} 件低風險送審全部通過？`))) return;
     const r = await api.approveLow();
     setMsg(r?.success ? { text: `已通過 ${r.data.approved} 件` } : { err: true, text: r?.message || '失敗' });
     loadList();

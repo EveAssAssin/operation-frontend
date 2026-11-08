@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { regulationApi as api } from '../../services/api';
 import { C, card, input, btn, btnP, btnOk, btnD, btnSm, Field, EmployeePicker, StatusBadge, fmtTime, Modal, ClauseText } from './ui';
+import { uiConfirm } from '../../components/uiDialog';
 
 export default function DeductionPanel({ canApprove }) {
   const [emp, setEmp] = useState(null);
@@ -34,7 +35,7 @@ export default function DeductionPanel({ canApprove }) {
     setEmp(null); setClause(null); setNote(''); setScore(''); loadList();
   };
   const approve = async (d) => {
-    if (!window.confirm(`通過後會寫入 MAP：${d.employee_name} ${d.score} 分\n【${d.clause_code}】${d.clause_text.slice(0, 40)}`)) return;
+    if (!(await uiConfirm(`通過後會寫入 MAP：${d.employee_name} ${d.score} 分\n【${d.clause_code}】${d.clause_text.slice(0, 40)}`))) return;
     const r = await api.approveDeduction(d.id);
     setMsg(r?.success ? { text: `已寫入 MAP：${r.data.map_message}` } : { err: true, text: r?.message || '失敗' });
     loadList();
