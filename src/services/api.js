@@ -47,7 +47,8 @@ api.interceptors.response.use(
         reqUrl.includes('/appointed-units/config') ||
         reqUrl.includes('/appointed-units/line/') ||
         reqUrl.includes('/vendor/') ||
-        reqUrl.includes('/sign/');
+        reqUrl.includes('/sign/') ||
+        reqUrl.includes('/regulations-review');   // 推播連結審核（票券，2026-11-09）：過期顯示提示，不踢去登入
       // 同樣，目前在 LIFF 頁時不要強制跳 /login
       const onLiffPage = typeof window !== 'undefined' && window.location.pathname.startsWith('/liff/');
       if (!isPublicApi && !onLiffPage) {
@@ -962,6 +963,18 @@ export const regulationApi = safeApi({
   questions:     (found)             => api.get('/regulations/questions', { params: { found } }),
 });
 
+// 推播連結進入的規範審核（不需登入）：ticket＝推播連結上的 t（24 小時、只限現任審核人），用 header 帶不放網址（2026-11-09）
+export const regulationReviewApi = (ticket) => {
+  const h = { headers: { 'x-review-ticket': ticket } };
+  return safeApi({
+    me:         ()            => api.get('/regulations-review/me', h),
+    reviews:    ()            => api.get('/regulations-review/list', h),
+    review:     (vid)         => api.get(`/regulations-review/${vid}`, h),
+    approve:    (vid, body)   => api.post(`/regulations-review/${vid}/approve`, { notify_staff: body?.notify_staff, notice: body?.notice }, { ...h, timeout: 60000 }),
+    returnBack: (vid, reason) => api.post(`/regulations-review/${vid}/return`, { reason }, h),
+    approveLow: ()            => api.post('/regulations-review/approve-low', {}, { ...h, timeout: 120000 }),
+  });
+};
 // App「查規範」人員提出新增／修改規範（左手稱號符合才可以）；方法名稱跟 regulationApi 一樣，給 EditorView 共用
 export const regulationProposeApi = (app) => {
   const q = { params: { app_number: app } }, b = (x = {}) => ({ ...x, app_number: app });

@@ -34,6 +34,7 @@ import PayrollPage         from './pages/payroll/PayrollPage';
 import ReportAiPage        from './pages/reportAi/ReportAiPage';
 import RegulationsPage     from './pages/regulations/RegulationsPage';
 import RulesPage           from './pages/regulations/RulesPage';
+import RegReviewPage       from './pages/regulations/RegReviewPage';
 import VendorManagePage    from './pages/vendorManage/VendorManagePage';
 import LedgerSubjectsPage  from './pages/ledgerSubjects/LedgerSubjectsPage';
 import PettyCashPage       from './pages/pettyCash/PettyCashPage';
@@ -112,6 +113,7 @@ function AppRoutes() {
       <Route path="/points" element={<PointRedeemPage />} />
       {/* 人員查規範（不需登入，用 APP 編號確認身分） */}
       <Route path="/rules" element={<RulesPage />} />
+      <Route path="/rules/review" element={<RegReviewPage />} />   {/* 推播連結審核（票券，不需登入）2026-11-09 */}
 
       {/* 主應用（需登入，套 Layout） */}
       <Route path="/dashboard" element={<PrivateRoute><HomeGate /></PrivateRoute>} />

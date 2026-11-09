@@ -1,6 +1,6 @@
 // 審核後台：送審清單 → AI 摘要、影響範圍、條文對照、檢查 → 修改／通過／退回；低風險一鍵全過
 import React, { useCallback, useEffect, useState } from 'react';
-import { regulationApi as api } from '../../services/api';
+import { regulationApi } from '../../services/api';
 import DocEditor from './DocEditor';
 import { C, card, btn, btnOk, btnD, btnSm, RiskBadge, StatusBadge, Modal, fmtTime, clone, linkify, input } from './ui';
 import { uiConfirm } from '../../components/uiDialog';
@@ -8,7 +8,18 @@ import { uiConfirm } from '../../components/uiDialog';
 const KIND = { add: ['新增', '#c6f6d5', '#22543d'], mod: ['修改', '#fefcbf', '#744210'], del: ['刪除', '#fed7d7', '#9b2c2c'], move: ['移動', '#e9d8fd', '#553c9a'] };
 const META_LABEL = { title: '標題', category: '分類', doc_type: '類型', summary: '摘要', scenario: '適用情境', owner_dept: '負責部門', keywords: '關鍵字', roles: '適用身分', sections: '大項' };
 
-export default function ReviewPanel({ initialVid, isReviewer, roles, categories, onCountChange }) {
+// 窄螢幕（手機）：清單／詳情二擇一顯示、按鈕放大、條文對照可「上一處／下一處」（2026-11-09）
+function useNarrow(px = 760) {
+  const [n, setN] = useState(() => typeof window !== 'undefined' && window.innerWidth < px);
+  useEffect(() => { const f = () => setN(window.innerWidth < px); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f); }, [px]);
+  return n;
+}
+
+/** api：預設後台 regulationApi；推播連結審核頁傳 regulationReviewApi(票券)。allowEdit／allowLow：票券頁不開放修改內容 */
+export default function ReviewPanel({ initialVid, isReviewer, roles, categories, onCountChange, api = regulationApi, allowEdit = true, allowLow = true, hideFilter = false }) {
+  const narrow = useNarrow();
+  const [diffAt, setDiffAt] = useState(0);
+  const goDiff = (i) => { setDiffAt(i); const el = document.getElementById(`rv-diff-${i}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
   const [filter, setFilter] = useState('pending');
   const [list, setList] = useState([]);
   const [cur, setCur] = useState(initialVid || null);
@@ -23,13 +34,13 @@ export default function ReviewPanel({ initialVid, isReviewer, roles, categories,
     const rows = r?.success ? r.data : [];
     setList(rows);
     if (filter === 'pending') onCountChange?.(rows.length);
-  }, [filter, onCountChange]);
+  }, [filter, onCountChange, api]);
   useEffect(() => { loadList(); }, [loadList]);
   useEffect(() => {
     if (!cur) { setData(null); return; }
     setEditDoc(null); setMsg(null);
-    api.review(cur).then(r => setData(r?.success ? r.data : null));
-  }, [cur]);
+    api.review(cur).then(r => setData(r?.success ? r.data : null)); setDiffAt(0);
+  }, [cur, api]);
 
   const v = data?.version, rv = v?.review, reg = data?.regulation;
   const pending = v?.status === 'pending';
@@ -61,16 +72,16 @@ export default function ReviewPanel({ initialVid, isReviewer, roles, categories,
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px,320px) minmax(0,1fr)', gap: 12, alignItems: 'start' }}>
-      <div style={card}>
+    <div style={{ display: 'grid', gridTemplateColumns: narrow ? 'minmax(0,1fr)' : 'minmax(260px,320px) minmax(0,1fr)', gap: 12, alignItems: 'start' }}>
+      <div data-yaya="rv-list" style={{ ...card, display: narrow && cur ? 'none' : undefined }}>
         <div style={{ padding: 8, display: 'flex', gap: 6, borderBottom: `1px solid ${C.line}`, flexWrap: 'wrap' }}>
-          {[['pending', '待審'], ['done', '已處理']].map(([k, l]) => (
+          {!hideFilter && [['pending', '待審'], ['done', '已處理']].map(([k, l]) => (
             <button key={k} style={{ ...btn, ...btnSm, ...(filter === k ? { background: C.brand, color: '#fff', borderColor: C.brand } : {}) }} onClick={() => setFilter(k)}>{l}</button>
           ))}
-          {isReviewer && filter === 'pending' && <button style={{ ...btn, ...btnSm, marginLeft: 'auto' }} disabled={!lowCount} onClick={doLow}>低風險一鍵全過（{lowCount}）</button>}
+          {isReviewer && allowLow && filter === 'pending' && <button style={{ ...btn, ...btnSm, marginLeft: 'auto' }} disabled={!lowCount} onClick={doLow}>低風險一鍵全過（{lowCount}）</button>}
         </div>
         {list.map(x => (
-          <div key={x.id} onClick={() => setCur(x.id)} style={{ padding: '8px 10px', borderBottom: `1px solid ${C.line}`, cursor: 'pointer', background: cur === x.id ? '#f3ede4' : undefined, borderLeft: cur === x.id ? `3px solid ${C.brand}` : '3px solid transparent' }}>
+          <div key={x.id} onClick={() => setCur(x.id)} style={{ padding: narrow ? '12px 12px' : '8px 10px', borderBottom: `1px solid ${C.line}`, cursor: 'pointer', background: cur === x.id ? '#f3ede4' : undefined, borderLeft: cur === x.id ? `3px solid ${C.brand}` : '3px solid transparent' }}>
             <div style={{ fontWeight: 700 }}>{x.title} <RiskBadge r={x.risk} /> {x.status !== 'pending' && <StatusBadge s={x.status} />}</div>
             <div style={{ fontSize: 12, color: C.mid }}>第 {x.version} 版 · {x.created_by_name || '—'} · {fmtTime(x.submitted_at)}</div>
             <div style={{ fontSize: 12.5 }}>{x.change_note || x.summary?.[0] || ''}</div>
@@ -79,13 +90,14 @@ export default function ReviewPanel({ initialVid, isReviewer, roles, categories,
         {!list.length && <div style={{ padding: 20, color: '#a0aec0', textAlign: 'center' }}>{filter === 'pending' ? '目前沒有待審' : '沒有紀錄'}</div>}
       </div>
 
-      <div style={{ ...card, minHeight: 300 }}>
-        {!data && <div style={{ padding: 30, color: '#a0aec0', textAlign: 'center' }}>從左邊選一件送審</div>}
+      <div data-yaya="rv-detail" style={{ ...card, minHeight: 300, display: narrow && !cur ? 'none' : undefined }}>
+        {narrow && cur && <button style={{ ...btn, margin: '10px 10px 0', padding: '8px 14px', fontSize: 15 }} onClick={() => setCur(null)}>← 待審清單</button>}
+        {!data && <div style={{ padding: 30, color: '#a0aec0', textAlign: 'center' }}>{cur ? '讀取中…' : '從左邊選一件送審'}</div>}
         {data && rv && (
           <div style={{ padding: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontSize: 19, fontWeight: 800 }}>{v.doc?.title}</div>
+                <div data-yaya="rv-title" style={{ fontSize: 19, fontWeight: 800 }}>{v.doc?.title}</div>
                 <div style={{ fontSize: 12, color: C.mid }}>規範 {reg.id} · 第 {reg.current_version || '—'} → {v.version} 版 · {v.created_by_name || '—'} {fmtTime(v.submitted_at)} 送審 · <StatusBadge s={v.status} /></div>
                 {v.change_note && <div style={{ fontSize: 13, marginTop: 2 }}>送審說明：{v.change_note}</div>}
               </div>
@@ -120,7 +132,7 @@ export default function ReviewPanel({ initialVid, isReviewer, roles, categories,
                 old={Array.isArray(m.old) ? m.old.join('、') : m.old} neu={Array.isArray(m.new) ? m.new.join('、') : m.new} />
             ))}
             {rv.diff.changes.map((c, i) => (
-              <Diff key={i} kind={c.kind}
+              <Diff key={i} id={`rv-diff-${i}`} kind={c.kind}
                 head={<><span style={{ fontFamily: 'monospace', color: '#8b6f4e' }}>{c.code}</span> {c.display_no}
                   {(c.fields || []).includes('images') && <span style={{ fontSize: 12, color: '#2b6cb0' }}> 照片有變動</span>}
                   {(c.fields || []).includes('penalty') && <span style={{ color: C.bad, fontSize: 12 }}> 扣分 {c.old_penalty ?? '預設'} → {c.penalty ?? '預設'}</span>}
@@ -162,16 +174,24 @@ export default function ReviewPanel({ initialVid, isReviewer, roles, categories,
           </div>
         )}
         {data && pending && (
-          <div style={{ position: 'sticky', bottom: 0, background: '#fff', borderTop: `1px solid ${C.line}`, padding: '10px 14px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', borderRadius: '0 0 10px 10px' }}>
+          <div data-yaya="rv-actions" style={{ position: 'sticky', bottom: 0, background: '#fff', borderTop: `1px solid ${C.line}`, padding: '10px 14px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', borderRadius: '0 0 10px 10px' }}>
+            {narrow && rv?.diff?.changes?.length > 1 && (
+              <div style={{ width: '100%', display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: C.mid }}>
+                <button style={{ ...btn, padding: '6px 12px' }} disabled={diffAt <= 0} onClick={() => goDiff(diffAt - 1)}>▲ 上一處</button>
+                <span style={{ flex: 1, textAlign: 'center' }}>條文對照 {diffAt + 1} / {rv.diff.changes.length}</span>
+                <button style={{ ...btn, padding: '6px 12px' }} disabled={diffAt >= rv.diff.changes.length - 1} onClick={() => goDiff(diffAt + 1)}>下一處 ▼</button>
+              </div>
+            )}
             {!isReviewer ? <span style={{ fontSize: 13, color: C.mid }}>只有指定的審核人可以審核</span> : (
               <>
-                {editDoc ? <button style={btn} onClick={() => setEditDoc(null)}>取消修改</button>
-                  : <button style={btn} onClick={() => setEditDoc(clone(v.doc))}>✏️ 修改內容</button>}
-                <span style={{ flex: 1 }} />
-                <button style={btnD} disabled={busy} onClick={() => setModal('return')}>退回</button>
-                <button style={btnOk} disabled={busy} onClick={() => setModal('approve')}>{editDoc ? '修改後通過' : '通過'}</button>
+                {allowEdit && (editDoc ? <button style={btn} onClick={() => setEditDoc(null)}>取消修改</button>
+                  : <button style={btn} onClick={() => setEditDoc(clone(v.doc))}>✏️ 修改內容</button>)}
+                {!narrow && <span style={{ flex: 1 }} />}
+                <button style={{ ...btnD, ...(narrow ? { padding: '12px 18px', fontSize: 16, fontWeight: 700, flex: 1 } : {}) }} disabled={busy} onClick={() => setModal('return')}>退回</button>
+                <button style={{ ...btnOk, ...(narrow ? { padding: '12px 18px', fontSize: 16, fontWeight: 700, flex: 1 } : {}) }} disabled={busy} onClick={() => setModal('approve')}>{editDoc ? '修改後通過' : '通過'}</button>
               </>
             )}
+            {!allowEdit && <div style={{ width: '100%', fontSize: 11.5, color: C.mid }}>要修改內容後再通過，請到營運部後台「規範管理 → 審核」。</div>}
           </div>
         )}
       </div>
@@ -191,10 +211,10 @@ function Imp({ k, v, d }) {
     </div>
   );
 }
-function Diff({ head, kind, old, neu, notes }) {
+function Diff({ id, head, kind, old, neu, notes }) {
   const [t, bg, fg] = KIND[kind] || KIND.mod;
   return (
-    <div style={{ border: `1px solid ${C.line}`, borderRadius: 8, margin: '6px 0', overflow: 'hidden' }}>
+    <div id={id} style={{ border: `1px solid ${C.line}`, borderRadius: 8, margin: '6px 0', overflow: 'hidden', scrollMarginTop: 60 }}>
       <div style={{ background: '#f6f1ea', padding: '4px 10px', fontSize: 12 }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, borderRadius: 6, padding: '0 6px', background: bg, color: fg, marginRight: 6 }}>{t}</span>{head}
       </div>
