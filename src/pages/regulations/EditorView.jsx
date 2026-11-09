@@ -115,7 +115,7 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
           </div>
         )}
         {editable && (
-          <div style={{ fontSize: 12, color: '#b7791f', marginTop: 8 }}>⏰ 草稿期間別人不能改這份規範；沒有繼續動作的話 {fmtTime(releaseAt(v.updated_at || v.created_at))} 會自動清除。不改了請按下方「放棄草稿」。</div>
+          <div style={{ fontSize: 12, color: '#b7791f', marginTop: 8 }}>⏰ 草稿期間別人不能改這份規範；沒有繼續動作的話 {fmtTime(v.release_at || releaseAt(v.updated_at || v.created_at))} 會自動清除。不改了請按下方「放棄草稿」。</div>
         )}
         {!editable && <div style={{ marginTop: 10, color: C.mid }}>這個版本目前是「{v.status}」，不能修改。</div>}
         {editable && (
