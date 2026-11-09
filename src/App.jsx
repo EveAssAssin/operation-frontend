@@ -31,6 +31,7 @@ import ProcessesHubPage    from './pages/processes/ProcessesHubPage';
 import HandoverListPage    from './pages/processes/HandoverListPage';   // 門市交接表＝市場部那套（2026-10-20 合併）
 import HrToolPage          from './pages/hrTool/HrToolPage';
 import PayrollPage         from './pages/payroll/PayrollPage';
+import ReportAiPage        from './pages/reportAi/ReportAiPage';
 import RegulationsPage     from './pages/regulations/RegulationsPage';
 import RulesPage           from './pages/regulations/RulesPage';
 import VendorManagePage    from './pages/vendorManage/VendorManagePage';
@@ -137,6 +138,7 @@ function AppRoutes() {
       <Route path="/processes/handover" element={<PrivateRoute><HandoverListPage /></PrivateRoute>} />
       <Route path="/hr-tool"            element={<PrivateRoute><HrToolPage /></PrivateRoute>} />
       <Route path="/payroll"            element={<PrivateRoute><PayrollPage /></PrivateRoute>} />
+      <Route path="/report-ai"          element={<PrivateRoute><ReportAiPage /></PrivateRoute>} />
       <Route path="/regulations"        element={<PrivateRoute><RegulationsPage /></PrivateRoute>} />
       <Route path="/vendor-manage"      element={<PrivateRoute><VendorManagePage /></PrivateRoute>} />
       <Route path="/ledger-subjects"    element={<PrivateRoute><LedgerSubjectsPage /></PrivateRoute>} />
