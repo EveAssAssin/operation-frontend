@@ -5,7 +5,7 @@ import { regulationPublicApi as api, regulationProposeApi } from '../../services
 import { DocView, fmtTime, StatusBadge, RecentChange } from './ui';
 import EditorView from './EditorView';
 import { RegApiCtx } from './regApi';
-import { uiAlert } from '../../components/uiDialog';   // 陷阱 143：App 內建瀏覽器沒有 alert
+import { uiAlert, uiConfirm } from '../../components/uiDialog';   // 陷阱 143：App 內建瀏覽器沒有 alert
 
 const LS_KEY = 'rules_app_number';
 const C = { bg: '#f6f2ec', card: '#fff', ink: '#2d2416', mid: '#6b5640', line: '#e6dccd', brand: '#50422d', ok: '#2f855a', bad: '#c53030' };
@@ -35,11 +35,27 @@ export default function RulesPage() {
   const [editing, setEditing] = useState(null); // versionId
   const reloadProp = useCallback(() => { if (papi) papi.me().then(r => setProp(r?.success ? r.data : { can: false, reason: r?.message || '讀不到權限' })); }, [papi]);
   useEffect(() => { reloadProp(); }, [reloadProp]);
+  // 開始修改：有人在改／送審中 → 當下說清楚是誰、何時釋放，可以推播通知他（2026-11-09）
   const startEdit = async (regId) => {
     const r = await papi.startDraft(regId);
-    if (!r?.success) { uiAlert(r?.message || '開始修改失敗'); return; }
+    if (!r?.success) {
+      if (r?.code === 'LOCKED' && r.lock) {
+        if (r.lock.status === 'pending') { await uiAlert(`🔒 ${r.lock.text}`); return; }
+        if (await uiConfirm(`🔒 ${r.lock.text}\n\n要推播通知他「你也想改這份」嗎？他送審或放棄草稿後你就可以改。`)) {
+          const w = await papi.wantEdit(regId);
+          uiAlert(w?.success ? (w.data?.unlocked ? '他剛好已經改完了，請再按一次「提出修改」。' : `已通知 ${r.lock.by_name}。`) : (w?.message || '通知失敗'));
+        }
+        return;
+      }
+      uiAlert(r?.message || '開始修改失敗'); return;
+    }
     setViewer(null); setEditing(r.data.id);
   };
+  // 推播連結 ?v=版本 → 直接打開自己的草稿
+  useEffect(() => {
+    const v = Number(params.get('v'));
+    if (v && prop?.mine?.some((x) => Number(x.id) === v && ['draft', 'returned', 'pending'].includes(x.status))) { setTab('propose'); setEditing(v); }
+  }, [prop]); // eslint-disable-line
 
   if (!me) return <Login app={app} setApp={setApp} err={err} onLogin={() => login(app.trim())} />;
 
@@ -58,7 +74,7 @@ export default function RulesPage() {
         {tab === 'recent' && <Recent app={app} open={open} />}
         {tab === 'mine' && <Mine app={app} open={open} />}
         {tab === 'all' && <All app={app} open={open} />}
-        {tab === 'propose' && <Propose app={app} prop={prop} open={open} onEdit={setEditing} reload={reloadProp} papi={papi} />}
+        {tab === 'propose' && <Propose app={app} prop={prop} open={open} onEdit={setEditing} startEdit={startEdit} reload={reloadProp} papi={papi} />}
       </div>
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: `1px solid ${C.line}`, display: 'flex', zIndex: 6, paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {TABS.map(([k, i, l]) => (
@@ -67,7 +83,7 @@ export default function RulesPage() {
           </button>
         ))}
       </div>
-      {viewer && <Viewer app={app} id={viewer.id} code={viewer.code} onClose={() => setViewer(null)} onPropose={prop?.can ? startEdit : null} />}
+      {viewer && <Viewer app={app} id={viewer.id} code={viewer.code} onClose={() => setViewer(null)} onPropose={prop?.can ? startEdit : null} papi={prop?.can ? papi : null} />}
       {editing && papi && (
         <div style={{ position: 'fixed', inset: 0, background: C.bg, zIndex: 30, overflow: 'auto', padding: 8 }}>
           <div style={{ fontSize: 12, color: C.mid, margin: '2px 4px 8px' }}>改完按「送審」，審核人同意後才會上線；送審前都只有你看得到。</div>
@@ -328,8 +344,11 @@ function All({ app, open }) {
   );
 }
 
-function Viewer({ app, id, code, onClose, onPropose }) {
+function Viewer({ app, id, code, onClose, onPropose, papi }) {
   const [data, setData] = useState(null);
+  const [lock, setLock] = useState(null);
+  useEffect(() => { if (papi) papi.lock(id).then(r => setLock(r?.success ? r.data : null)); }, [papi, id]);
+  const lockedByOther = lock && !lock.mine;
   const [mark, setMark] = useState(true);
   const [err, setErr] = useState('');
   useEffect(() => {
@@ -348,10 +367,15 @@ function Viewer({ app, id, code, onClose, onPropose }) {
           <div style={{ fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r?.title || '載入中…'}</div>
           {r && <div style={{ fontSize: 11, opacity: 0.85 }}>規範 {r.id}・第 {r.current_version} 版・{fmtTime(data.published_at)}</div>}
         </div>
-        {onPropose && r && <button data-yaya="rules-propose-edit" onClick={() => onPropose(r.id)} style={{ border: '1px solid #fff', background: 'transparent', color: '#fff', borderRadius: 8, padding: '4px 10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>✏️ 提出修改</button>}
+        {onPropose && r && <button data-yaya="rules-propose-edit" onClick={() => onPropose(r.id)} style={{ border: '1px solid #fff', background: 'transparent', color: '#fff', borderRadius: 8, padding: '4px 10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', opacity: lockedByOther ? 0.75 : 1 }}>{lockedByOther ? '🔒 有人修改中' : lock?.mine ? '✏️ 繼續我的修改' : '✏️ 提出修改'}</button>}
       </div>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '8px 12px 40px', fontSize: 15 }}>
         {err && <div style={{ color: C.bad }}>{err}</div>}
+        {lockedByOther && (
+          <div data-yaya="rules-lock-banner" style={{ background: '#fffaf0', border: '1px solid #f6ad55', borderRadius: 10, padding: '8px 12px', fontSize: 13, marginTop: 6 }}>
+            🔒 {lock.text}
+          </div>
+        )}
         {d && (
           <>
             {(d.summary || d.scenario) && (
@@ -371,7 +395,7 @@ function Viewer({ app, id, code, onClose, onPropose }) {
 }
 
 // ── 提出新增／修改規範（左手權限／稱號符合才可以；送審後審核人同意才上線）──
-function Propose({ app, prop, open, onEdit, reload, papi }) {
+function Propose({ app, prop, open, onEdit, startEdit, reload, papi }) {
   const [title, setTitle] = useState('');
   const [cat, setCat] = useState('');
   const [busy, setBusy] = useState(false);
@@ -392,12 +416,8 @@ function Propose({ app, prop, open, onEdit, reload, papi }) {
     if (!r?.success) { uiAlert(r?.message || '建立失敗'); return; }
     setTitle(''); setCat(''); onEdit(r.data.id); reload();
   };
-  const edit = async (id) => {
-    const r = await papi.startDraft(id);
-    if (!r?.success) { uiAlert(r?.message || '開始修改失敗'); return; }
-    onEdit(r.data.id);
-  };
-  const stHint = { draft: '還沒送審，點進去繼續改', returned: '被退回，點進去修改後再送審', pending: '等審核人審核', approved: '已上線', discarded: '已捨棄' };
+  const edit = (id) => startEdit(id);
+  const stHint = { draft: '還沒送審，點進去繼續改', returned: '被退回，點進去修改後再送審', pending: '等審核人審核', approved: '已上線', discarded: '已放棄', expired: '太久沒動作，已自動清除（要找回請聯絡營運部）' };
   return (
     <div>
       <div data-yaya="rules-propose-head" style={{ ...card, padding: 12, fontSize: 13, color: C.mid, marginBottom: 10 }}>
@@ -437,6 +457,8 @@ function Propose({ app, prop, open, onEdit, reload, papi }) {
               <div style={{ fontSize: 14 }}><StatusBadge s={v.status} /> {v.title || `規範 ${v.regulation_id}`}<span style={{ fontSize: 11, color: C.mid }}>　第 {v.version} 版</span></div>
               <div style={{ fontSize: 12, color: C.mid }}>{stHint[v.status] || ''}{v.change_note ? `・${v.change_note}` : ''}{v.updated_at ? `・${fmtTime(v.updated_at)}` : ''}</div>
               {v.status === 'returned' && v.review_note && <div style={{ fontSize: 12, color: C.bad }}>退回原因：{v.review_note}</div>}
+              {['draft', 'returned'].includes(v.status) && v.blocked_reason?.message && <div style={{ fontSize: 12, color: C.bad }}>⚠️ 送審沒過：{String(v.blocked_reason.message).slice(0, 80)}…點進去看怎麼處理</div>}
+              {v.release_at && <div style={{ fontSize: 12, color: '#b7791f' }}>⏰ 沒有繼續動作的話 {fmtTime(v.release_at)} 會自動清除（草稿期間別人不能改這份）</div>}
             </div>
           );
         })}

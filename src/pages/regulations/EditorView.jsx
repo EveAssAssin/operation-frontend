@@ -9,6 +9,13 @@ import ClarifyCard, { composeWithAnswers } from './Clarify';
 import { C, card, input, btn, btnP, btnD, btnOk, btnSm, RiskBadge, StatusBadge, Field, clone, fmtTime } from './ui';
 import { uiAlert, uiConfirm } from '../../components/uiDialog';   // 陷阱 143：App 內建瀏覽器沒有 alert／confirm
 
+// 預計自動清除時間：最後動作＋24 小時後的第一個 03:00（台北；同後端 regulationDraftCare.releaseAt）
+function releaseAt(last) {
+  const t = new Date(new Date(last).getTime() + 24 * 3600e3); const TZ = 8 * 3600e3;
+  const x = new Date(t.getTime() + TZ); const at3 = Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate(), 3, 0, 0) - TZ;
+  return new Date(at3 >= t.getTime() ? at3 : at3 + 864e5).toISOString();
+}
+
 export default function EditorView({ versionId, roles, categories, aiEnabled, onClose, onSubmitted, stack = false }) {   // stack＝手機（App 查規範）上下排
   const api = useRegApi();
   const [v, setV] = useState(null);
@@ -56,18 +63,21 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
     try {
       const r = await api.submit(versionId);
       if (!r?.success) {
-        if (String(r?.message || '').startsWith('AI 檢查還有')) {
-          const fresh = await api.version(versionId);
-          if (fresh?.success) setChecks(fresh.data.ai_checks || null);
-          setAiTab('check');
-        }
-        throw new Error(r?.message || '送審失敗');
+        // 被擋下：當下用對話框講清楚原因＋下一步（2026-11-09；以前只在最下面一行紅字，手機上看不到，草稿就卡著）
+        const isAi = String(r?.message || '').startsWith('AI 檢查還有');
+        const fresh = await api.version(versionId);
+        if (fresh?.success) { setV(fresh.data); setChecks(fresh.data.ai_checks || null); }
+        if (isAi) setAiTab('check');
+        setMsg({ err: true, text: r?.message || '送審失敗' });
+        await uiAlert(`⚠️ 還沒送出，草稿已保留。\n\n原因：${r?.message || '送審失敗'}\n\n下一步：\n${isAi ? '① 到「🛡 AI 檢查」逐一處理：照建議修改，或按「忽略」並寫原因\n② 處理完按上方「🔁 修改後重新送審」' : '① 照上面原因修改內容\n② 按上方「🔁 修改後重新送審」'}\n\n不想改了請按「放棄草稿」，別人才能改這份規範。`);
+        if (isAi) setTimeout(() => document.getElementById('reg-ai-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+        return;
       }
       onSubmitted?.(r.data);
     } catch (e) { setMsg({ err: true, text: e.message }); } finally { setBusy(''); }
   };
   const discard = async () => {
-    if (!(await uiConfirm('捨棄這份草稿？所有修改都會丟掉。'))) return;
+    if (!(await uiConfirm('放棄這份草稿？所有修改都會丟掉，別人就可以修改這份規範。'))) return;
     const r = await api.discard(versionId);
     if (r?.success) onClose?.(); else setMsg({ err: true, text: r?.message || '捨棄失敗' });
   };
@@ -93,6 +103,20 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
             ↩️ 被退回（{v.reviewed_by_name}）：<b>{v.review_note}</b>
           </div>
         )}
+        {editable && v.blocked_reason?.message && (
+          <div data-yaya="reg-blocked-banner" style={{ background: '#fff5f5', border: '1px solid #feb2b2', borderRadius: 8, padding: '8px 12px', marginTop: 10, fontSize: 13 }}>
+            <b>⚠️ 上次送審沒有成功</b>{v.blocked_at ? `（${fmtTime(v.blocked_at)}）` : ''}：{v.blocked_reason.message}
+            {(v.blocked_reason.issues || []).length > 0 && <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>{v.blocked_reason.issues.slice(0, 6).map((i, k) => <li key={k}>{i.title}{i.detail ? <span style={{ color: C.mid }}>：{String(i.detail).slice(0, 120)}</span> : null}</li>)}</ul>}
+            <div style={{ marginTop: 4, color: C.mid }}>下一步：{v.blocked_reason.kind === 'ai' ? '到「🛡 AI 檢查」逐一修正，或按「忽略」寫原因，' : '照上面原因修改內容，'}然後按「🔁 修改後重新送審」。</div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              {v.blocked_reason.kind === 'ai' && <button style={btn} onClick={() => { setAiTab('check'); setTimeout(() => document.getElementById('reg-ai-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }}>🛡 看 AI 意見</button>}
+              <button data-yaya="reg-resubmit" style={btnP} disabled={!!busy} onClick={submit}>{busy === 'submit' ? '送審中…' : '🔁 修改後重新送審'}</button>
+            </div>
+          </div>
+        )}
+        {editable && (
+          <div style={{ fontSize: 12, color: '#b7791f', marginTop: 8 }}>⏰ 草稿期間別人不能改這份規範；沒有繼續動作的話 {fmtTime(releaseAt(v.updated_at || v.created_at))} 會自動清除。不改了請按下方「放棄草稿」。</div>
+        )}
         {!editable && <div style={{ marginTop: 10, color: C.mid }}>這個版本目前是「{v.status}」，不能修改。</div>}
         {editable && (
           <>
@@ -114,7 +138,7 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
             )}
             {msg && <div style={{ marginTop: 10, fontSize: 13, color: msg.err ? C.bad : C.ok }}>{msg.text}</div>}
             <div style={{ position: 'sticky', bottom: 0, background: '#fff', borderTop: `1px solid ${C.line}`, marginTop: 14, padding: '10px 0 2px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button style={btnD} onClick={discard}>捨棄草稿</button>
+              <button data-yaya="reg-discard" style={btnD} onClick={discard}>放棄草稿</button>
               <span style={{ flex: 1 }} />
               <button style={btn} disabled={!!busy} onClick={() => save()}>{busy === 'save' ? '儲存中…' : '儲存草稿'}</button>
               <button style={btn} disabled={!!busy} onClick={check}>{busy === 'check' ? '檢查中…' : '預先檢查'}</button>
@@ -125,7 +149,7 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
       </div>
 
       {editable && (
-        <div style={{ ...card, position: stack ? 'static' : 'sticky', top: 8, maxHeight: stack ? '75vh' : 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
+        <div id="reg-ai-panel" style={{ ...card, position: stack ? 'static' : 'sticky', top: 8, maxHeight: stack ? '75vh' : 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', borderBottom: `1px solid ${C.line}` }}>
             {[['assist', '💬 編輯助理'], ['check', `🛡 AI 檢查${checks ? `（${(checks.issues || []).filter(i => i.level === 'warn' && !checks.resolved?.[i.id]).length}）` : ''}`]].map(([k, l]) => (
               <button key={k} onClick={() => setAiTab(k)} style={{ flex: 1, background: 'none', border: 'none', padding: '9px 6px', cursor: 'pointer', fontWeight: 700, fontSize: 13,

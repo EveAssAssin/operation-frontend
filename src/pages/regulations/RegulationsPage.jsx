@@ -81,10 +81,15 @@ export default function RegulationsPage() {
 function DraftsPanel({ onEdit }) {
   const [rows, setRows] = useState(null);
   const [pending, setPending] = useState([]);
-  useEffect(() => {
+  const [expired, setExpired] = useState([]);
+  const [note, setNote] = useState('');
+  const load = () => {
     api.drafts().then(r => setRows(r?.success ? r.data : []));
     api.reviews('pending').then(r => setPending(r?.success ? r.data : []));
-  }, []);
+    api.expiredDrafts().then(r => setExpired(r?.success ? r.data : []));
+  };
+  useEffect(load, []);
+  const restore = async (id) => { const r = await api.restore(id); setNote(r?.success ? '已還原成草稿' : (r?.message || '還原失敗')); load(); };
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={card}>
@@ -109,6 +114,18 @@ function DraftsPanel({ onEdit }) {
           </div>
         ))}
         {!pending.length && <div style={{ padding: 16, color: '#a0aec0' }}>沒有送審中的規範</div>}
+      </div>
+      <div style={card}>
+        <div style={{ padding: '8px 12px', fontWeight: 700, borderBottom: `1px solid ${C.line}` }}>自動清除的草稿（{expired.length}）<span style={{ fontWeight: 400, fontSize: 12, color: C.mid }}>　草稿超過 24 小時沒動作、提醒過仍沒處理，每天 03:00 清除；可還原</span></div>
+        {note && <div style={{ padding: '6px 12px', fontSize: 13, color: C.mid }}>{note}</div>}
+        {expired.map(r => (
+          <div key={r.id} style={{ padding: '8px 12px', borderBottom: `1px solid ${C.line}`, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 200 }}><b>{r.title}</b> <span style={{ fontSize: 12, color: C.mid }}>第 {r.version} 版 · {r.created_by_name || '—'} · {fmtTime(r.expired_at)} 清除</span>
+              {r.expire_reason && <div style={{ fontSize: 12, color: C.mid }}>{r.expire_reason}</div>}</div>
+            <button style={{ ...btn, ...btnSm }} onClick={() => restore(r.id)}>還原</button>
+          </div>
+        ))}
+        {!expired.length && <div style={{ padding: 16, color: '#a0aec0' }}>沒有</div>}
       </div>
     </div>
   );

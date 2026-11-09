@@ -40,10 +40,15 @@ export default function BrowsePanel({ initialId, categories, onEdit, canAudit })
     return [...m.entries()];
   }, [list]);
 
-  const startEdit = async () => {
+  const isSuper = (() => { try { return JSON.parse(localStorage.getItem('operation_user') || '{}').role === 'super_admin'; } catch { return false; } })();
+  const startEdit = async (takeover = false) => {
     setErr('');
-    const r = await api.startDraft(sel);
+    const r = await api.startDraft(sel, takeover ? { takeover: true } : {});
     if (r?.success) onEdit(r.data.id); else setErr(r?.message || '無法開始修改');
+  };
+  const notifyHolder = async () => {
+    const r = await api.wantEdit(sel);
+    setErr(r?.success ? (r.data?.unlocked ? '他已經改完了，可以開始修改。' : r.data?.already ? '一小時內已通知過他。' : '已推播通知他。') : (r?.message || '通知失敗'));
   };
 
   return (
@@ -107,10 +112,15 @@ export default function BrowsePanel({ initialId, categories, onEdit, canAudit })
                   }}>🔎 巡檢這份</button>}
                   {open ? (
                     open.status === 'pending' ? <span style={{ fontSize: 13, color: '#b7791f' }}>第 {open.version} 版送審中</span>
-                      : <button style={btnP} onClick={() => onEdit(open.id)}>繼續修改（第 {open.version} 版{open.status === 'returned' ? '・被退回' : ''}）</button>
-                  ) : <button style={btnP} onClick={startEdit}>✏️ 修改這份規範</button>}
+                      : (detail.lock_mine ? <button style={btnP} onClick={() => onEdit(open.id)}>繼續修改（第 {open.version} 版{open.status === 'returned' ? '・被退回' : ''}）</button>
+                        : <>
+                          <button style={btn} onClick={notifyHolder}>📣 通知他我也要改</button>
+                          {isSuper && <button style={btnP} onClick={() => startEdit(true)}>接手修改</button>}
+                        </>)
+                  ) : <button style={btnP} onClick={() => startEdit(false)}>✏️ 修改這份規範</button>}
                 </div>
               </div>
+              {detail.lock && !detail.lock_mine && <div style={{ background: '#fffaf0', border: '1px solid #f6ad55', borderRadius: 8, padding: '6px 10px', fontSize: 13, marginTop: 6 }}>🔒 {detail.lock.text}</div>}
               {err && <div style={{ color: C.bad, fontSize: 13, marginTop: 6 }}>{err}</div>}
               {(doc?.summary || doc?.scenario || doc?.owner_dept || (doc?.roles || []).length > 0) && (
                 <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '2px 10px', fontSize: 13, background: '#fcfaf6', border: `1px solid ${C.line}`, borderRadius: 8, padding: '8px 12px', marginTop: 10 }}>

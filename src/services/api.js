@@ -907,7 +907,7 @@ export default api;
 // 規範系統（主檔、版本、送審審核、引用條文扣分）
 // 失敗時一律回 { success:false, message }，畫面才看得到錯誤訊息（不會變成沒反應）
 const safeApi = (obj) => Object.fromEntries(Object.entries(obj).map(([k, fn]) => [k, (...args) =>
-  fn(...args).catch(e => ({ success: false, message: e?.message || '連線失敗，請稍後再試' }))]));
+  fn(...args).catch(e => ({ success: false, message: e?.message || '連線失敗，請稍後再試', code: e?.code, lock: e?.lock }))]));   // code／lock：規範編輯鎖（2026-11-09）
 export const regulationApi = safeApi({
   list:          (params = {})       => api.get('/regulations', { params }),
   categories:    ()                  => api.get('/regulations/categories'),
@@ -915,7 +915,10 @@ export const regulationApi = safeApi({
   clauses:       (q, regulation_id)  => api.get('/regulations/clauses', { params: { q, regulation_id } }),
   version:       (vid)               => api.get(`/regulations/versions/${vid}`),
   newRegulation: (body)              => api.post('/regulations/new', body),
-  startDraft:    (id)                => api.post(`/regulations/${id}/draft`),
+  startDraft:    (id, body = {})     => api.post(`/regulations/${id}/draft`, body),
+  wantEdit:      (id)                => api.post(`/regulations/${id}/want-edit`),
+  restore:       (vid)               => api.post(`/regulations/versions/${vid}/restore`),
+  expiredDrafts: ()                  => api.get('/regulations/drafts/expired'),
   drafts:        ()                  => api.get('/regulations/drafts/list'),
   saveDraft:     (vid, body)         => api.put(`/regulations/versions/${vid}`, body),
   preview:       (vid)               => api.post(`/regulations/versions/${vid}/preview`),
@@ -966,6 +969,8 @@ export const regulationProposeApi = (app) => {
     me:            ()             => api.get('/regulations-public/propose/me', q),
     newRegulation: (body)         => api.post('/regulations-public/propose/new', b(body)),
     startDraft:    (id)           => api.post(`/regulations-public/propose/${id}/draft`, b()),
+    lock:          (id)           => api.get(`/regulations-public/propose/${id}/lock`, q),
+    wantEdit:      (id)           => api.post(`/regulations-public/propose/${id}/want-edit`, b()),
     version:       (vid)          => api.get(`/regulations-public/propose/versions/${vid}`, q),
     saveDraft:     (vid, body)    => api.put(`/regulations-public/propose/versions/${vid}`, b(body)),
     preview:       (vid)          => api.post(`/regulations-public/propose/versions/${vid}/preview`, b()),

@@ -28,7 +28,7 @@ export function RiskBadge({ r }) {
   const [bg, fg] = RISK[r] || ['#e2e8f0', '#4a5568'];
   return <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 6, padding: '0 7px', background: bg, color: fg, whiteSpace: 'nowrap' }}>{r}風險</span>;
 }
-const STATUS = { draft: ['草稿', '#e2e8f0', '#4a5568'], pending: ['送審中', '#feebc8', '#7b341e'], returned: ['被退回', '#fed7d7', '#9b2c2c'], approved: ['已通過', '#c6f6d5', '#22543d'], discarded: ['已捨棄', '#edf2f7', '#a0aec0'], rejected: ['已駁回', '#fed7d7', '#9b2c2c'] };
+const STATUS = { draft: ['草稿', '#e2e8f0', '#4a5568'], pending: ['送審中', '#feebc8', '#7b341e'], returned: ['被退回', '#fed7d7', '#9b2c2c'], approved: ['已通過', '#c6f6d5', '#22543d'], discarded: ['已放棄', '#edf2f7', '#a0aec0'], expired: ['已自動清除', '#edf2f7', '#a0aec0'], rejected: ['已駁回', '#fed7d7', '#9b2c2c'] };
 export function StatusBadge({ s }) {
   const [t, bg, fg] = STATUS[s] || [s, '#e2e8f0', '#4a5568'];
   return <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 6, padding: '0 7px', background: bg, color: fg, whiteSpace: 'nowrap' }}>{t}</span>;
