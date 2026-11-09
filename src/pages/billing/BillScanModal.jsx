@@ -16,6 +16,20 @@ let seq = 0;
 
 const addYm = (ym, k) => { const [y, m] = ym.split('-').map(Number); return new Date(Date.UTC(y, m - 1 + k, 1)).toISOString().slice(0, 7); };
 const YM_OK = v => /^\d{4}-\d{2}$/.test(v || '');
+const DATE_OK = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
+// 帳單區間預設：帳單年月的前一個月整月（跟後端 billScanService.prevMonthRange 同一規則）
+function prevMonthRange(ym) {
+  if (!YM_OK(ym)) return { from: '', to: '' };
+  const [y, m] = ym.split('-').map(Number);
+  const py = m === 1 ? y - 1 : y, pm = m === 1 ? 12 : m - 1;
+  const last = new Date(Date.UTC(py, pm, 0)).getUTCDate();
+  const mm = String(pm).padStart(2, '0');
+  return { from: `${py}-${mm}-01`, to: `${py}-${mm}-${String(last).padStart(2, '0')}` };
+}
+const periodOf = r => (r.period_from || r.period_to) ? { from: r.period_from || '', to: r.period_to || '' } : prevMonthRange(r.bill_ym || r.ym);
+const periodOk = r => { const p = periodOf(r); return !(r.period_from || r.period_to) || (DATE_OK(p.from) && DATE_OK(p.to) && p.from <= p.to); };
+// 這張要掛的月份裡，這個帳號已經掛過的（重複月份警示，#163）
+const dupMonths = r => { const used = new Set(r.res?.allocated || []); return (r.splits ? r.splits.map(x => x.ym) : [r.ym]).filter(m => used.has(m)); };
 // 平均分 n 個月，零頭放最後一個月
 function makeSplit(total, startYm, n) {
   const t = Math.round(Number(total) || 0);
@@ -81,6 +95,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
   const [manualAmt, setManualAmt]   = useState('');
   const [busy, setBusy]       = useState(false);
   const [done, setDone]       = useState(null);
+  const [err, setErr]         = useState('');   // 頁內錯誤訊息（App 內建瀏覽器沒有 alert，陷阱 143）
   const scanRef = useRef(null);
   const amtRef  = useRef(null);
 
@@ -140,7 +155,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
         for (const g of x?.guesses || []) cats.add(g.category_id);
       }
       cats.forEach(loadFacts);
-    } catch (e) { alert('比對失敗：' + (e?.message || e)); }
+    } catch (e) { setErr('比對失敗：' + (e?.message || e)); }
   }
 
   function onScan(text) {
@@ -173,7 +188,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
       setQueue(q => q.map(it => {
         if (it.uid !== row.uid || String(it.fact_id) !== String(factId)) return it;
         const ym = x.next_ym || it.bill_ym;
-        const next = { ...it, ym, res: { ...(it.res || {}), last_ym: x.last_ym, next_ym: x.next_ym, duplicate: x.duplicate } };
+        const next = { ...it, ym, res: { ...(it.res || {}), last_ym: x.last_ym, next_ym: x.next_ym, duplicate: x.duplicate, allocated: x.allocated, last_from: x.last_from, account_siblings: x.account_siblings } };
         next.include = !x.duplicate;
         if (next.splits && !next.splitEdited) next.splits = makeSplit(next.amount, ym, next.splits.length);
         return next;
@@ -204,8 +219,13 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
     && Math.abs(splitSum(r) - Number(r.amount || 0)) < 0.5);
 
   function delRow(uid) { setQueue(q => q.filter(r => r.uid !== uid)); }
+  // 帳單區間：同一批帳單常常是同一段期間 → 一鍵套用到其他還沒入帳的
+  function applyPeriodAll(r) {
+    const p = periodOf(r);
+    setQueue(q => q.map(x => x.result?.ok ? x : { ...x, period_from: p.from, period_to: p.to, periodOpen: x.uid === r.uid ? x.periodOpen : false }));
+  }
 
-  const ready = r => r.include && !r.result?.ok && r.bill.key && r.fact_id && Number(r.amount) > 0 && YM_OK(r.ym) && splitOk(r);
+  const ready = r => r.include && !r.result?.ok && r.bill.key && r.fact_id && Number(r.amount) > 0 && YM_OK(r.ym) && splitOk(r) && periodOk(r);
   const toSend = queue.filter(ready);
   const sendTotal = toSend.reduce((s, r) => s + Number(r.amount || 0), 0);
 
@@ -217,6 +237,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
         key: r.bill.key, bill_ym: r.bill_ym, amount: Number(r.amount),
         allocations: r.splits ? r.splits.map(x => ({ year_month: x.ym, amount: Number(x.amount) })) : [{ year_month: r.ym, amount: Number(r.amount) }],
         due_date: r.bill.due_date, raw: r.bill.raw, fact_id: r.fact_id,
+        ...((r.period_from || r.period_to) ? { period_from: r.period_from, period_to: r.period_to } : {}),
       }));
       const res = await operationalExpensesApi.scanCommit(items);
       const list = res.success ? res.data : [];
@@ -227,7 +248,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
       const okN = list.filter(x => x.ok).length;
       setDone({ ok: okN, fail: list.length - okN });
       if (okN) onSaved?.();
-    } catch (e) { alert('送出失敗：' + (e?.message || e)); }
+    } catch (e) { setErr('送出失敗：' + (e?.message || e)); }
     finally { setBusy(false); }
   }
 
@@ -243,6 +264,12 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
         </div>
 
         <div style={S.body}>
+          {err && (
+            <div style={{ ...S.tagErr, display: 'flex', fontSize: 13, padding: '8px 10px', marginBottom: 10 }}>
+              <span style={{ flex: 1 }}>{err}</span>
+              <button style={S.link} onClick={() => setErr('')}>知道了</button>
+            </div>
+          )}
           <div style={S.scanCard}>
             <textarea
               ref={scanRef}
@@ -323,9 +350,37 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
                       <input type="month" style={{ ...S.input, width: 140 }} value={r.ym}
                         disabled={!!r.result?.ok} onChange={e => setBase(r, { ym: e.target.value })} />
                       <div style={S.sub}>
-                        {r.res?.last_ym ? `已入帳到 ${r.res.last_ym} → 接 ${r.res.next_ym}` : r.fact_id ? '此帳號還沒入帳過' : ''}
+                        {r.res?.last_ym
+                          ? (r.res.last_from === 'account'
+                            ? `同帳戶（${(r.res.account_siblings || []).join('、')}）上次掛到 ${r.res.last_ym} → 接 ${r.res.next_ym}`
+                            : `上次掛到 ${r.res.last_ym} → 接 ${r.res.next_ym}`)
+                          : r.fact_id ? '此帳號還沒入帳過' : ''}
                         {r.bill_ym ? `${r.res?.last_ym || r.fact_id ? '・' : ''}條碼 ${r.bill_ym}` : ''}
                       </div>
+                      {!r.result?.ok && dupMonths(r).length > 0 && (
+                        <div style={{ ...S.tagErr, display: 'inline-block', marginTop: 4 }}>⚠ {dupMonths(r).join('、')} 這個帳號已經掛過帳，確認不是重複再送</div>
+                      )}
+                      {(() => {
+                        const p = periodOf(r); const edited = !!(r.period_from || r.period_to);
+                        return (
+                          <div style={{ marginTop: 4 }}>
+                            <span style={{ ...S.sub, color: edited ? '#2b6cb0' : '#a0aec0' }}>📅 帳單區間 {p.from || '—'}～{p.to || '—'}{edited ? '' : '（預設）'}</span>
+                            {!r.result?.ok && <button style={S.link} onClick={() => setRow(r.uid, { periodOpen: !r.periodOpen })}>{r.periodOpen ? '收起' : '✏️ 編輯區間'}</button>}
+                            {r.periodOpen && !r.result?.ok && (
+                              <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
+                                <input type="date" style={{ ...S.input, padding: '3px 6px' }} value={p.from}
+                                  onChange={e => setRow(r.uid, { period_from: e.target.value, period_to: r.period_to || p.to })} />
+                                <span style={{ fontSize: 12 }}>～</span>
+                                <input type="date" style={{ ...S.input, padding: '3px 6px' }} value={p.to}
+                                  onChange={e => setRow(r.uid, { period_to: e.target.value, period_from: r.period_from || p.from })} />
+                                {queue.filter(x => !x.result?.ok).length > 1 && <button style={S.link} onClick={() => applyPeriodAll(r)}>套用到全部</button>}
+                                {edited && <button style={S.link} onClick={() => setRow(r.uid, { period_from: '', period_to: '' })}>還原預設</button>}
+                                {!periodOk(r) && <span style={{ ...S.tagErr }}>起日要早於迄日</span>}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {r.bill.due_date && <div style={S.sub}>代收期限 {r.bill.due_date}</div>}
                       {!r.result?.ok && !r.splits && (
                         <button style={S.link} onClick={() => setRow(r.uid, { splits: makeSplit(r.amount, r.ym, 2), splitEdited: false })}>
@@ -403,7 +458,7 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
                       )}
                       {!r.result && !dup && !r.bill.missing?.length && !ready(r) && r.include && (
                         <span style={S.tagWarn}>
-                          {!r.fact_id ? '待選帳號' : !(Number(r.amount) > 0) ? '待填金額' : !splitOk(r) ? '分帳合計不符' : '待確認'}
+                          {!r.fact_id ? '待選帳號' : !(Number(r.amount) > 0) ? '待填金額' : !splitOk(r) ? '分帳合計不符' : !periodOk(r) ? '帳單區間有誤' : '待確認'}
                         </span>
                       )}
                       {!r.result && ready(r) && <span style={S.tagNew}>可送出</span>}

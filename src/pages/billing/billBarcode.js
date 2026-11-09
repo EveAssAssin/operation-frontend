@@ -17,6 +17,12 @@ export const RE_S3    = /^(\d{2})(\d{2})([0-9A-Z]{2})(\d{9})$/;
 export const RE_COLL  = /^[A-Z]{2}\d{4}$/;
 export const RE_ALT   = /^(1\d{2})(\d{2})([A-Z]{2})([0-9A-Z]{4,})$/;
 export const RE_ROCDT = /^(1\d{2})(\d{2})(\d{2})$/;
+// 第三段寬鬆版：前 6 碼（年月＋檢碼，台電是 00000-）＋ 9 碼金額
+export const RE_S3_LOOSE = /^[0-9A-Z-]{6}\d{9}$/;
+export const RE_S3_TPC   = /^\d{5}-\d{9}$/;
+// 掃描槍偶爾把 - 讀成空白：中間的空白當 -（長度不變）
+const norm3 = raw => String(raw || '').trim().toUpperCase().replace(/\s/g, '-');
+const s3Loose = (raw, t) => ({ type: 's3', raw, bill_ym: '', amount: Number(t.slice(6)) });
 
 const rocYY = yy => 1911 + 100 + Number(yy);          // "15" → 2026
 const rocYYY = yyy => 1911 + Number(yyy);             // "115" → 2026
@@ -81,9 +87,16 @@ export function feed(buf, raw) {
       b.date = c; break;
     default: {
       const t = c.raw.trim().toUpperCase();
+      const t3 = norm3(c.raw);
       // 第三段前 6 碼不是年月的（台電）：已有第一、二段時，15 碼尾 9 碼數字就當金額
-      if (b.s1 && b.s2 && !b.s3 && /^[0-9A-Z]{6}\d{9}$/.test(t)) {
-        b.s3 = { type: 's3', raw: c.raw, bill_ym: '', amount: Number(t.slice(6)) };
+      //   台電實際印的是「00000-000000390」（前 6 碼含一個 -，2026-11-09 芽芽回報 #169），所以前 6 碼允許 -
+      if (b.s1 && b.s2 && !b.s3 && RE_S3_LOOSE.test(t3)) {
+        b.s3 = s3Loose(c.raw, t3);
+        break;
+      }
+      // 台電第三段先掃（還沒掃第二段）：帶 - 的這種一定是第三段，不可以被當成第二段
+      if (isStd(b) && !b.s3 && RE_S3_TPC.test(t3)) {
+        b.s3 = s3Loose(c.raw, t3);
         break;
       }
       // 三段式剛完成，帳單上多出來的條碼（例：台電第 4 條）→ 略過
@@ -91,6 +104,11 @@ export function feed(buf, raw) {
       if (isStd(b) && !b.s2 && t.length <= 24) b.s2 = c;
       else b.extras.push(c);
     }
+  }
+  // 第三段比第一、二段先掃進來（進了 extras）：第一、二段齊了之後補位
+  if (b.s1 && b.s2 && !b.s3) {
+    const i = b.extras.findIndex(x => RE_S3_LOOSE.test(norm3(x.raw)));
+    if (i >= 0) { b.s3 = s3Loose(b.extras[i].raw, norm3(b.extras[i].raw)); b.extras.splice(i, 1); }
   }
   // 三段式先掃第二段的情況：補位
   if (isStd(b) && !b.s2) {
