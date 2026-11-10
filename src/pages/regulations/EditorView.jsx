@@ -310,6 +310,9 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
   const [err, setErr] = useState('');
   const [ignoring, setIgnoring] = useState(null);
   const [reason, setReason] = useState('');
+  const [supping, setSupping] = useState(null);   // 補充資料（2026-11-10）：AI 沒給修正的問題，人補資料讓 AI 寫修正
+  const [supp, setSupp] = useState('');
+  const [suppBusy, setSuppBusy] = useState(false);
 
   const run = async () => {
     setErr('');
@@ -325,7 +328,7 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
       onApply(d);
       const saved = await save(d);
       if (!saved) return;
-      const r = await api.resolveIssue(versionId, issue.id, { how: 'applied' });
+      const r = await api.resolveIssue(versionId, issue.id, { how: 'applied', ...(issue.supplement?.text ? { reason: `依補充資料修正：${issue.supplement.text.slice(0, 120)}` } : {}) });
       if (r?.success) setChecks(r.data);
     } catch (e) { setErr(`套用失敗：${e.message}（內容可能已被改過，請重新執行 AI 檢查）`); }
   };
@@ -338,6 +341,14 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
     const reason = '已另外修改：' + list.map(x => `《${x.title}》${x.state === 'submitted' ? '（已送審）' : '（草稿）'}`).join('、');
     const r = await api.resolveIssue(versionId, issue.id, { how: 'applied', reason });
     if (r?.success) setChecks(r.data);
+  };
+  const supplement = async (issue) => {
+    if (!supp.trim()) return;
+    setErr(''); setSuppBusy(true);
+    try {
+      const r = await api.fixIssue(versionId, issue.id, { info: supp.trim(), doc });
+      if (r?.success) { setChecks(r.data); setSupping(null); setSupp(''); } else setErr(r?.message || 'AI 寫修正失敗');
+    } catch (e) { setErr(e.message || 'AI 寫修正失敗'); } finally { setSuppBusy(false); }
   };
   const reopen = async (issue) => { const r = await api.resolveIssue(versionId, issue.id, { how: 'reopen' }); if (r?.success) setChecks(r.data); };
 
@@ -371,14 +382,27 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
                 ) : (
                   <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                     {i.fix && <button style={{ ...btnOk, ...btnSm }} onClick={() => applyFix(i)}>✓ {i.fix.label}</button>}
+                    {supping !== i.id && <button style={{ ...btn, ...btnSm }} title="補上 AI 不知道的資料（例：不可抗因素指哪些情況），AI 會照你的資料寫成條文" onClick={() => { setSupping(i.id); setSupp(i.supplement?.text || ''); setIgnoring(null); }}>✍️ {i.fix ? '補充資料重寫' : '補充資料，AI 幫我改'}</button>}
                     {ignoring === i.id ? (
                       <>
                         <input style={{ ...input, width: 170, padding: '2px 6px', fontSize: 12 }} value={reason} onChange={e => setReason(e.target.value)} placeholder="忽略原因（必填）" autoFocus />
                         <button style={{ ...btn, ...btnSm }} disabled={!reason.trim()} onClick={() => ignore(i)}>確定</button>
                       </>
-                    ) : <button style={{ ...btn, ...btnSm }} onClick={() => { setIgnoring(i.id); setReason(''); }}>忽略</button>}
+                    ) : <button style={{ ...btn, ...btnSm }} onClick={() => { setIgnoring(i.id); setReason(''); setSupping(null); }}>忽略</button>}
                   </div>
                 )}
+                {!res && supping === i.id && (
+                  <div style={{ marginTop: 6, background: '#f7fafc', border: `1px solid ${C.line}`, borderRadius: 6, padding: 6 }}>
+                    <textarea style={{ ...input, width: '100%', minHeight: 64, fontSize: 12, boxSizing: 'border-box' }} value={supp} onChange={e => setSupp(e.target.value)} autoFocus
+                      placeholder={`寫 AI 不知道的資料，口語就好，例：\n不可抗因素＝天災（颱風、地震停班停課）、本人或直系親屬重大傷病住院、出國派駐；搬家、一般出國旅遊不算。`} />
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4, alignItems: 'center' }}>
+                      <button style={{ ...btnP, ...btnSm }} disabled={suppBusy || !supp.trim()} onClick={() => supplement(i)}>{suppBusy ? 'AI 寫修正中…（約 10～30 秒）' : '讓 AI 寫成條文'}</button>
+                      <button style={{ ...btn, ...btnSm }} disabled={suppBusy} onClick={() => setSupping(null)}>取消</button>
+                      <span style={{ fontSize: 11, color: C.mid }}>寫好會出現「✓ 套用」按鈕，可先展開「修正內容」看；也可以直接在左邊編輯器自己改，改完按「重新檢查」。</span>
+                    </div>
+                  </div>
+                )}
+                {i.supplement && !res && <div style={{ fontSize: 11, color: C.mid, marginTop: 4 }}>你補充的：{i.supplement.text}{i.fix?.note ? `　→ AI：${i.fix.note}` : ''}</div>}
                 {i.fix?.preview?.changes?.length > 0 && !res && (
                   <details style={{ fontSize: 12, marginTop: 4 }}><summary style={{ cursor: 'pointer', color: C.mid }}>修正內容</summary>
                     {i.fix.preview.changes.map((c, k) => (
