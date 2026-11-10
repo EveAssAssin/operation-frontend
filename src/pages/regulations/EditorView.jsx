@@ -398,6 +398,7 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
                 {i.supplement && !res && <div style={{ fontSize: 11, color: C.mid, marginTop: 4 }}>你補充的：{i.supplement.text}</div>}
                 {i.fix?.preview?.changes?.length > 0 && !res && (
                   <details open={!!i.fix.from_supplement} style={{ fontSize: 12, marginTop: 4 }}><summary style={{ cursor: 'pointer', color: C.mid }}>{i.fix.from_supplement ? 'AI 照你的資料寫的修正（按上面「✓」才會套用）' : '修正內容'}</summary>
+                    {i.fix.note && <div style={{ color: C.mid, margin: '3px 0' }}>AI 說明：{i.fix.note}</div>}
                     {i.fix.preview.changes.map((c, k) => <ChangeView key={k} c={c} />)}
                   </details>
                 )}
