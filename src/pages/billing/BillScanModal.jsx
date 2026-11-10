@@ -8,7 +8,7 @@
 //   4. 一次送出 → 建營運費用 + 分帳（掛帳月份預設接在該帳號最後入帳月份的下一個月；雙月帳號自動分 2 個月，可改），月報自動帶入
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { operationalExpensesApi } from '../../services/api';
+import { operationalExpensesApi, ledgerApi } from '../../services/api';
 import { feed, emptyBuf, bufEmpty, toBill, describeBuf } from './billBarcode';
 
 const fmt = n => Number(n || 0).toLocaleString('zh-TW');
@@ -247,9 +247,28 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
       }));
       const okN = list.filter(x => x.ok).length;
       setDone({ ok: okN, fail: list.length - okN });
+      // 每張帳單附的照片：入帳成功後上傳成這筆營運費用的原始憑證（月報點得到）
+      toSend.forEach((r, i) => { const x = list[i]; if (x?.ok && x.expense_id && r.files?.length) uploadFiles(r.uid, x.expense_id, r.files); });
       if (okN) onSaved?.();
     } catch (e) { setErr('送出失敗：' + (e?.message || e)); }
     finally { setBusy(false); }
+  }
+
+  // 原始憑證照片：存成營運費用（opex）的憑證 → 門市月報那一列點得到
+  async function uploadFiles(uid, expenseId, files) {
+    setRow(uid, { upState: 'uploading' });
+    try {
+      await ledgerApi.voucherUpload('opex', expenseId, files);
+      setQueue(q => q.map(r => r.uid === uid ? { ...r, files: [], uploaded: (r.uploaded || 0) + files.length, upState: 'ok' } : r));
+    } catch (e) {
+      setQueue(q => q.map(r => r.uid === uid ? { ...r, upState: 'err', upErr: e?.message || '上傳失敗' } : r));
+    }
+  }
+  function pickFiles(r, list) {
+    const fs = [...(list || [])];
+    if (!fs.length) return;
+    if (r.result?.ok && r.result.expense_id) uploadFiles(r.uid, r.result.expense_id, fs);   // 已入帳：直接上傳
+    else setRow(r.uid, { files: [...(r.files || []), ...fs] });                                 // 還沒入帳：先排著，入帳後上傳
   }
 
   const bufParts = describeBuf(buf);
@@ -462,6 +481,20 @@ export default function BillScanModal({ categories = [], onClose, onSaved }) {
                         </span>
                       )}
                       {!r.result && ready(r) && <span style={S.tagNew}>可送出</span>}
+                      <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {(!r.result || r.result.ok) && (
+                          <label style={S.photoBtn}>
+                            📎 {r.result?.ok ? '補傳照片' : '附照片'}
+                            <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }}
+                              onChange={e => { pickFiles(r, e.target.files); e.target.value = ''; }} />
+                          </label>
+                        )}
+                        {r.files?.length > 0 && <span style={S.sub}>待上傳 {r.files.length} 張{!r.result?.ok ? '（入帳後自動上傳）' : ''}
+                          {!r.result?.ok && <button style={S.link} onClick={() => setRow(r.uid, { files: [] })}>清除</button>}</span>}
+                        {r.upState === 'uploading' && <span style={S.sub}>上傳中…</span>}
+                        {r.uploaded > 0 && r.upState !== 'uploading' && <span style={{ ...S.sub, color: '#276749' }}>✓ 已附 {r.uploaded} 張（月報可看）</span>}
+                        {r.upState === 'err' && <span style={{ ...S.sub, color: '#c53030' }}>照片上傳失敗：{r.upErr}（可再按補傳）</span>}
+                      </div>
                     </td>
                     <td style={S.td}>
                       {!r.result?.ok && <button style={S.btnDanger} onClick={() => delRow(r.uid)}>✕</button>}
@@ -507,6 +540,7 @@ const S = {
   th:        { padding: '8px 10px', textAlign: 'left', fontWeight: 600, background: '#f7fafc', borderBottom: '2px solid #e2e8f0', color: '#4a5568', whiteSpace: 'nowrap' },
   td:        { padding: '8px 10px', borderBottom: '1px solid #edf2f7', verticalAlign: 'top' },
   splitBox:  { marginTop: 6, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 6, background: '#f7fafc', minWidth: 250 },
+  photoBtn:  { fontSize: 12, padding: '3px 8px', border: '1px dashed #a0aec0', borderRadius: 6, cursor: 'pointer', color: '#4a5568', background: '#fff' },
   sub:       { fontSize: 11, color: '#a0aec0', marginTop: 3, fontFamily: 'monospace' },
   empty:     { textAlign: 'center', padding: 30, color: '#a0aec0' },
   tagOk:     { fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#c6f6d5', color: '#22543d' },
