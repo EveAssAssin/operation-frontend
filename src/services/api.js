@@ -759,6 +759,25 @@ export const vendorPaymentApi = {
 };
 
 // 營運管理 → 廠商管理（2026-10-20）：新建廠商＋帳號密碼＋出款資訊
+// 金流 → 銀存彙整（2026-11）
+export const bankLedgerApi = {
+  meta:          ()            => api.get('/bank-ledger/meta'),
+  accounts:      ()            => api.get('/bank-ledger/accounts'),
+  createAccount: (b)           => api.post('/bank-ledger/accounts', b),
+  updateAccount: (id, b)       => api.patch(`/bank-ledger/accounts/${id}`, b),
+  importFile:    (file, accountId) => { const fd = new FormData(); fd.append('file', file); if (accountId) fd.append('account_id', accountId); return api.post('/bank-ledger/import', fd, { timeout: 180000 }); },
+  imports:       (accountId)   => api.get('/bank-ledger/imports', { params: accountId ? { account_id: accountId } : {} }),
+  undoImport:    (id)          => api.delete(`/bank-ledger/imports/${id}`),
+  txns:          (params)      => api.get('/bank-ledger/txns', { params, timeout: 120000 }),
+  updateTxn:     (id, b)       => api.patch(`/bank-ledger/txns/${id}`, b),
+  bulk:          (ids, b)      => api.post('/bank-ledger/txns/bulk', { ids, ...b }),
+  rules:         ()            => api.get('/bank-ledger/rules'),
+  addRule:       (b)           => api.post('/bank-ledger/rules', b),
+  delRule:       (id)          => api.delete(`/bank-ledger/rules/${id}`),
+  reapply:       ()            => api.post('/bank-ledger/rules/reapply', {}, { timeout: 180000 }),
+  storeDeposits: (ym, cats)    => api.get('/bank-ledger/summary/store-deposits', { params: { ym, categories: (cats || []).join(',') } }),
+};
+
 // 零用金管理（2026-11）
 export const pettyCashApi = {
   funds:       (all)        => api.get('/petty-cash/funds', { params: all ? { all: '1' } : {} }),

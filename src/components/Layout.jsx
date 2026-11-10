@@ -27,6 +27,15 @@ const NAV_ITEMS = [
     ],
   },
   {
+    key:   'cashflow',
+    label: '金流',
+    icon:  '💰',
+    moduleKey: 'bank_ledger',
+    children: [
+      { path: '/bank-ledger', label: '銀存彙整', icon: '🏦', moduleKey: 'bank_ledger' },
+    ],
+  },
+  {
     key:   'dept-billing',
     label: '部門開帳',
     icon:  '🏢',
