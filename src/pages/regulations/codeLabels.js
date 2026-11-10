@@ -10,7 +10,7 @@ export function docLabels(doc) {
   (doc?.sections || []).forEach((sec, si) => {
     const walk = (items, level, path) => (items || []).forEach((c, i) => {
       const p = [...path, i];
-      if (c.code) out[c.code] = { no: `${cnNo(si)}、${displayNo(level, p)}`, text: String(c.text || '').replace(/\s+/g, ' ').slice(0, 18) };
+      if (c.code) out[c.code] = { no: `${cnNo(si)}、${displayNo(level, p)}`, text: String(c.text || '').replace(/\s+/g, ' ').slice(0, 18), full: c.text || '', notes: c.notes || [], section: sec.title || '' };
       walk(c.subs, level + 1, p);
     });
     walk(sec.items, 1, []);
@@ -18,7 +18,7 @@ export function docLabels(doc) {
   return out;
 }
 
-const RE = /\[?(\d{2,}-\d+(?:\.\d+)*)\]?/g;
+const RE = /\[?(\d{2,}-\d+(?:\.\d+)*[a-z]?)\]?/g;
 /** 文字裡的代碼換成編號；others＝其他規範的對照 */
 export function humanize(text, mine, others = {}) {
   return String(text || '').replace(RE, (m, code) => {

@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ChangeView from './ChangeView';
 import { docLabels, humanize, codeChip } from './codeLabels';
+import { ClauseRef, RefText } from './ClauseRef';
 import { useRegApi } from './regApi';
 import DocEditor from './DocEditor';
 import { applyOps, changeLabel } from './docOps';
@@ -365,10 +366,10 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
             const res = checks.resolved?.[i.id];
             return (
               <div key={i.id} style={{ border: `1px solid ${i.level === 'warn' && !res ? '#fbd38d' : C.line}`, background: i.level === 'warn' && !res ? '#fffaf0' : '#fff', borderRadius: 8, padding: 8, marginTop: 6, opacity: res ? 0.7 : 1 }}>
-                <div>{i.level === 'warn' ? '⚠️' : '💡'} <span style={{ fontSize: 11, background: '#edf2f7', borderRadius: 6, padding: '0 5px' }}>{i.kind}</span> <b>{H(i.title)}</b></div>
-                <div style={{ marginTop: 2 }}>{H(i.detail)}</div>
-                {i.codes?.length > 0 && <div style={{ fontSize: 11, color: '#8b6f4e', marginTop: 2 }}>相關條文：{i.codes.map((c) => <span key={c} title={`條文代碼 ${c}`} style={{ background: '#faf5ef', border: '1px solid #ecdcc8', borderRadius: 6, padding: '0 5px', marginRight: 4, display: 'inline-block' }}>{codeChip(c, mine, others)}</span>)}</div>}
-                <RelatedList items={i.other_regs} labels={others} fmt={H} />
+                <div>{i.level === 'warn' ? '⚠️' : '💡'} <span style={{ fontSize: 11, background: '#edf2f7', borderRadius: 6, padding: '0 5px' }}>{i.kind}</span> <b><RefText text={i.title} mine={mine} others={others} /></b></div>
+                <div style={{ marginTop: 2 }}><RefText text={i.detail} mine={mine} others={others} /></div>
+                {i.codes?.length > 0 && <div style={{ fontSize: 11, color: '#8b6f4e', marginTop: 2 }}>相關條文（點了看原文）：{i.codes.map((c) => <ClauseRef key={c} code={c} mine={mine} others={others} />)}</div>}
+                <RelatedList items={i.other_regs} render={(r) => <ClauseRef code={r.code} mine={mine} others={others} />} fmt={(t) => <RefText text={t} mine={mine} others={others} />} />
                 {(i.other_regs || []).length > 0 && !res && (
                   <RelatedEdits versionId={versionId} items={i.other_regs} doc={doc}
                     onAllDone={(list) => { if (!i.fix) markRelatedDone(i, list); }} />
@@ -401,7 +402,7 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
                 {i.supplement && !res && <div style={{ fontSize: 11, color: C.mid, marginTop: 4 }}>你補充的：{i.supplement.text}</div>}
                 {i.fix?.preview?.changes?.length > 0 && !res && (
                   <details open={!!i.fix.from_supplement} style={{ fontSize: 12, marginTop: 4 }}><summary style={{ cursor: 'pointer', color: C.mid }}>{i.fix.from_supplement ? 'AI 照你的資料寫的修正（按上面「✓」才會套用）' : '修正內容'}</summary>
-                    {i.fix.note && <div style={{ color: C.mid, margin: '3px 0' }}>AI 說明：{H(i.fix.note)}</div>}
+                    {i.fix.note && <div style={{ color: C.mid, margin: '3px 0' }}>AI 說明：<RefText text={i.fix.note} mine={mine} others={others} /></div>}
                     {i.fix.preview.changes.map((c, k) => <ChangeView key={k} c={c} label={codeChip(c.code, mine, others)} />)}
                   </details>
                 )}

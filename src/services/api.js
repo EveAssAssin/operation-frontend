@@ -953,6 +953,7 @@ export const regulationApi = safeApi({
   aiCheck:       (vid)               => api.post(`/regulations/versions/${vid}/ai-check`, {}, { timeout: 120000 }),
   resolveIssue:  (vid, iid, body)    => api.post(`/regulations/versions/${vid}/ai-check/${iid}/resolve`, body),
   fixIssue:      (vid, iid, body)    => api.post(`/regulations/versions/${vid}/ai-check/${iid}/fix`, body, { timeout: 120000 }),
+  lookupClauses: (codes)             => api.get('/regulations/clauses/lookup', { params: { codes: codes.join(',') } }),
   relatedDraft:  (vid, body)         => api.post(`/regulations/versions/${vid}/related/draft`, body, { timeout: 130000 }),
   relatedApply:  (regId, body)       => api.post(`/regulations/${regId}/related-apply`, body, { timeout: 130000 }),
   findings:      (status = 'open', regulation_id) => api.get('/regulations/audit/findings', { params: { status, regulation_id } }),
@@ -1003,6 +1004,7 @@ export const regulationProposeApi = (app) => {
     aiCheck:       (vid)          => api.post(`/regulations-public/propose/versions/${vid}/ai-check`, b(), { timeout: 120000 }),
     resolveIssue:  (vid, iid, body) => api.post(`/regulations-public/propose/versions/${vid}/ai-check/${iid}/resolve`, b(body)),
     fixIssue:      (vid, iid, body) => api.post(`/regulations-public/propose/versions/${vid}/ai-check/${iid}/fix`, b(body), { timeout: 120000 }),
+    lookupClauses: (codes)        => api.get('/regulations-public/propose/clauses/lookup', { params: { app_number: app, codes: codes.join(',') } }),
     relatedDraft:  (vid, body)    => api.post(`/regulations-public/propose/versions/${vid}/related/draft`, b(body), { timeout: 130000 }),
     relatedApply:  (regId, body)  => api.post(`/regulations-public/propose/${regId}/related-apply`, b(body), { timeout: 130000 }),
   });

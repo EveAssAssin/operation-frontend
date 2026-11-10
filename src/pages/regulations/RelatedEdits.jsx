@@ -11,13 +11,13 @@ const hasText = (o) => ['replace_text', 'add_clause', 'add_note'].includes(o.op)
 const regIdOf = (code) => String(code || '').split('-')[0];
 
 /** 只顯示建議（不再開新分頁，避免 App 端跳到登入頁） */
-export function RelatedList({ items, labels = {}, fmt = (t) => t }) {
-  // 代碼（1254-5.9）看不懂 → 顯示「五、9.」；只有規範編號（1254）就不顯示（2026-11-10）
+export function RelatedList({ items, labels = {}, fmt = (t) => t, render }) {
+  // 代碼看不懂 → 點得開的「《規範》五、5.」（render 由 AI 檢查卡片傳 ClauseRef）；只有規範編號（1254）就只顯示規範名稱（2026-11-10）
   return (items || []).map((r, k) => {
-    const lab = labels[r.code] ? String(labels[r.code]).replace(/^《[^》]*》/, '') : (/^\d+$/.test(String(r.code || '')) ? '' : '');
+    const isClause = /^\d+-/.test(String(r.code || ''));
     return (
       <div key={k} style={{ fontSize: 12, marginTop: 3 }}>
-        📎 <b>《{r.title}》</b>{lab && <span title={`條文代碼 ${r.code}`} style={{ color: '#8b6f4e' }}> {lab}</span>}：{fmt(r.suggestion)}
+        📎 {isClause && render ? render(r) : <b>《{r.title}》</b>}：{fmt(r.suggestion)}
       </div>
     );
   });
