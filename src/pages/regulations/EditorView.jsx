@@ -1,5 +1,6 @@
 // 修改中的版本（草稿／被退回）：編輯器＋右側 AI 面板（編輯助理、AI 檢查）
 import React, { useEffect, useRef, useState } from 'react';
+import ChangeView from './ChangeView';
 import { useRegApi } from './regApi';
 import DocEditor from './DocEditor';
 import { applyOps, changeLabel } from './docOps';
@@ -260,15 +261,7 @@ export function AssistPanel({ versionId, doc, onApply }) {
                       <b>方案 {o.key}｜{o.name}</b>{o.recommended && <span style={{ fontSize: 11, background: '#38a169', color: '#fff', borderRadius: 6, padding: '0 6px', height: 18 }}>建議</span>}
                     </div>
                     <div style={{ fontSize: 12, color: C.mid, margin: '2px 0 4px' }}>{o.desc}</div>
-                    {(o.preview?.changes || []).map((c, k) => (
-                      <div key={k} style={{ fontSize: 12, borderLeft: `2px solid ${C.line}`, paddingLeft: 6, margin: '4px 0' }}>
-                        <span style={{ fontFamily: 'monospace', color: '#8b6f4e' }}>{c.code}</span> {changeLabel(c)}
-                        {c.old && c.kind !== 'add' && <div style={{ color: '#9b2c2c', textDecoration: 'line-through' }}>{c.old}</div>}
-                        {c.new && c.kind !== 'del' && <div style={{ color: '#22543d', background: '#f0fff4' }}>{c.new}</div>}
-                        {(c.fields || []).includes('notes') && (c.notes || []).map((n, j) => <div key={j} style={{ color: '#22543d' }}>{n.kind}：{n.text}</div>)}
-                        {(c.fields || []).includes('images') && <div style={{ color: '#22543d' }}>＋照片</div>}
-                      </div>
-                    ))}
+                    {(o.preview?.changes || []).map((c, k) => <ChangeView key={k} c={c} />)}
                     {(o.preview?.meta || []).map((m, k) => <div key={`m${k}`} style={{ fontSize: 12, color: '#22543d' }}>欄位「{m.field}」→ {Array.isArray(m.new) ? m.new.join('、') : m.new}</div>)}
                     {(o.other_regs || []).length > 0 && (
                       <div style={{ fontSize: 12, marginTop: 4, background: '#fffaf0', borderRadius: 6, padding: '4px 6px' }}>
@@ -402,16 +395,10 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
                     </div>
                   </div>
                 )}
-                {i.supplement && !res && <div style={{ fontSize: 11, color: C.mid, marginTop: 4 }}>你補充的：{i.supplement.text}{i.fix?.note ? `　→ AI：${i.fix.note}` : ''}</div>}
+                {i.supplement && !res && <div style={{ fontSize: 11, color: C.mid, marginTop: 4 }}>你補充的：{i.supplement.text}</div>}
                 {i.fix?.preview?.changes?.length > 0 && !res && (
-                  <details style={{ fontSize: 12, marginTop: 4 }}><summary style={{ cursor: 'pointer', color: C.mid }}>修正內容</summary>
-                    {i.fix.preview.changes.map((c, k) => (
-                      <div key={k} style={{ borderLeft: `2px solid ${C.line}`, paddingLeft: 6, margin: '3px 0' }}>
-                        <span style={{ fontFamily: 'monospace' }}>{c.code}</span> {changeLabel(c)}
-                        {c.old && c.kind !== 'add' && <div style={{ color: '#9b2c2c', textDecoration: 'line-through' }}>{c.old}</div>}
-                        {c.new && c.kind !== 'del' && <div style={{ color: '#22543d' }}>{c.new}</div>}
-                      </div>
-                    ))}
+                  <details open={!!i.fix.from_supplement} style={{ fontSize: 12, marginTop: 4 }}><summary style={{ cursor: 'pointer', color: C.mid }}>{i.fix.from_supplement ? 'AI 照你的資料寫的修正（按上面「✓」才會套用）' : '修正內容'}</summary>
+                    {i.fix.preview.changes.map((c, k) => <ChangeView key={k} c={c} />)}
                   </details>
                 )}
               </div>
