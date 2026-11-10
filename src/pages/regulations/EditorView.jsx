@@ -1,6 +1,7 @@
 // 修改中的版本（草稿／被退回）：編輯器＋右側 AI 面板（編輯助理、AI 檢查）
 import React, { useEffect, useRef, useState } from 'react';
 import ChangeView from './ChangeView';
+import { docLabels, humanize, codeChip } from './codeLabels';
 import { useRegApi } from './regApi';
 import DocEditor from './DocEditor';
 import { applyOps, changeLabel } from './docOps';
@@ -346,6 +347,8 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
   const reopen = async (issue) => { const r = await api.resolveIssue(versionId, issue.id, { how: 'reopen' }); if (r?.success) setChecks(r.data); };
 
   const issues = checks?.issues || [];
+  const mine = docLabels(doc); const others = checks?.code_labels || {};
+  const H = (t) => humanize(t, mine, others);
   const open = issues.filter(i => i.level === 'warn' && !checks.resolved?.[i.id]).length;
   return (
     <div style={{ overflow: 'auto', flex: 1, padding: 10, fontSize: 13 }}>
@@ -362,16 +365,16 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
             const res = checks.resolved?.[i.id];
             return (
               <div key={i.id} style={{ border: `1px solid ${i.level === 'warn' && !res ? '#fbd38d' : C.line}`, background: i.level === 'warn' && !res ? '#fffaf0' : '#fff', borderRadius: 8, padding: 8, marginTop: 6, opacity: res ? 0.7 : 1 }}>
-                <div>{i.level === 'warn' ? '⚠️' : '💡'} <span style={{ fontSize: 11, background: '#edf2f7', borderRadius: 6, padding: '0 5px' }}>{i.kind}</span> <b>{i.title}</b></div>
-                <div style={{ marginTop: 2 }}>{i.detail}</div>
-                {i.codes?.length > 0 && <div style={{ fontSize: 11, fontFamily: 'monospace', color: '#8b6f4e', marginTop: 2 }}>{i.codes.join('、')}</div>}
-                <RelatedList items={i.other_regs} />
+                <div>{i.level === 'warn' ? '⚠️' : '💡'} <span style={{ fontSize: 11, background: '#edf2f7', borderRadius: 6, padding: '0 5px' }}>{i.kind}</span> <b>{H(i.title)}</b></div>
+                <div style={{ marginTop: 2 }}>{H(i.detail)}</div>
+                {i.codes?.length > 0 && <div style={{ fontSize: 11, color: '#8b6f4e', marginTop: 2 }}>相關條文：{i.codes.map((c) => <span key={c} title={`條文代碼 ${c}`} style={{ background: '#faf5ef', border: '1px solid #ecdcc8', borderRadius: 6, padding: '0 5px', marginRight: 4, display: 'inline-block' }}>{codeChip(c, mine, others)}</span>)}</div>}
+                <RelatedList items={i.other_regs} labels={others} fmt={H} />
                 {(i.other_regs || []).length > 0 && !res && (
                   <RelatedEdits versionId={versionId} items={i.other_regs} doc={doc}
                     onAllDone={(list) => { if (!i.fix) markRelatedDone(i, list); }} />
                 )}
                 {res ? (
-                  <div style={{ fontSize: 12, color: C.mid, marginTop: 4 }}>{res.how === 'applied' ? (res.reason ? `✓ ${res.reason}` : '✓ 已套用修正') : `已忽略：${res.reason}`}（{res.by}） <button style={{ ...btn, ...btnSm }} onClick={() => reopen(i)}>復原</button></div>
+                  <div style={{ fontSize: 12, color: C.mid, marginTop: 4 }}>{res.how === 'applied' ? (res.reason ? `✓ ${H(res.reason)}` : '✓ 已套用修正') : `已忽略：${H(res.reason)}`}（{res.by}） <button style={{ ...btn, ...btnSm }} onClick={() => reopen(i)}>復原</button></div>
                 ) : (
                   <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                     {i.fix && <button style={{ ...btnOk, ...btnSm }} onClick={() => applyFix(i)}>✓ {i.fix.label}</button>}
@@ -398,8 +401,8 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
                 {i.supplement && !res && <div style={{ fontSize: 11, color: C.mid, marginTop: 4 }}>你補充的：{i.supplement.text}</div>}
                 {i.fix?.preview?.changes?.length > 0 && !res && (
                   <details open={!!i.fix.from_supplement} style={{ fontSize: 12, marginTop: 4 }}><summary style={{ cursor: 'pointer', color: C.mid }}>{i.fix.from_supplement ? 'AI 照你的資料寫的修正（按上面「✓」才會套用）' : '修正內容'}</summary>
-                    {i.fix.note && <div style={{ color: C.mid, margin: '3px 0' }}>AI 說明：{i.fix.note}</div>}
-                    {i.fix.preview.changes.map((c, k) => <ChangeView key={k} c={c} />)}
+                    {i.fix.note && <div style={{ color: C.mid, margin: '3px 0' }}>AI 說明：{H(i.fix.note)}</div>}
+                    {i.fix.preview.changes.map((c, k) => <ChangeView key={k} c={c} label={codeChip(c.code, mine, others)} />)}
                   </details>
                 )}
               </div>

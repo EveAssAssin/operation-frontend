@@ -3,7 +3,7 @@
 import { changeLabel } from './docOps';
 
 const noteKey = (n) => `${n.kind || '註'}|${n.text || ''}`;
-export default function ChangeView({ c, codeColor = '#8b6f4e' }) {
+export default function ChangeView({ c, codeColor = '#8b6f4e', label }) {
   const textChanged = c.kind !== 'mod' || (c.old || '') !== (c.new || '');
   const oldN = new Set((c.old_notes || []).map(noteKey)), newN = new Set((c.notes || []).map(noteKey));
   const addedNotes = (c.notes || []).filter((n) => !oldN.has(noteKey(n)));
@@ -11,7 +11,7 @@ export default function ChangeView({ c, codeColor = '#8b6f4e' }) {
   const fields = c.fields || [];
   return (
     <div style={{ fontSize: 12, borderLeft: '2px solid #e2e8f0', paddingLeft: 6, margin: '4px 0' }}>
-      <span style={{ fontFamily: 'monospace', color: codeColor }}>{c.code}</span> {changeLabel(c)}
+      <span title={`條文代碼 ${c.code}`} style={{ color: codeColor, fontWeight: 600 }}>{label || c.display_no || c.code}</span> {changeLabel(c)}
       {c.kind === 'mod' && !textChanged && <span style={{ color: '#718096' }}>（條文文字不變）</span>}
       {textChanged && c.old && c.kind !== 'add' && <div style={{ color: '#9b2c2c', textDecoration: 'line-through' }}>{c.old}</div>}
       {textChanged && c.new && c.kind !== 'del' && <div style={{ color: '#22543d', background: '#f0fff4' }}>{c.new}</div>}

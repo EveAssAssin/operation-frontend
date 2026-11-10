@@ -11,12 +11,16 @@ const hasText = (o) => ['replace_text', 'add_clause', 'add_note'].includes(o.op)
 const regIdOf = (code) => String(code || '').split('-')[0];
 
 /** 只顯示建議（不再開新分頁，避免 App 端跳到登入頁） */
-export function RelatedList({ items }) {
-  return (items || []).map((r, k) => (
-    <div key={k} style={{ fontSize: 12, marginTop: 3 }}>
-      📎 <b>{r.title}</b> <span style={{ fontFamily: 'monospace', color: '#8b6f4e' }}>{r.code}</span>：{r.suggestion}
-    </div>
-  ));
+export function RelatedList({ items, labels = {}, fmt = (t) => t }) {
+  // 代碼（1254-5.9）看不懂 → 顯示「五、9.」；只有規範編號（1254）就不顯示（2026-11-10）
+  return (items || []).map((r, k) => {
+    const lab = labels[r.code] ? String(labels[r.code]).replace(/^《[^》]*》/, '') : (/^\d+$/.test(String(r.code || '')) ? '' : '');
+    return (
+      <div key={k} style={{ fontSize: 12, marginTop: 3 }}>
+        📎 <b>《{r.title}》</b>{lab && <span title={`條文代碼 ${r.code}`} style={{ color: '#8b6f4e' }}> {lab}</span>}：{fmt(r.suggestion)}
+      </div>
+    );
+  });
 }
 
 export default function RelatedEdits({ versionId, items, doc, onAllDone }) {
