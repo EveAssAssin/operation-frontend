@@ -775,6 +775,12 @@ export const bankLedgerApi = {
   addRule:       (b)           => api.post('/bank-ledger/rules', b),
   delRule:       (id)          => api.delete(`/bank-ledger/rules/${id}`),
   reapply:       ()            => api.post('/bank-ledger/rules/reapply', {}, { timeout: 180000 }),
+  verify:        (id)          => api.get(`/bank-ledger/accounts/${id}/verify`),
+  credStatus:    ()            => api.get('/bank-ledger/cred/status'),
+  credPin:       (b)           => api.post('/bank-ledger/cred/pin', b),
+  credCheck:     (pin)         => api.post('/bank-ledger/cred/check', { pin }),
+  credReveal:    (id, pin)     => api.post(`/bank-ledger/accounts/${id}/cred/reveal`, { pin }),
+  credSave:      (id, pin, fields) => api.put(`/bank-ledger/accounts/${id}/cred`, { pin, fields }),
   storeDeposits: (ym, cats)    => api.get('/bank-ledger/summary/store-deposits', { params: { ym, categories: (cats || []).join(',') } }),
 };
 

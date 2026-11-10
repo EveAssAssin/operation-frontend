@@ -2,6 +2,7 @@
 // 匯入各銀行網銀交易明細（CSV／XLS）→ 自動登錄、重複自動去掉、同期間重匯自動校正 → 分類／門市 → 門市存入彙整
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { bankLedgerApi } from '../../services/api';
+import BankOverview from './BankOverview';
 
 const C = { primary: '#50422d', bg: '#faf8f5', border: '#e0d5c8', muted: '#8a7a66', ok: '#2d6a4f', danger: '#c53030', in: '#2f855a', out: '#c05621', warn: '#b7791f' };
 const card = { background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, marginBottom: 12 };
@@ -16,7 +17,7 @@ const thisYm = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 7)
 const monthRange = (ym) => { const [y, m] = ym.split('-').map(Number); return { from: `${ym}-01`, to: `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}` }; };
 
 export default function BankLedgerPage() {
-  const [tab, setTab] = useState('import');
+  const [tab, setTab] = useState('accounts');
   const [meta, setMeta] = useState({ categories: [], stores: [] });
   const [accounts, setAccounts] = useState([]);
   const [err, setErr] = useState('');
@@ -28,7 +29,7 @@ export default function BankLedgerPage() {
     loadAccounts();
   }, [loadAccounts]);
 
-  const tabs = [['import', '📥 匯入'], ['accounts', '🏦 帳戶'], ['txns', '📄 交易明細'], ['stores', '🏪 門市存入'], ['rules', '⚙ 分類規則']];
+  const tabs = [['accounts', '🏦 本子總覽'], ['import', '📥 匯入'], ['txns', '📄 交易明細'], ['stores', '🏪 門市存入'], ['rules', '⚙ 分類規則']];
   return (
     <div style={{ padding: 20, background: C.bg, minHeight: '100vh' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -43,7 +44,7 @@ export default function BankLedgerPage() {
       </div>
       {err && <div style={{ ...card, color: C.danger }}>⚠ {err}</div>}
       {tab === 'import' && <ImportTab accounts={accounts} onDone={loadAccounts} />}
-      {tab === 'accounts' && <AccountsTab accounts={accounts} reload={loadAccounts} onOpen={(a) => { setTxFilter({ account_id: a.id }); setTab('txns'); }} />}
+      {tab === 'accounts' && <BankOverview accounts={accounts} reload={loadAccounts} onOpen={(a) => { setTxFilter({ account_id: a.id, from: '', to: '' }); setTab('txns'); }} />}
       {tab === 'txns' && <TxnsTab key={JSON.stringify(txFilter)} accounts={accounts} meta={meta} preset={txFilter} />}
       {tab === 'stores' && <StoresTab meta={meta} onOpen={(f) => { setTxFilter(f); setTab('txns'); }} />}
       {tab === 'rules' && <RulesTab accounts={accounts} meta={meta} />}
@@ -169,66 +170,17 @@ function ImportResult({ r }) {
       {r.rows_dup > 0 && <span style={{ color: C.muted }}>｜重複略過 {r.rows_dup}</span>}
       {r.rows_removed > 0 && <span style={{ color: C.warn }}>｜校正掉 {r.rows_removed}（系統有、這次檔案沒有）</span>}
       {r.rows_restored > 0 && <span>｜還原 {r.rows_restored}</span>}
+      {r.verify && r.verify.status === 'ok' && <div style={{ fontSize: 12, color: C.ok }}>✓ 餘額核對正確（期初＋存入－支出 ＝ 銀行餘額 {fmt(r.verify.reported_end)}）</div>}
+      {r.verify && r.verify.status === 'no_opening' && <div style={{ fontSize: 12, color: C.warn }}>這本還沒設期初餘額，只檢查前後筆接不接得起來（到「本子總覽」設期初）</div>}
+      {r.verify && r.verify.status === 'mismatch' && (
+        <div style={{ fontSize: 12, color: C.danger }}>⚠ 餘額核對有 {r.verify.mismatches.length} 處對不上：{r.verify.mismatches.slice(0, 3).map((m) => `${m.date} ${m.summary || ''} 系統算 ${fmt(m.expected)}、銀行 ${fmt(m.reported)}`).join('；')}</div>
+      )}
       {br.length > 0 && (
         <div style={{ fontSize: 12, color: C.warn, marginTop: 4 }}>
           ⚠ 餘額接不起來 {br.length} 處（可能漏匯某段期間，或銀行把多筆壓縮成一筆）：
           {br.slice(0, 3).map((b) => `${b.date} ${b.summary || ''} 差 ${fmt(b.diff)}`).join('；')}
         </div>
       )}
-    </div>
-  );
-}
-
-// ═══ 帳戶 ═══
-function AccountsTab({ accounts, reload, onOpen }) {
-  const [ed, setEd] = useState(null);
-  const [msg, setMsg] = useState('');
-  const save = async () => {
-    try { if (ed.id) await bankLedgerApi.updateAccount(ed.id, ed); else await bankLedgerApi.createAccount(ed); setEd(null); setMsg('已儲存'); reload(); } catch (e) { setMsg('⚠ ' + errMsg(e)); }
-  };
-  const total = accounts.filter((a) => a.is_active !== false).reduce((s, a) => s + Number(a.balance || 0), 0);
-  return (
-    <div>
-      <div style={{ ...card, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <b>帳戶 {accounts.filter((a) => a.is_active !== false).length} 個</b>
-        <span style={{ fontSize: 13, color: C.muted }}>最新餘額合計 <b style={{ color: C.primary, fontSize: 16 }}>${fmt(total)}</b>（各帳戶最後一筆交易的餘額）</span>
-        <div style={{ flex: 1 }} />
-        {msg && <span style={{ fontSize: 13, color: msg.startsWith('⚠') ? C.danger : C.ok }}>{msg}</span>}
-        <button style={btn(C.primary)} onClick={() => setEd({ bank_name: '', alias: '', account_no: '', holder: '', note: '' })}>＋ 新增帳戶</button>
-      </div>
-      {ed && (
-        <div style={card}>
-          <b>{ed.id ? '修改帳戶' : '新增帳戶'}</b>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-            <input style={{ ...input, width: 120 }} placeholder="銀行" value={ed.bank_name || ''} onChange={(e) => setEd({ ...ed, bank_name: e.target.value })} />
-            <input style={{ ...input, width: 180 }} placeholder="顯示名稱（例：元大 總公司）" value={ed.alias || ''} onChange={(e) => setEd({ ...ed, alias: e.target.value })} />
-            <input style={{ ...input, width: 170 }} placeholder="帳號" value={ed.account_no || ''} onChange={(e) => setEd({ ...ed, account_no: e.target.value })} />
-            <input style={{ ...input, width: 120 }} placeholder="戶名" value={ed.holder || ''} onChange={(e) => setEd({ ...ed, holder: e.target.value })} />
-            <input style={{ ...input, minWidth: 200, flex: 1 }} placeholder="備註（例：哪些門市在用）" value={ed.note || ''} onChange={(e) => setEd({ ...ed, note: e.target.value })} />
-            {ed.id && <label style={{ fontSize: 13 }}><input type="checkbox" checked={ed.is_active !== false} onChange={(e) => setEd({ ...ed, is_active: e.target.checked })} /> 使用中</label>}
-            <button style={btn(C.primary)} onClick={save}>儲存</button>
-            <button style={ghost} onClick={() => setEd(null)}>取消</button>
-          </div>
-        </div>
-      )}
-      <div style={card}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr>{['名稱', '銀行', '帳號', '戶名', '最後交易日', '最新餘額', '筆數', '備註', ''].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
-          <tbody>
-            {accounts.map((a) => (
-              <tr key={a.id} style={{ opacity: a.is_active === false ? 0.5 : 1 }}>
-                <td style={td}><a style={{ color: '#2b6cb0', cursor: 'pointer' }} onClick={() => onOpen(a)}>{a.alias}</a></td>
-                <td style={td}>{a.bank_name}</td><td style={td}>{a.account_no || <span style={{ color: C.muted }}>—</span>}</td>
-                <td style={td}>{a.holder || ''}</td><td style={td}>{a.last_date || ''}</td>
-                <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>{fmt(a.balance)}</td><td style={td}>{a.txn_count}</td>
-                <td style={{ ...td, fontSize: 12, color: C.muted }}>{a.note || ''}</td>
-                <td style={td}><button style={{ ...ghost, padding: '3px 8px' }} onClick={() => setEd({ ...a })}>改</button></td>
-              </tr>
-            ))}
-            {!accounts.length && <tr><td colSpan={9} style={{ ...td, textAlign: 'center', color: C.muted }}>還沒有帳戶；匯入有帳號的檔案會自動建立</td></tr>}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
