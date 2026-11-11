@@ -57,6 +57,7 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+    if (!error.response && error.code === 'ECONNABORTED') return Promise.reject({ message: `等了 ${Math.round((error.config?.timeout || 0) / 1000)} 秒還沒有回應：伺服器可能還在處理（例如 AI 還在寫），先不要重複按，稍等一下重新整理看看`, code: 'TIMEOUT' });   // 2026-11-11：以前一律「網路連線異常」，分不出是逾時
     return Promise.reject(error.response?.data || { message: '網路連線異常' });
   }
 );
@@ -948,7 +949,7 @@ export const regulationApi = safeApi({
   drafts:        ()                  => api.get('/regulations/drafts/list'),
   saveDraft:     (vid, body)         => api.put(`/regulations/versions/${vid}`, body),
   preview:       (vid)               => api.post(`/regulations/versions/${vid}/preview`),
-  submit:        (vid)               => api.post(`/regulations/versions/${vid}/submit`, {}, { timeout: 60000 }),
+  submit:        (vid)               => api.post(`/regulations/versions/${vid}/submit`, {}, { timeout: 90000 }),
   discard:       (vid)               => api.post(`/regulations/versions/${vid}/discard`),
   reviews:       (status = 'pending') => api.get('/regulations/reviews/list', { params: { status } }),
   review:        (vid)               => api.get(`/regulations/reviews/${vid}`),
@@ -975,7 +976,7 @@ export const regulationApi = safeApi({
   assistClarify: (vid, body)         => api.post(`/regulations/versions/${vid}/assist/clarify`, body, { timeout: 60000 }),
   assist:        (vid, body)         => api.post(`/regulations/versions/${vid}/assist`, body, { timeout: 120000 }),
   chooseOption:  (vid, log_index, key) => api.post(`/regulations/versions/${vid}/assist/choose`, { log_index, key }),
-  aiCheck:       (vid)               => api.post(`/regulations/versions/${vid}/ai-check`, {}, { timeout: 120000 }),
+  aiCheck:       (vid)               => api.post(`/regulations/versions/${vid}/ai-check`, {}, { timeout: 200000 }),
   resolveIssue:  (vid, iid, body)    => api.post(`/regulations/versions/${vid}/ai-check/${iid}/resolve`, body),
   fixIssue:      (vid, iid, body)    => api.post(`/regulations/versions/${vid}/ai-check/${iid}/fix`, body, { timeout: 120000 }),
   lookupClauses: (codes)             => api.get('/regulations/clauses/lookup', { params: { codes: codes.join(',') } }),
@@ -1014,7 +1015,7 @@ export const regulationProposeApi = (app) => {
     version:       (vid)          => api.get(`/regulations-public/propose/versions/${vid}`, q),
     saveDraft:     (vid, body)    => api.put(`/regulations-public/propose/versions/${vid}`, b(body)),
     preview:       (vid)          => api.post(`/regulations-public/propose/versions/${vid}/preview`, b()),
-    submit:        (vid)          => api.post(`/regulations-public/propose/versions/${vid}/submit`, b(), { timeout: 60000 }),
+    submit:        (vid)          => api.post(`/regulations-public/propose/versions/${vid}/submit`, b(), { timeout: 90000 }),
     discard:       (vid)          => api.post(`/regulations-public/propose/versions/${vid}/discard`, b()),
     upload:        (file)         => { const fd = new FormData(); fd.append('file', file); return api.post('/regulations-public/propose/upload', fd, { ...q, timeout: 60000 }); },
     importDocx:    (file, title)  => { const fd = new FormData(); fd.append('file', file); if (title) fd.append('title', title); return api.post('/regulations-public/propose/import-docx', fd, { ...q, timeout: 120000 }); },
@@ -1026,7 +1027,7 @@ export const regulationProposeApi = (app) => {
     assistClarify: (vid, body)    => api.post(`/regulations-public/propose/versions/${vid}/assist/clarify`, b(body), { timeout: 60000 }),
     assist:        (vid, body)    => api.post(`/regulations-public/propose/versions/${vid}/assist`, b(body), { timeout: 120000 }),
     chooseOption:  (vid, log_index, key) => api.post(`/regulations-public/propose/versions/${vid}/assist/choose`, b({ log_index, key })),
-    aiCheck:       (vid)          => api.post(`/regulations-public/propose/versions/${vid}/ai-check`, b(), { timeout: 120000 }),
+    aiCheck:       (vid)          => api.post(`/regulations-public/propose/versions/${vid}/ai-check`, b(), { timeout: 200000 }),
     resolveIssue:  (vid, iid, body) => api.post(`/regulations-public/propose/versions/${vid}/ai-check/${iid}/resolve`, b(body)),
     fixIssue:      (vid, iid, body) => api.post(`/regulations-public/propose/versions/${vid}/ai-check/${iid}/fix`, b(body), { timeout: 120000 }),
     lookupClauses: (codes)        => api.get('/regulations-public/propose/clauses/lookup', { params: { app_number: app, codes: codes.join(',') } }),

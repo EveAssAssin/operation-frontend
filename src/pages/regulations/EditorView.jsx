@@ -64,7 +64,14 @@ export default function EditorView({ versionId, roles, categories, aiEnabled, on
     if (!(await uiConfirm('確定送審？送出後到審核完成前不能再修改。' + (aiEnabled ? '\n（送審前會自動跑 AI 檢查）' : '')))) return;
     setBusy('submit'); setMsg(null);
     try {
-      const r = await api.submit(versionId);
+      // AI 檢查改背景跑（2026-11-11）：後端回 AI_CHECKING＝還在檢查 → 每 6 秒再送一次，最多等 5 分鐘
+      let r = await api.submit(versionId);
+      for (let i = 0; r?.code === 'AI_CHECKING' && i < 50; i++) {
+        setMsg({ text: `🛡 ${r.message}` });
+        await new Promise(ok => setTimeout(ok, 6000));
+        r = await api.submit(versionId);
+      }
+      if (r?.code === 'AI_CHECKING') { setMsg({ err: true, text: 'AI 檢查超過 5 分鐘還沒好，草稿已保留。請稍後再按一次送審。' }); return; }
       if (!r?.success) {
         // 被擋下：當下用對話框講清楚原因＋下一步（2026-11-09；以前只在最下面一行紅字，手機上看不到，草稿就卡著）
         const isAi = String(r?.message || '').startsWith('AI 檢查還有');
