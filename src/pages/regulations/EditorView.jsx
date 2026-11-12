@@ -362,9 +362,10 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
     <div style={{ overflow: 'auto', flex: 1, padding: 10, fontSize: 13 }}>
       <div style={{ color: C.mid, marginBottom: 8 }}>
         AI 會檢查這次修改：前後矛盾、和其他規範衝突、模糊用語、缺漏（例如沒寫生效日）、適用範圍。<b>⚠️ 的問題要修正或寫原因忽略，才能送審。</b>
+        <div style={{ marginTop: 4 }}>重新檢查時只看「上次檢查後又改過的條文」；沒再動的條文，之前的問題和你的處理（忽略／已套用）都會保留。同一份草稿第 3 輪起，只有「矛盾、衝突、缺漏」會擋送審，用詞、模糊、範圍類改成 💡 提示。</div>
       </div>
       <button style={btnP} disabled={busy} onClick={run}>{busy ? 'AI 檢查中…（約 10～40 秒）' : checks ? '重新檢查' : '執行 AI 檢查'}</button>
-      {checks && <span style={{ fontSize: 12, color: C.mid, marginLeft: 8 }}>上次：{fmtTime(checks.at)}{dirty ? '（之後有修改，送審時會自動重新檢查）' : ''}</span>}
+      {checks && <span style={{ fontSize: 12, color: C.mid, marginLeft: 8 }}>上次：{fmtTime(checks.at)}{checks.round ? `・第 ${checks.round} 輪` : ''}{checks.checked ? (checks.checked.full ? '・完整檢查' : `・只看改過的 ${checks.checked.codes?.length || 0} 條`) : ''}{dirty ? '（之後有修改，送審時會自動重新檢查）' : ''}</span>}
       {err && <div style={{ color: C.bad, marginTop: 6 }}>{err}</div>}
       {checks && (
         <div style={{ marginTop: 10 }}>
@@ -373,7 +374,8 @@ export function CheckPanel({ versionId, doc, dirty, checks, setChecks, save, onA
             const res = checks.resolved?.[i.id];
             return (
               <div key={i.id} style={{ border: `1px solid ${i.level === 'warn' && !res ? '#fbd38d' : C.line}`, background: i.level === 'warn' && !res ? '#fffaf0' : '#fff', borderRadius: 8, padding: 8, marginTop: 6, opacity: res ? 0.7 : 1 }}>
-                <div>{i.level === 'warn' ? '⚠️' : '💡'} <span style={{ fontSize: 11, background: '#edf2f7', borderRadius: 6, padding: '0 5px' }}>{i.kind}</span> <b><RefText text={i.title} mine={mine} others={others} /></b></div>
+                <div>{i.level === 'warn' ? '⚠️' : '💡'} <span style={{ fontSize: 11, background: '#edf2f7', borderRadius: 6, padding: '0 5px' }}>{i.kind}</span> {i.is_new === true && <span style={{ fontSize: 11, background: '#fef3c7', color: '#92400e', borderRadius: 6, padding: '0 5px' }}>🆕 這次新發現</span>}{i.is_new === false && <span style={{ fontSize: 11, background: '#edf2f7', color: C.mid, borderRadius: 6, padding: '0 5px' }}>之前就有</span>} <b><RefText text={i.title} mine={mine} others={others} /></b></div>
+                {i.downgraded && <div style={{ fontSize: 11, color: C.mid }}>（第 3 輪起此類只提示、不擋送審）</div>}
                 <div style={{ marginTop: 2 }}><RefText text={i.detail} mine={mine} others={others} /></div>
                 {i.codes?.length > 0 && <div style={{ fontSize: 11, color: '#8b6f4e', marginTop: 2 }}>相關條文（點了看原文）：{i.codes.map((c) => <ClauseRef key={c} code={c} mine={mine} others={others} />)}</div>}
                 <RelatedList items={i.other_regs} render={(r) => <ClauseRef code={r.code} mine={mine} others={others} />} fmt={(t) => <RefText text={t} mine={mine} others={others} />} />
