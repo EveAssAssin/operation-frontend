@@ -998,7 +998,7 @@ export const regulationReviewApi = (ticket) => {
     me:         ()            => api.get('/regulations-review/me', h),
     reviews:    ()            => api.get('/regulations-review/list', h),
     review:     (vid)         => api.get(`/regulations-review/${vid}`, h),
-    approve:    (vid, body)   => api.post(`/regulations-review/${vid}/approve`, { notify_staff: body?.notify_staff, notice: body?.notice }, { ...h, timeout: 60000 }),
+    approve:    (vid, body)   => api.post(`/regulations-review/${vid}/approve`, { doc: body?.doc, notify_staff: body?.notify_staff, notice: body?.notice }, { ...h, timeout: 90000 }),
     returnBack: (vid, reason) => api.post(`/regulations-review/${vid}/return`, { reason }, h),
     approveLow: ()            => api.post('/regulations-review/approve-low', {}, { ...h, timeout: 120000 }),
   });

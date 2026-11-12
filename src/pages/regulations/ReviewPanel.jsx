@@ -15,7 +15,7 @@ function useNarrow(px = 760) {
   return n;
 }
 
-/** api：預設後台 regulationApi；推播連結審核頁傳 regulationReviewApi(票券)。allowEdit／allowLow：票券頁不開放修改內容 */
+/** api：預設後台 regulationApi；推播連結審核頁傳 regulationReviewApi(票券)。allowEdit／allowLow：票券頁 2026-11-12 起也開放修改內容（後端同一支 approve） */
 export default function ReviewPanel({ initialVid, isReviewer, roles, categories, onCountChange, api = regulationApi, allowEdit = true, allowLow = true, hideFilter = false }) {
   const narrow = useNarrow();
   const [diffAt, setDiffAt] = useState(0);

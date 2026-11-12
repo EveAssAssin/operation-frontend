@@ -51,7 +51,7 @@ export default function RegReviewPage() {
         <span style={{ fontSize: 12.5, color: C.mid }}>審核人：{me.reviewer?.name || '—'}・連結有效到 {new Date(me.expires_at).toLocaleString('zh-TW', { dateStyle: 'short', timeStyle: 'short' })}</span>
       </div>
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        <ReviewPanel api={api} initialVid={vid || me.version_id} isReviewer allowEdit={false} allowLow={me.scope === 'p'} hideFilter />
+        <ReviewPanel api={api} initialVid={vid || me.version_id} isReviewer allowEdit roles={me.roles || []} categories={me.categories || []} allowLow={me.scope === 'p'} hideFilter />{/* 2026-11-12 Louis：推播連結也能「✏️ 修改內容 → 修改後通過」（票券只限現任審核人，後端同一支 approve） */}
       </div>
     </div>
   );
