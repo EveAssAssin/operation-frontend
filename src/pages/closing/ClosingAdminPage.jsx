@@ -106,7 +106,13 @@ function Detail({ open, ym, onBack }) {
   };
   const delPhoto = async (r, u) => { setBusy(String(r.pay_id)); try { await closingApi.receipt(r.pay_id, { photos: (r.receipt.photos || []).filter((x) => x !== u) }).then(unwrap); await load(); } catch (e) { setMsg('❌ ' + e.message); } setBusy(''); };
   const ex = d.expenses;
-  const allOk = d.items.every((i) => i.status === 'none' || i.check_status === 'ok') && ex.rows.every((r) => !r.receipt || r.receipt.status === 'approved');
+  // 退貨袋逐支清點（2026-11-13）：退單不重建、鏡框退回營運部的單
+  const checkBag = async (r, recv) => {
+    let note = '';
+    if (recv === 'issue') { note = window.prompt(`訂單 ${r.order_number} 的鏡框有什麼疑慮？（例：沒收到、不是這支）`, r.frame_recv_note || '') || ''; if (!note.trim()) return; }
+    setBusy('bag' + r.id); try { await closingApi.checkBagReturn(sub.id, r.id, { recv, note }).then(unwrap); await load(); } catch (e) { setMsg('❌ ' + e.message); } setBusy('');
+  };
+  const allOk = d.items.every((i) => (i.order_returns || []).every((r) => r.frame_recv === 'ok')) && d.items.every((i) => i.status === 'none' || i.check_status === 'ok') && ex.rows.every((r) => !r.receipt || r.receipt.status === 'approved');
   return (
     <div>
       <button style={{ ...S.btn, marginBottom: 10 }} onClick={onBack}>← 回列表</button>
@@ -144,6 +150,28 @@ function Detail({ open, ym, onBack }) {
                 <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>{(it.photos || []).map((u, j) => <a key={j} href={u} target="_blank" rel="noreferrer"><img src={u} alt="" style={S.thumb} /></a>)}</div>
                 {it.check_status === 'issue' && <div style={{ fontSize: 12, color: '#c53030', marginTop: 2 }}>疑慮：{it.check_note}（{it.checked_by}）</div>}
                 {it.check_status === 'ok' && <div style={{ fontSize: 12, color: '#276749', marginTop: 2 }}>已收到 ✓（{it.checked_by}）</div>}
+                {(it.order_returns || []).length > 0 && (
+                  <div style={{ marginTop: 6, background: '#fffaf0', border: '1px solid #fbd38d', borderRadius: 8, padding: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#9c4221' }}>退單不重建、鏡框退回營運部：{it.order_returns.length} 支（已收到 {it.order_returns.filter((r) => r.frame_recv === 'ok').length}），請逐支清點</div>
+                    {it.order_returns.map((r) => (
+                      <div key={r.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 0', borderTop: '1px solid #feebc8' }}>
+                        {r.frame_photo ? <a href={r.frame_photo} target="_blank" rel="noreferrer"><img src={r.frame_photo} alt="" style={S.thumb} /></a> : <span style={{ fontSize: 12, color: '#c53030' }}>門市未拍</span>}
+                        <div style={{ flex: 1, fontSize: 13 }}>
+                          訂單 <b>{r.order_number}</b>｜{r.customer_name || '客人'}{r.order_amount != null ? `｜${Number(r.order_amount).toLocaleString()} 元` : ''}｜申請 {r.name || ''}
+                          {(r.order_items || []).length > 0 && <div style={{ fontSize: 12, color: '#718096' }}>{r.order_items.slice(0, 3).map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join('、')}</div>}
+                          {r.frame_recv === 'ok' && <div style={{ fontSize: 12, color: '#276749' }}>已收到 ✓（{r.frame_recv_by}）</div>}
+                          {r.frame_recv === 'issue' && <div style={{ fontSize: 12, color: '#c53030' }}>疑慮：{r.frame_recv_note}（{r.frame_recv_by}）</div>}
+                        </div>
+                        {canReview && (
+                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                            <button style={{ ...S.btn, background: r.frame_recv === 'ok' ? '#2f855a' : '#fff', color: r.frame_recv === 'ok' ? '#fff' : '#2f855a', border: '1px solid #2f855a', padding: '4px 8px', fontSize: 12 }} disabled={busy === 'bag' + r.id} onClick={() => checkBag(r, r.frame_recv === 'ok' ? 'pending' : 'ok')}>已收到</button>
+                            <button style={{ ...S.btn, background: r.frame_recv === 'issue' ? '#c53030' : '#fff', color: r.frame_recv === 'issue' ? '#fff' : '#c53030', border: '1px solid #c53030', padding: '4px 8px', fontSize: 12 }} disabled={busy === 'bag' + r.id} onClick={() => checkBag(r, 'issue')}>有疑慮</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               {canReview && it.kind !== 'expense' && (
                 <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>

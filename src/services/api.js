@@ -919,6 +919,7 @@ export const closingApi = {
   byStore:    (store, ym)      => api.get('/closing/by-store', { params: { store, ym } }),
   submission: (id, refresh)    => api.get(`/closing/submissions/${id}`, { params: refresh ? { refresh: 1 } : {}, timeout: 90000 }),
   checkItem:  (id, item, b)    => api.put(`/closing/submissions/${id}/items/${item}`, b),
+  checkBagReturn: (id, rid, b) => api.put(`/closing/submissions/${id}/order-returns/${rid}`, b),   // 退貨袋逐支清點
   setStatus:  (id, b)          => api.post(`/closing/submissions/${id}/status`, b),
   rating:     (id, b)          => api.post(`/closing/submissions/${id}/rating`, b),   // 會計評價（2026-10-21，店長評核讀）
   receipt:    (payId, b)       => api.put(`/closing/receipts/${payId}`, b),
