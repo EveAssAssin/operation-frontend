@@ -8,6 +8,7 @@ import VendorPayoutPanel, { PayoutScheduler } from './VendorPayoutPanel';
 import { useAuth } from '../../contexts/AuthContext';
 import OperationalExpensesPanel from './OperationalExpensesPanel';
 import OperationalReportPanel   from './OperationalReportPanel';
+import ExpenseVouchersPanel     from './ExpenseVouchersPanel';
 import { PostingFields, BillPosting, BookPanel } from './LedgerPosting';
 import VoucherBox, { canSeeVouchers } from '../../components/vouchers/VoucherBox';
 import SubjectSelect from '../../components/ledger/SubjectSelect';
@@ -2919,7 +2920,7 @@ export default function BillingV2Page() {
   })();
   const hasAutoOpen = !!(initialAutoOpen.market_pr_id || initialAutoOpen.chi_lens_pr_id);
   const initialTab = (() => { try { return new URLSearchParams(window.location.search).get('tab'); } catch { return null; } })();
-  const [tab, setTab] = useState(hasAutoOpen ? 'vendor_payment' : (initialTab === 'payout' ? 'payout' : 'bills'));
+  const [tab, setTab] = useState(hasAutoOpen ? 'vendor_payment' : (initialTab === 'payout' ? 'payout' : initialTab === 'expense_vouchers' ? 'expense_vouchers' : 'bills'));
   const [payoutDetail, setPayoutDetail] = useState(null);
   const [payoutReload, setPayoutReload] = useState(0);
   const [autoOpenPrId, setAutoOpenPrId] = useState(initialAutoOpen);
@@ -3001,6 +3002,7 @@ export default function BillingV2Page() {
     { key: 'payout',          label: '💸 廠商出款' },
     { key: 'input_invoice',   label: '進項發票' },
     { key: 'book',            label: '📒 帳本明細' },
+    { key: 'expense_vouchers', label: '🧾 報帳憑證' },
     { key: 'sources',         label: '來源單位',     hidden: !canManage(user?.role) },
     { key: 'categories',      label: '會計科目管理', hidden: !canManage(user?.role) },
     { key: 'vendors',         label: '廠商帳號管理', hidden: !canManage(user?.role) },
@@ -3186,6 +3188,7 @@ export default function BillingV2Page() {
 
       {/* 營運費用（電費 / 水費 / 電話 ...） */}
       {tab === 'book' && <BookPanel />}
+      {tab === 'expense_vouchers' && <ExpenseVouchersPanel />}
       {tab === 'operational' && <OperationalExpensesPanel />}
 
       {/* 營運報表（分析 + 匯出） */}
