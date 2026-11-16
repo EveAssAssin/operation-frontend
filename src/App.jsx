@@ -32,6 +32,7 @@ import HandoverListPage    from './pages/processes/HandoverListPage';   // é–€å¸
 import HrToolPage          from './pages/hrTool/HrToolPage';
 import PayrollPage         from './pages/payroll/PayrollPage';
 import ReportAiPage        from './pages/reportAi/ReportAiPage';
+import LiveReportSettingsPage from './pages/liveReport/LiveReportSettingsPage';
 import RegulationsPage     from './pages/regulations/RegulationsPage';
 import RulesPage           from './pages/regulations/RulesPage';
 import RegReviewPage       from './pages/regulations/RegReviewPage';
@@ -142,6 +143,7 @@ function AppRoutes() {
       <Route path="/hr-tool"            element={<PrivateRoute><HrToolPage /></PrivateRoute>} />
       <Route path="/payroll"            element={<PrivateRoute><PayrollPage /></PrivateRoute>} />
       <Route path="/report-ai"          element={<PrivateRoute><ReportAiPage /></PrivateRoute>} />
+      <Route path="/live-report-settings" element={<PrivateRoute><LiveReportSettingsPage /></PrivateRoute>} />
       <Route path="/regulations"        element={<PrivateRoute><RegulationsPage /></PrivateRoute>} />
       <Route path="/vendor-manage"      element={<PrivateRoute><VendorManagePage /></PrivateRoute>} />
       <Route path="/ledger-subjects"    element={<PrivateRoute><LedgerSubjectsPage /></PrivateRoute>} />
