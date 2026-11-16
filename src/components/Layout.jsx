@@ -54,7 +54,7 @@ const NAV_ITEMS = [
   { path: '/monthly-report',  label: '門市月報', icon: '📒', minRole: 'operation_staff', moduleKey: 'billing' },
   { path: '/report-ai',       label: '月報 AI',  icon: '🤖', minRole: 'operation_staff', moduleKey: 'report_ai' },
   { path: '/live-report-settings', label: '即時月報設定', icon: '📊', minRole: 'operation_staff', moduleKey: 'billing' },
-  { path: '/closing',         label: '結帳資料', icon: '📦', minRole: 'operation_staff', moduleKey: 'billing' },
+  { path: '/closing',         label: '結帳資料', icon: '📦', minRole: 'operation_staff', moduleKey: 'closing' },
   { path: '/store-profile',   label: '門市基礎設定', icon: '🏪', minRole: 'operation_staff', moduleKey: 'billing' },
   { path: '/contracts',       label: '合約管理', icon: '📜', minRole: 'operation_staff', moduleKey: 'contracts' },
   {
