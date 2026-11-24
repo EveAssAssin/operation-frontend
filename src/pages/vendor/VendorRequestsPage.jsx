@@ -2,7 +2,6 @@
 // 廠商前台 — 請款管理（列表 + 新增 + 上傳附件 + 送審）
 
 import { useState, useEffect, useCallback } from 'react';
-import RebateBox from '../../components/RebateBox';
 import { vendorApi } from '../../services/api';
 import { useVendorAuth } from '../../contexts/VendorAuthContext';
 import HelpTip from '../../components/help/HelpTip';
@@ -272,7 +271,6 @@ function DetailModal({ requestId, onClose }) {
       {tourOverlay}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ textAlign: 'right' }}><button onClick={startTour} style={btn.small}>📖 怎麼填</button></div>
-        {data.rebate && <RebateBox r={data.rebate} vendor />}
         <div style={{ padding: 12, background: C.bg, borderRadius: 6, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
           <div><span style={{ color: C.textLight }}>月份：</span>{data.period}</div>
           <div><span style={{ color: C.textLight }}>金額：</span><b>{fmtMoney(data.total_amount)}</b></div>
