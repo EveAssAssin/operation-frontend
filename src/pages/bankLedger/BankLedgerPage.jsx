@@ -1,6 +1,6 @@
 // pages/bankLedger/BankLedgerPage.jsx —— 金流 → 銀存彙整（2026-11）
 // 匯入各銀行網銀交易明細（CSV／XLS）或手動建立（2026-11-24）→ 自動登錄、重複自動去掉、同期間重匯自動校正 → 分類／門市 → 門市存入彙整
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { bankLedgerApi } from '../../services/api';
 import BankOverview from './BankOverview';
 
@@ -16,6 +16,11 @@ const errMsg = (e) => (e && (e.message || e.error)) || '失敗';
 const thisYm = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 7);
 const monthRange = (ym) => { const [y, m] = ym.split('-').map(Number); return { from: `${ym}-01`, to: `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}` }; };
 
+// 類別下拉（2026-11-24）：最後一個選項「＋ 新增類別…」
+const NEW_CAT = '__new_cat';
+const catOptions = (meta) => (<>{meta.categories.map((c) => <option key={c} value={c}>{c}</option>)}{meta.addCat && <option value={NEW_CAT}>＋ 新增類別…</option>}</>);
+async function pickCat(meta, v, apply) { if (v !== NEW_CAT) return apply(v); const n = await meta.addCat(); if (n) apply(n); }
+
 export default function BankLedgerPage() {
   const [tab, setTab] = useState('accounts');
   const [meta, setMeta] = useState({ categories: [], stores: [] });
@@ -24,10 +29,16 @@ export default function BankLedgerPage() {
   const [txFilter, setTxFilter] = useState(null);   // 從別的分頁跳到明細時帶的篩選
 
   const loadAccounts = useCallback(() => bankLedgerApi.accounts().then((r) => setAccounts(r.data || [])).catch((e) => setErr(errMsg(e))), []);
-  useEffect(() => {
-    bankLedgerApi.meta().then((r) => setMeta(r.data || { categories: [], stores: [] })).catch((e) => setErr(errMsg(e)));
-    loadAccounts();
-  }, [loadAccounts]);
+  const loadMeta = useCallback(() => bankLedgerApi.meta().then((r) => setMeta(r.data || { categories: [], stores: [] })).catch((e) => setErr(errMsg(e))), []);
+  useEffect(() => { loadMeta(); loadAccounts(); }, [loadMeta, loadAccounts]);
+  // 自訂類別（2026-11-24）：任何類別下拉選「＋ 新增類別…」→ 輸入名稱 → 存好回傳新名稱（取消回 null）
+  const addCat = useCallback(async () => {
+    const name = (window.prompt('新增類別名稱（例：股東往來、借款）') || '').trim();
+    if (!name) return null;
+    try { const r = await bankLedgerApi.addCategory(name); setMeta((m) => ({ ...m, categories: r.data.all, custom_categories: r.data.custom })); return name; }
+    catch (e) { window.alert(errMsg(e)); return null; }
+  }, []);
+  const metaX = useMemo(() => ({ ...meta, addCat, reload: loadMeta }), [meta, addCat, loadMeta]);
 
   const tabs = [['accounts', '🏦 本子總覽'], ['import', '📥 匯入'], ['txns', '📄 交易明細'], ['stores', '🏪 門市存入'], ['rules', '⚙ 分類規則']];
   return (
@@ -45,9 +56,9 @@ export default function BankLedgerPage() {
       {err && <div style={{ ...card, color: C.danger }}>⚠ {err}</div>}
       {tab === 'import' && <ImportTab accounts={accounts} onDone={loadAccounts} />}
       {tab === 'accounts' && <BankOverview accounts={accounts} reload={loadAccounts} onOpen={(a) => { setTxFilter({ account_id: a.id, from: '', to: '' }); setTab('txns'); }} />}
-      {tab === 'txns' && <TxnsTab key={JSON.stringify(txFilter)} accounts={accounts} meta={meta} preset={txFilter} />}
+      {tab === 'txns' && <TxnsTab key={JSON.stringify(txFilter)} accounts={accounts} meta={metaX} preset={txFilter} />}
       {tab === 'stores' && <StoresTab meta={meta} onOpen={(f) => { setTxFilter(f); setTab('txns'); }} />}
-      {tab === 'rules' && <RulesTab accounts={accounts} meta={meta} />}
+      {tab === 'rules' && <RulesTab accounts={accounts} meta={metaX} />}
     </div>
   );
 }
@@ -197,6 +208,7 @@ function TxnsTab({ accounts, meta, preset }) {
   const [msg, setMsg] = useState('');
   const [rule, setRule] = useState(null);   // 記住規則
   const [edit, setEdit] = useState(null);   // 手動建立／修改 { id?, ...欄位 }
+  const lastManual = useRef(null);   // 上一筆手動新增的帳戶／日期／方向 → 下次按「＋ 手動新增」沿用
   const storeName = useMemo(() => Object.fromEntries((meta.stores || []).map((s) => [s.store_erpid, s.store_name])), [meta]);
 
   const load = useCallback(async () => {
@@ -246,14 +258,14 @@ function TxnsTab({ accounts, meta, preset }) {
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: 13 }}>{data.total} 筆｜存入 <b style={{ color: C.in }}>{fmt(data.sum_in)}</b>｜支出 <b style={{ color: C.out }}>{fmt(data.sum_out)}</b></span>
         <button style={{ ...ghost, padding: '5px 10px' }} onClick={exportCsv}>匯出 CSV</button>
-        <button style={{ ...btn(C.primary), padding: '5px 12px' }} onClick={() => setEdit({ account_id: f.account_id || (accounts[0] && accounts[0].id) || '', txn_date: new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10), direction: 'in', amount: '', summary: '', memo: '', balance: '', category: '', store_erpid: '', note: '' })}>＋ 手動新增</button>
+        <button style={{ ...btn(C.primary), padding: '5px 12px' }} onClick={() => setEdit({ account_id: f.account_id || (accounts[0] && accounts[0].id) || '', txn_date: new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10), direction: 'in', ...(lastManual.current || {}), amount: '', summary: '', memo: '', balance: '', category: '', store_erpid: '', note: '' })}>＋ 手動新增</button>
       </div>
-      {edit && <ManualForm v={edit} accounts={accounts} meta={meta} storeOpts={storeOpts} onClose={() => setEdit(null)} onSaved={(m) => { setEdit(null); setMsg(m); load(); }} />}
+      {edit && <ManualForm v={edit} accounts={accounts} meta={meta} storeOpts={storeOpts} onClose={() => { setEdit(null); load(); }} onSaved={(m) => { setEdit(null); setMsg(m); load(); }} onAdded={(x) => { lastManual.current = { account_id: x.account_id, txn_date: x.txn_date, direction: x.direction }; load(); }} />}
       {msg && <div style={{ ...card, padding: 8, color: msg.startsWith('⚠') ? C.danger : C.ok }}>{msg}</div>}
       {sel.size > 0 && (
         <div style={{ ...card, display: 'flex', gap: 6, alignItems: 'center', background: '#fffbeb' }}>
           已選 {sel.size} 筆 → 類別
-          <select style={input} value={bulk.category} onChange={(e) => setBulk({ ...bulk, category: e.target.value })}><option value="">（不改）</option>{meta.categories.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+          <select style={input} value={bulk.category} onChange={(e) => pickCat(meta, e.target.value, (v) => setBulk({ ...bulk, category: v }))}><option value="">（不改）</option>{catOptions(meta)}</select>
           門市 <select style={input} value={bulk.store_erpid} onChange={(e) => setBulk({ ...bulk, store_erpid: e.target.value })}><option value="">（不改）</option><option value="__clear">（清掉門市）</option>{storeOpts}</select>
           <button style={btn(C.primary)} onClick={doBulk}>套用</button>
           <button style={ghost} onClick={() => setSel(new Set())}>取消選取</button>
@@ -288,8 +300,8 @@ function TxnsTab({ accounts, meta, preset }) {
                 <td style={{ ...td, textAlign: 'right', color: C.in }}>{t.in_amt > 0 ? fmt(t.in_amt) : ''}</td>
                 <td style={{ ...td, textAlign: 'right' }}>{fmt(t.balance)}</td>
                 <td style={td}>
-                  <select style={{ ...input, padding: '3px 4px', fontSize: 12 }} value={t.category || ''} onChange={(e) => patch(t, { category: e.target.value })}>
-                    <option value="">—</option>{meta.categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                  <select style={{ ...input, padding: '3px 4px', fontSize: 12 }} value={t.category || ''} onChange={(e) => pickCat(meta, e.target.value, (v) => patch(t, { category: v }))}>
+                    <option value="">—</option>{catOptions(meta)}
                   </select>
                   {t.tag_source && t.tag_source !== 'manual' && <div style={{ fontSize: 10, color: C.muted }}>{t.tag_source === 'rule' ? '規則' : '自動'}</div>}
                 </td>
@@ -320,8 +332,9 @@ function TxnsTab({ accounts, meta, preset }) {
 
 // ═══ 門市存入 ═══
 // 手動建立／修改一筆交易（2026-11-24）：之後匯入的檔案有同一天、同金額、同方向的交易 → 這筆自動被取代，不會重複
-function ManualForm({ v, accounts, meta, storeOpts, onClose, onSaved }) {
+function ManualForm({ v, accounts, meta, storeOpts, onClose, onSaved, onAdded }) {
   const [f, setF] = useState(v);
+  const [added, setAdded] = useState([]);   // 這次連續新增了哪些
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -332,8 +345,13 @@ function ManualForm({ v, accounts, meta, storeOpts, onClose, onSaved }) {
     if (!(Number(f.amount) > 0)) return setErr('金額要大於 0');
     setBusy(true);
     try {
-      if (f.id) await bankLedgerApi.editTxn(f.id, f); else await bankLedgerApi.createTxn(f);
-      onSaved(f.id ? '已修改' : `已新增：${f.txn_date} ${f.direction === 'in' ? '存入' : '支出'} ${fmt(f.amount)}`);
+      if (f.id) { await bankLedgerApi.editTxn(f.id, f); onSaved('已修改'); return; }
+      await bankLedgerApi.createTxn(f);
+      // 新增完不關：下一筆沿用同帳戶、同日期、同存入／支出、同類別、同門市，其他清空（2026-11-24 營運：手動通常是連續同一天）
+      const m = `✓ 已新增：${f.txn_date} ${f.direction === 'in' ? '存入' : '支出'} ${fmt(f.amount)}${f.summary ? `（${f.summary}）` : ''}`;
+      setAdded((a) => [m, ...a].slice(0, 8));
+      setF((x) => ({ ...x, amount: '', summary: '', memo: '', balance: '', note: '', txn_time: '' }));
+      onAdded && onAdded(f);
     } catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
   };
   const row = { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 };
@@ -352,13 +370,14 @@ function ManualForm({ v, accounts, meta, storeOpts, onClose, onSaved }) {
         <div style={row}><span style={lab}>摘要</span><input style={{ ...input, flex: 1 }} placeholder="例：現金存款" value={f.summary} onChange={set('summary')} /></div>
         <div style={row}><span style={lab}>備註</span><input style={{ ...input, flex: 1 }} placeholder="例：存款人、店名" value={f.memo} onChange={set('memo')} /></div>
         <div style={row}><span style={lab}>餘額</span><input type="number" style={{ ...input, flex: 1 }} placeholder="存摺上的餘額（可不填）" value={f.balance} onChange={set('balance')} /></div>
-        <div style={row}><span style={lab}>類別</span><select style={{ ...input, flex: 1 }} value={f.category} onChange={set('category')}><option value="">（自動分類）</option>{meta.categories.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+        <div style={row}><span style={lab}>類別</span><select style={{ ...input, flex: 1 }} value={f.category} onChange={(e) => pickCat(meta, e.target.value, (v) => setF((x) => ({ ...x, category: v })))}><option value="">（自動分類）</option>{catOptions(meta)}</select></div>
         <div style={row}><span style={lab}>門市</span><select style={{ ...input, flex: 1 }} value={f.store_erpid} onChange={set('store_erpid')}><option value="">—</option>{storeOpts}</select></div>
         <div style={row}><span style={lab}>說明</span><input style={{ ...input, flex: 1 }} value={f.note} onChange={set('note')} /></div>
       </div>
       {err && <div style={{ color: C.danger, fontSize: 13, marginBottom: 6 }}>⚠ {err}</div>}
-      <button style={btn(C.primary)} disabled={busy} onClick={save}>{busy ? '儲存中…' : '儲存'}</button>
-      <button style={{ ...ghost, marginLeft: 6 }} onClick={onClose}>取消</button>
+      <button style={btn(C.primary)} disabled={busy} onClick={save}>{busy ? '儲存中…' : f.id ? '儲存' : '新增這筆'}</button>
+      <button style={{ ...ghost, marginLeft: 6 }} onClick={onClose}>{added.length ? '完成，關閉' : '取消'}</button>
+      {added.length > 0 && <div style={{ marginTop: 8, fontSize: 12, color: C.ok }}>{added.map((m, i) => <div key={i}>{m}</div>)}<div style={{ color: C.muted }}>下一筆已帶入同帳戶、同日期，填金額就可以再新增。</div></div>}
     </div>
   );
 }
@@ -434,15 +453,26 @@ function RulesTab({ accounts, meta }) {
   const add = async () => { try { await bankLedgerApi.addRule(f); setF({ ...f, pattern: '' }); setMsg('已新增（按「重新套用」可套到現有交易）'); load(); } catch (e) { setMsg('⚠ ' + errMsg(e)); } };
   const del = async (r) => { if (!window.confirm(`刪除規則「${r.pattern}」？`)) return; try { await bankLedgerApi.delRule(r.id); load(); } catch (e) { setMsg('⚠ ' + errMsg(e)); } };
   const reapply = async () => { try { const r = await bankLedgerApi.reapply(); setMsg(`已重新套用，更新 ${r.data.updated} 筆（手動改過的不動）`); } catch (e) { setMsg('⚠ ' + errMsg(e)); } };
+  const delCat = async (c) => { if (!window.confirm(`刪除類別「${c}」？`)) return; try { await bankLedgerApi.delCategory(c); meta.reload && meta.reload(); setMsg(`已刪除類別「${c}」`); } catch (e) { setMsg('⚠ ' + errMsg(e)); } };
   return (
     <div>
+      <div style={card}>
+        <b>類別</b><span style={{ fontSize: 12, color: C.muted, marginLeft: 8 }}>內建的不能刪；自訂的沒有交易在用才能刪。任何類別下拉選「＋ 新增類別…」也可以新增。</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, alignItems: 'center' }}>
+          {meta.categories.map((c) => {
+            const custom = (meta.custom_categories || []).includes(c);
+            return <span key={c} style={{ background: custom ? '#fef3c7' : '#edf2f7', borderRadius: 14, padding: '3px 10px', fontSize: 13 }}>{c}{custom && <button style={{ border: 'none', background: 'none', cursor: 'pointer', color: C.danger, marginLeft: 4 }} onClick={() => delCat(c)}>✕</button>}</span>;
+          })}
+          <button style={{ ...ghost, padding: '3px 10px' }} onClick={() => meta.addCat()}>＋ 新增類別</button>
+        </div>
+      </div>
       <div style={card}>
         <b>新增規則</b>
         <div style={{ fontSize: 12, color: C.muted, margin: '4px 0 8px' }}>摘要／備註／註記含這段字 → 自動設類別、門市。例：備註含「南京」的現金存入 → 南京店；「財團法人聯合信用」→ 刷卡撥款。</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <input style={{ ...input, width: 180 }} placeholder="含這段字" value={f.pattern} onChange={(e) => setF({ ...f, pattern: e.target.value })} />
           <select style={input} value={f.direction} onChange={(e) => setF({ ...f, direction: e.target.value })}><option value="in">存入</option><option value="out">支出</option><option value="">存入＋支出</option></select>
-          <select style={input} value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}><option value="">類別（不設）</option>{meta.categories.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+          <select style={input} value={f.category} onChange={(e) => pickCat(meta, e.target.value, (v) => setF((x) => ({ ...x, category: v })))}><option value="">類別（不設）</option>{catOptions(meta)}</select>
           <select style={input} value={f.store_erpid} onChange={(e) => setF({ ...f, store_erpid: e.target.value })}><option value="">門市（不設）</option>{(meta.stores || []).map((s) => <option key={s.store_erpid} value={s.store_erpid}>{s.store_name}</option>)}</select>
           <select style={input} value={f.account_id} onChange={(e) => setF({ ...f, account_id: e.target.value })}><option value="">所有帳戶</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.alias}</option>)}</select>
           <button style={btn(C.primary)} onClick={add}>新增</button>
