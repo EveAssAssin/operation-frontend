@@ -2,6 +2,7 @@
 // 開帳系統 v2：帳單管理（來源單位 / 會計科目 / 帳單建立與審核）
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import RebateBox from '../../components/RebateBox';
 import { billingV2Api, personnelApi, billingApi, vendorPaymentApi, paymentBatchApi, chiVendorsApi } from '../../services/api';
 import { AllocEditor } from '../vendor/VendorRequestsPage';
 import VendorPayoutPanel, { PayoutScheduler } from './VendorPayoutPanel';
@@ -660,6 +661,8 @@ function VendorPaymentReviewPanel({ sources, autoOpenPrId, onAutoOpenConsumed })
                   <td style={td}>{r.title}</td>
                   <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
                     {fmtMoney(r.total_amount)}
+                    {r.payout_amount != null && Number(r.payout_amount) !== Number(r.total_amount) && <div style={{ fontSize: 11, color: '#c05621', fontWeight: 400 }}>出款 {fmtMoney(r.payout_amount)}</div>}
+                    {r.rebate_amount != null && <div style={{ fontSize: 11, color: '#2f855a', fontWeight: 400 }}>回饋 {fmtMoney(r.rebate_amount)}</div>}
                   </td>
                   <td style={td}>
                     <code style={{ fontSize: 11, color: '#6b5640' }}>{r.remit_memo || '—'}</code>
@@ -778,11 +781,12 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
   return (
     <Modal title={`📝 ${data.request_no} — ${data.title}`} onClose={onClose} width={800}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {data.rebate && <RebateBox r={data.rebate} />}
         {/* 摘要 */}
         <div style={{ background: '#f5f0ea', padding: 12, borderRadius: 6, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, fontSize: 13 }}>
           <div><span style={{ color: '#a0aec0' }}>廠商：</span>{data.source?.name}</div>
           <div><span style={{ color: '#a0aec0' }}>月份：</span>{data.period}</div>
-          <div><span style={{ color: '#a0aec0' }}>金額：</span><b>{fmtMoney(data.total_amount)}</b></div>
+          <div><span style={{ color: '#a0aec0' }}>金額：</span><b>{fmtMoney(data.total_amount)}</b>{data.rebate && <span style={{ fontSize: 11, color: '#b7791f' }}>（帳單）</span>}</div>
           <div><span style={{ color: '#a0aec0' }}>狀態：</span>
             <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: bg, color, border: `1px solid ${border}` }}>
               {REQ_STATUS_LABEL[data.status]}
@@ -1341,7 +1345,7 @@ function CreateBatchModal({ onClose }) {
 
   const totalAmount = eligible
     .filter(r => selected.has(r.id))
-    .reduce((s, r) => s + Number(r.total_amount || 0), 0);
+    .reduce((s, r) => s + Number(r.payout_amount != null ? r.payout_amount : (r.total_amount || 0)), 0);
 
   async function submit() {
     if (selected.size === 0) return alert('請至少選一筆');
@@ -1403,7 +1407,7 @@ function CreateBatchModal({ onClose }) {
                   <td style={td}><code>{r.request_no}</code></td>
                   <td style={td}>{r.source?.name}</td>
                   <td style={td}>{r.period}</td>
-                  <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{fmtMoney(r.total_amount)}</td>
+                  <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{fmtMoney(r.payout_amount != null ? r.payout_amount : r.total_amount)}{r.payout_amount != null && Number(r.payout_amount) !== Number(r.total_amount) && <div style={{ fontSize: 11, color: '#a0aec0', fontWeight: 400 }}>帳單 {fmtMoney(r.total_amount)}</div>}</td>
                   <td style={td}>
                     {r.bank_account ? (
                       <div style={{ fontSize: 11 }}>

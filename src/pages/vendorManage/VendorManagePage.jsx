@@ -247,6 +247,7 @@ function Edit({ v, reload }) {
         )}
       </div>
       <SubjectsCard v={v} act={act} />
+      <RebateCard v={v} act={act} />
       <div style={card}>
         <b>出款資訊（收款銀行帳號）</b><HelpTip title="出款資訊" body={HELP.bank} />
         <table style={{ width: '100%', fontSize: 13, marginTop: 8, borderCollapse: 'collapse' }}>
@@ -272,6 +273,33 @@ function Edit({ v, reload }) {
           <button style={{ ...btn(C.primary), marginTop: 8 }} onClick={() => act(async () => { await vendorManageApi.addBank(v.id, nb); setNb({ bank_code: '', branch_code: '', account_no: '', account_name: '' }); }, '已新增收款帳號')}>新增</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// 廠商回饋（2026-11-24）：回饋 %＋帳單內含／外加
+function RebateCard({ v, act }) {
+  const [pct, setPct] = useState(v.rebate_pct ?? '');
+  const [mode, setMode] = useState(v.rebate_mode || 'inclusive');
+  useEffect(() => { setPct(v.rebate_pct ?? ''); setMode(v.rebate_mode || 'inclusive'); }, [v]);
+  const dirty = String(pct ?? '') !== String(v.rebate_pct ?? '') || (pct !== '' && mode !== (v.rebate_mode || 'inclusive'));
+  const p = Number(pct) || 0;
+  const ex = p > 0 && p < 100 ? (mode === 'inclusive'
+    ? `例：廠商帳單 100 → 門市分帳 100、回饋 ${Math.round(100 * p) / 100}、實付廠商 ${Math.round((100 - p) * 100) / 100}`
+    : `例：廠商帳單 ${100 - p} → 門市分帳 100、回饋 ${p}、實付廠商 ${100 - p}`) : '沒有回饋';
+  return (
+    <div style={card}>
+      <b>🎁 廠商回饋</b>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 8, flexWrap: 'wrap', fontSize: 14 }}>
+        回饋 <input type="number" step="0.1" min="0" max="99" value={pct} onChange={(e) => setPct(e.target.value)} placeholder="空白＝沒有" style={{ width: 90, padding: '5px 8px', border: '1px solid #e2e8f0', borderRadius: 6 }} /> %
+        <label><input type="radio" checked={mode === 'inclusive'} onChange={() => setMode('inclusive')} /> 帳單內含</label>
+        <label><input type="radio" checked={mode === 'exclusive'} onChange={() => setMode('exclusive')} /> 帳單外加</label>
+        <button style={btn(dirty ? C.primary : '#cbd5e0')} disabled={!dirty}
+          onClick={() => act(() => vendorManageApi.update(v.id, { rebate_pct: pct === '' ? null : Number(pct), rebate_mode: pct === '' ? null : mode }), '廠商回饋已儲存')}>儲存</button>
+        {dirty && <span style={{ fontSize: 12, color: C.danger }}>還沒存</span>}
+      </div>
+      <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>{ex}</div>
+      <div style={{ fontSize: 12, color: C.muted }}>內含＝廠商帳單金額就是帳面，付款時扣掉回饋；外加＝廠商帳單已經扣好回饋，系統反推帳面金額給門市分帳。改了之後，還沒核准的請款會跟著重算，已核准／已付款的照原本。</div>
     </div>
   );
 }
