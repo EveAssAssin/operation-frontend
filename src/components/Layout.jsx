@@ -33,6 +33,7 @@ const NAV_ITEMS = [
     moduleKey: 'bank_ledger',
     children: [
       { path: '/bank-ledger', label: '銀存彙整', icon: '🏦', moduleKey: 'bank_ledger' },
+      { path: '/cash-deposit', label: '銀存審核', icon: '💵', moduleKey: 'cash_deposit' },
     ],
   },
   {

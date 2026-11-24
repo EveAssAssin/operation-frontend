@@ -761,6 +761,22 @@ export const vendorPaymentApi = {
 
 // 營運管理 → 廠商管理（2026-10-20）：新建廠商＋帳號密碼＋出款資訊
 // 金流 → 銀存彙整（2026-11）
+// 金流 → 銀存審核（2026-11-24）：門市「營運工具 → 銀存回報」上繳的現金，審核＋現金銀存專用本子自動對帳
+export const cashDepositApi = {
+  overview:   (ym)        => api.get('/cash-deposit/overview', { params: { ym }, timeout: 120000 }),
+  deposits:   (params)    => api.get('/cash-deposit/deposits', { params }),
+  deposit:    (id)        => api.get(`/cash-deposit/deposits/${id}`),
+  candidates: (id)        => api.get(`/cash-deposit/deposits/${id}/candidates`),
+  review:     (id, b)     => api.post(`/cash-deposit/deposits/${id}/review`, b),
+  reconcile:  ()          => api.post('/cash-deposit/reconcile', {}, { timeout: 180000 }),
+  unmatched:  (from)      => api.get('/cash-deposit/unmatched-book', { params: { from } }),
+  cashBooks:  ()          => api.get('/cash-deposit/cash-books'),
+  setCashBooks: (ids)     => api.put('/cash-deposit/cash-books', { ids }),
+  settings:   ()          => api.get('/cash-deposit/settings'),
+  saveSettings: (b)       => api.put('/cash-deposit/settings', b),
+  sync:       (backfill)  => api.post('/cash-deposit/sync', { backfill: !!backfill }, { timeout: 180000 }),
+};
+
 export const bankLedgerApi = {
   meta:          ()            => api.get('/bank-ledger/meta'),
   accounts:      ()            => api.get('/bank-ledger/accounts'),

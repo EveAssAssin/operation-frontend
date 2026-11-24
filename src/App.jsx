@@ -40,6 +40,7 @@ import VendorManagePage    from './pages/vendorManage/VendorManagePage';
 import LedgerSubjectsPage  from './pages/ledgerSubjects/LedgerSubjectsPage';
 import PettyCashPage       from './pages/pettyCash/PettyCashPage';
 import BankLedgerPage      from './pages/bankLedger/BankLedgerPage';
+import CashDepositReviewPage from './pages/bankLedger/CashDepositReviewPage';
 import PointRedeemPage      from './pages/pointRedemption/PointRedeemPage';
 import PointRedeemAdminPage from './pages/pointRedemption/PointRedeemAdminPage';
 import BasicDataPage        from './pages/basicData/BasicDataPage';
@@ -149,6 +150,7 @@ function AppRoutes() {
       <Route path="/ledger-subjects"    element={<PrivateRoute><LedgerSubjectsPage /></PrivateRoute>} />
       <Route path="/petty-cash"         element={<PrivateRoute><PettyCashPage /></PrivateRoute>} />
       <Route path="/bank-ledger"        element={<PrivateRoute><BankLedgerPage /></PrivateRoute>} />
+      <Route path="/cash-deposit"       element={<PrivateRoute><CashDepositReviewPage /></PrivateRoute>} />
       <Route path="/basic-data"         element={<PrivateRoute><BasicDataPage /></PrivateRoute>} />
       <Route path="/scheduled-notify"   element={<PrivateRoute><ScheduledNotifyPage /></PrivateRoute>} />
       <Route path="/system/permissions" element={<PrivateRoute><PermissionsPage /></PrivateRoute>} />
