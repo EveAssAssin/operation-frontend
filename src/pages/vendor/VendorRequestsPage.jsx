@@ -327,10 +327,16 @@ function DetailModal({ requestId, onClose }) {
           )}
         </div>
 
-        <div data-tour="vd-alloc">
-          <AllocEditor data={data} canEdit={canEdit} onSaved={load} save={(rows) => vendorApi.saveAllocations(requestId, rows)} loadTargets={vendorTargets} />
-          <HelpTip title="項目與分配門市" body={VHELP.alloc} />
-        </div>
+        {data.statement_mode ? (
+          <div data-tour="vd-alloc" style={{ padding: 12, background: '#f0fff4', border: '1px solid #c6f6d5', borderRadius: 6, fontSize: 13 }}>
+            📑 請直接上傳這個月的<b>對帳單 Excel</b>（原始檔，不用改格式），上傳後按送審即可。樂活會依對帳單自動分到各門市，不用另外填分配。
+          </div>
+        ) : (
+          <div data-tour="vd-alloc">
+            <AllocEditor data={data} canEdit={canEdit} onSaved={load} save={(rows) => vendorApi.saveAllocations(requestId, rows)} loadTargets={vendorTargets} />
+            <HelpTip title="項目與分配門市" body={VHELP.alloc} />
+          </div>
+        )}
 
         {/* 操作 */}
         <div data-tour="vd-submit" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: `1px solid ${C.border}`, paddingTop: 12, alignItems: 'center' }}>

@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import RebateBox from '../../components/RebateBox';
+import SplitBox from '../../components/SplitBox';
 import { billingV2Api, personnelApi, billingApi, vendorPaymentApi, paymentBatchApi, chiVendorsApi } from '../../services/api';
 import { AllocEditor } from '../vendor/VendorRequestsPage';
 import VendorPayoutPanel, { PayoutScheduler } from './VendorPayoutPanel';
@@ -885,6 +886,7 @@ function VendorPaymentDetailModal({ requestId, onClose }) {
           ))}
         </div>
 
+        {data.statement_mode && <SplitBox requestId={requestId} split={data.split} canEdit={data.status !== 'paid'} onChanged={load} />}
         {/* 分配門市（廠商入口 V1：廠商填、會計接收時可調整；付款後自動產生帳單進門市月報） */}
         {(data.allocations?.length > 0 || data.source_system === 'internal') && (
           <div style={{ padding: 10, border: '1px solid #e2e8f0', borderRadius: 6 }}>

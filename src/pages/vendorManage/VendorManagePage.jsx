@@ -248,6 +248,7 @@ function Edit({ v, reload }) {
       </div>
       <SubjectsCard v={v} act={act} />
       <RebateCard v={v} act={act} />
+      <SplitCard v={v} act={act} />
       <div style={card}>
         <b>出款資訊（收款銀行帳號）</b><HelpTip title="出款資訊" body={HELP.bank} />
         <table style={{ width: '100%', fontSize: 13, marginTop: 8, borderCollapse: 'collapse' }}>
@@ -272,6 +273,51 @@ function Edit({ v, reload }) {
           <BankFields b={nb} set={setNb} />
           <button style={{ ...btn(C.primary), marginTop: 8 }} onClick={() => act(async () => { await vendorManageApi.addBank(v.id, nb); setNb({ bank_code: '', branch_code: '', account_no: '', account_name: '' }); }, '已新增收款帳號')}>新增</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// 寄銷對帳單拆分＋中間商（2026-11-24；第一家晶碩）
+function SplitCard({ v, act }) {
+  const blank = { match: '', rate: '', intermediary: '', hq: '' };
+  const [rules, setRules] = useState(v.split_rules && v.split_rules.length ? v.split_rules : []);
+  const [im, setIm] = useState(v.intermediary || { name: '', bank_code: '', branch_code: '', account_no: '', account_name: '' });
+  useEffect(() => { setRules(v.split_rules && v.split_rules.length ? v.split_rules : []); setIm(v.intermediary || { name: '', bank_code: '', branch_code: '', account_no: '', account_name: '' }); }, [v]);
+  const setR = (i, k, val) => setRules(rules.map((r, j) => (j === i ? { ...r, [k]: val } : r)));
+  const inp = { padding: '5px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13 };
+  const mapN = Object.keys(v.split_store_map || {}).length;
+  return (
+    <div style={card}>
+      <b>🧾 對帳單拆分（寄銷）</b>
+      <div style={{ fontSize: 12, color: C.muted, margin: '4px 0 8px' }}>
+        設了規則：廠商只要上傳每月對帳單 Excel 就能送審，系統依對帳單把每家店拆成「廠商請款／中間商回饋／總部收入／門市開帳」，廠商看不到拆分。
+        例（晶碩）：表頭含「38%抽成」、抽成 38%、中間商 2%、總部 1% → 門市拿 35%，門市開帳＝廠商請款＋38%抽成×3/38。其他抽成欄沒設規則＝全部算門市。
+      </div>
+      {rules.map((r, i) => (
+        <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', fontSize: 13 }}>
+          表頭含 <input style={{ ...inp, width: 110 }} value={r.match} placeholder="38%抽成" onChange={(e) => setR(i, 'match', e.target.value)} />
+          抽成 <input type="number" style={{ ...inp, width: 60 }} value={r.rate} onChange={(e) => setR(i, 'rate', e.target.value)} />%
+          中間商 <input type="number" step="0.1" style={{ ...inp, width: 60 }} value={r.intermediary} onChange={(e) => setR(i, 'intermediary', e.target.value)} />%
+          總部 <input type="number" step="0.1" style={{ ...inp, width: 60 }} value={r.hq} onChange={(e) => setR(i, 'hq', e.target.value)} />%
+          <span style={{ color: C.muted }}>→ 門市 {(Number(r.rate) || 0) - (Number(r.intermediary) || 0) - (Number(r.hq) || 0)}%</span>
+          <button style={{ ...ghost, padding: '3px 8px' }} onClick={() => setRules(rules.filter((_, j) => j !== i))}>刪</button>
+        </div>
+      ))}
+      <button style={{ ...ghost, padding: '4px 10px' }} onClick={() => setRules([...rules, rules.length ? blank : { match: '38%抽成', rate: 38, intermediary: 2, hq: 1 }])}>＋ 加一條規則</button>
+      <div style={{ marginTop: 12, padding: 10, background: '#f7fafc', borderRadius: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>中間商（回饋出款時跟廠商一起匯出）</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 13, alignItems: 'center' }}>
+          名稱 <input style={{ ...inp, width: 160 }} value={im.name || ''} onChange={(e) => setIm({ ...im, name: e.target.value })} />
+          總行 <input style={{ ...inp, width: 60 }} value={im.bank_code || ''} placeholder="3 碼" onChange={(e) => setIm({ ...im, bank_code: e.target.value })} />
+          分行 <input style={{ ...inp, width: 70 }} value={im.branch_code || ''} placeholder="4 碼" onChange={(e) => setIm({ ...im, branch_code: e.target.value })} />
+          帳號 <input style={{ ...inp, width: 160 }} value={im.account_no || ''} onChange={(e) => setIm({ ...im, account_no: e.target.value })} />
+          戶名 <input style={{ ...inp, width: 160 }} value={im.account_name || ''} onChange={(e) => setIm({ ...im, account_name: e.target.value })} />
+        </div>
+      </div>
+      <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button style={btn(C.primary)} onClick={() => act(() => vendorManageApi.update(v.id, { split_rules: rules.filter((r) => String(r.match || '').trim()).map((r) => ({ match: r.match, rate: Number(r.rate), intermediary: Number(r.intermediary) || 0, hq: Number(r.hq) || 0 })), intermediary: im }), '對帳單拆分設定已儲存')}>儲存拆分設定</button>
+        <span style={{ fontSize: 12, color: C.muted }}>{mapN ? `已記住 ${mapN} 個店號對照` : '店號對門市：第一次審核時在請款單上對一次，之後自動套用'}</span>
       </div>
     </div>
   );

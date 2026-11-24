@@ -238,7 +238,8 @@ export default function VendorPayoutPanel({ onOpenRequest, canManageBanks }) {
                         <td style={{ textAlign: 'right' }}>{money(it.amount)}</td>
                         <td>{!it.payee ? <span style={{ color: '#c53030' }}>⚠ 廠商沒有收款帳號</span>
                           : it.payee.problem ? <span style={{ color: '#c53030' }}>⚠ {it.payee.problem}</span>
-                          : <span>{it.payee.account_name}・{it.payee.bank_code}{it.payee.branch_code ? '-' + it.payee.branch_code : ''}・尾 {it.payee.account_no_tail}</span>}</td>
+                          : <span>{it.payee.account_name}・{it.payee.bank_code}{it.payee.branch_code ? '-' + it.payee.branch_code : ''}・尾 {it.payee.account_no_tail}</span>}
+                          {it.intermediary && <div style={{ fontSize: 12, color: it.intermediary.problem ? '#c53030' : '#2b6cb0' }}>＋中間商 {it.intermediary.name || ''} {money(it.intermediary.amount)}{it.intermediary.problem ? `（⚠ ${it.intermediary.problem}，這張先不會匯出）` : '（一起匯出）'}</div>}</td>
                       </tr>
                     ))}
                   </tbody>
