@@ -1,5 +1,5 @@
 // pages/bankLedger/BankLedgerPage.jsx —— 金流 → 銀存彙整（2026-11）
-// 匯入各銀行網銀交易明細（CSV／XLS）→ 自動登錄、重複自動去掉、同期間重匯自動校正 → 分類／門市 → 門市存入彙整
+// 匯入各銀行網銀交易明細（CSV／XLS）或手動建立（2026-11-24）→ 自動登錄、重複自動去掉、同期間重匯自動校正 → 分類／門市 → 門市存入彙整
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { bankLedgerApi } from '../../services/api';
 import BankOverview from './BankOverview';
@@ -169,6 +169,7 @@ function ImportResult({ r }) {
       <span style={{ color: C.ok }}>✓ 新增 {r.rows_new} 筆</span>
       {r.rows_dup > 0 && <span style={{ color: C.muted }}>｜重複略過 {r.rows_dup}</span>}
       {r.rows_removed > 0 && <span style={{ color: C.warn }}>｜校正掉 {r.rows_removed}（系統有、這次檔案沒有）</span>}
+      {(r.manual_superseded || []).length > 0 && <span style={{ color: C.muted }}>｜取代手動建立 {r.manual_superseded.length} 筆</span>}
       {r.rows_restored > 0 && <span>｜還原 {r.rows_restored}</span>}
       {r.verify && r.verify.status === 'ok' && <div style={{ fontSize: 12, color: C.ok }}>✓ 餘額核對正確（期初＋存入－支出 ＝ 銀行餘額 {fmt(r.verify.reported_end)}）</div>}
       {r.verify && r.verify.status === 'no_opening' && <div style={{ fontSize: 12, color: C.warn }}>這本還沒設期初餘額，只檢查前後筆接不接得起來（到「本子總覽」設期初）</div>}
@@ -195,6 +196,7 @@ function TxnsTab({ accounts, meta, preset }) {
   const [bulk, setBulk] = useState({ category: '', store_erpid: '' });
   const [msg, setMsg] = useState('');
   const [rule, setRule] = useState(null);   // 記住規則
+  const [edit, setEdit] = useState(null);   // 手動建立／修改 { id?, ...欄位 }
   const storeName = useMemo(() => Object.fromEntries((meta.stores || []).map((s) => [s.store_erpid, s.store_name])), [meta]);
 
   const load = useCallback(async () => {
@@ -244,7 +246,9 @@ function TxnsTab({ accounts, meta, preset }) {
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: 13 }}>{data.total} 筆｜存入 <b style={{ color: C.in }}>{fmt(data.sum_in)}</b>｜支出 <b style={{ color: C.out }}>{fmt(data.sum_out)}</b></span>
         <button style={{ ...ghost, padding: '5px 10px' }} onClick={exportCsv}>匯出 CSV</button>
+        <button style={{ ...btn(C.primary), padding: '5px 12px' }} onClick={() => setEdit({ account_id: f.account_id || (accounts[0] && accounts[0].id) || '', txn_date: new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10), direction: 'in', amount: '', summary: '', memo: '', balance: '', category: '', store_erpid: '', note: '' })}>＋ 手動新增</button>
       </div>
+      {edit && <ManualForm v={edit} accounts={accounts} meta={meta} storeOpts={storeOpts} onClose={() => setEdit(null)} onSaved={(m) => { setEdit(null); setMsg(m); load(); }} />}
       {msg && <div style={{ ...card, padding: 8, color: msg.startsWith('⚠') ? C.danger : C.ok }}>{msg}</div>}
       {sel.size > 0 && (
         <div style={{ ...card, display: 'flex', gap: 6, alignItems: 'center', background: '#fffbeb' }}>
@@ -277,7 +281,7 @@ function TxnsTab({ accounts, meta, preset }) {
             {!loading && data.rows.map((t) => (
               <tr key={t.id} style={{ background: sel.has(t.id) ? '#fffbeb' : undefined, opacity: t.status === 'removed' ? 0.5 : 1 }}>
                 <td style={td}><input type="checkbox" checked={sel.has(t.id)} onChange={(e) => { const s = new Set(sel); if (e.target.checked) s.add(t.id); else s.delete(t.id); setSel(s); }} /></td>
-                <td style={{ ...td, whiteSpace: 'nowrap' }}>{t.txn_date}{t.txn_time ? <div style={{ fontSize: 11, color: C.muted }}>{t.txn_time}</div> : null}</td>
+                <td style={{ ...td, whiteSpace: 'nowrap' }}>{t.txn_date}{t.txn_time ? <div style={{ fontSize: 11, color: C.muted }}>{t.txn_time}</div> : null}{t.source === 'manual' && <div style={{ fontSize: 10, color: '#fff', background: C.warn, borderRadius: 4, padding: '0 4px', display: 'inline-block' }} title={t.superseded_by ? '已被匯入的交易取代' : `${t.created_by || ''} 手動建立`}>{t.superseded_by ? '手動・已取代' : '手動'}</div>}</td>
                 <td style={{ ...td, fontSize: 12 }}>{t.account?.alias}</td>
                 <td style={td}><b style={{ fontWeight: 600 }}>{t.summary}</b> {t.memo}{t.memo2 ? <span style={{ color: C.muted }}>｜{t.memo2}</span> : null}{t.counter_account ? <div style={{ fontSize: 11, color: C.muted }}>{t.counter_account}</div> : null}</td>
                 <td style={{ ...td, textAlign: 'right', color: C.out }}>{t.out_amt > 0 ? fmt(t.out_amt) : ''}</td>
@@ -296,7 +300,13 @@ function TxnsTab({ accounts, meta, preset }) {
                 </td>
                 <td style={td}><input style={{ ...input, padding: '3px 6px', fontSize: 12, width: 110 }} defaultValue={t.note || ''} onBlur={(e) => { if ((e.target.value || '') !== (t.note || '')) patch(t, { note: e.target.value }); }} /></td>
                 <td style={td}><button title="以後同樣的備註都這樣分" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#2b6cb0', fontSize: 12 }}
-                  onClick={() => setRule({ t, pattern: (t.memo || t.summary || '').slice(0, 20), all: false, category: t.category, store_erpid: t.store_erpid })}>記住</button></td>
+                  onClick={() => setRule({ t, pattern: (t.memo || t.summary || '').slice(0, 20), all: false, category: t.category, store_erpid: t.store_erpid })}>記住</button>
+                  {t.source === 'manual' && t.status === 'active' && (<>
+                    <button style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#2b6cb0', fontSize: 12 }}
+                      onClick={() => setEdit({ id: t.id, account_id: t.account_id, txn_date: t.txn_date, txn_time: t.txn_time || '', direction: Number(t.in_amt) > 0 ? 'in' : 'out', amount: Number(t.in_amt) || Number(t.out_amt), summary: t.summary || '', memo: t.memo || '', balance: t.balance ?? '', category: t.category || '', store_erpid: t.store_erpid || '', note: t.note || '' })}>改</button>
+                    <button style={{ border: 'none', background: 'none', cursor: 'pointer', color: C.danger, fontSize: 12 }}
+                      onClick={async () => { if (!window.confirm(`刪除這筆手動交易？\n${t.txn_date} ${Number(t.in_amt) ? '存入' : '支出'} ${fmt(Number(t.in_amt) || Number(t.out_amt))}`)) return; try { await bankLedgerApi.deleteTxn(t.id); setMsg('已刪除'); load(); } catch (e) { setMsg('⚠ ' + errMsg(e)); } }}>刪</button>
+                  </>)}</td>
               </tr>
             ))}
             {!loading && !data.rows.length && <tr><td colSpan={11} style={{ ...td, textAlign: 'center', color: C.muted, padding: 20 }}>沒有交易</td></tr>}
@@ -309,6 +319,50 @@ function TxnsTab({ accounts, meta, preset }) {
 }
 
 // ═══ 門市存入 ═══
+// 手動建立／修改一筆交易（2026-11-24）：之後匯入的檔案有同一天、同金額、同方向的交易 → 這筆自動被取代，不會重複
+function ManualForm({ v, accounts, meta, storeOpts, onClose, onSaved }) {
+  const [f, setF] = useState(v);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const save = async () => {
+    setErr('');
+    if (!f.account_id) return setErr('請選帳戶');
+    if (!f.txn_date) return setErr('請填日期');
+    if (!(Number(f.amount) > 0)) return setErr('金額要大於 0');
+    setBusy(true);
+    try {
+      if (f.id) await bankLedgerApi.editTxn(f.id, f); else await bankLedgerApi.createTxn(f);
+      onSaved(f.id ? '已修改' : `已新增：${f.txn_date} ${f.direction === 'in' ? '存入' : '支出'} ${fmt(f.amount)}`);
+    } catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
+  };
+  const row = { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 };
+  const lab = { width: 70, fontSize: 13, color: C.muted, flexShrink: 0 };
+  return (
+    <div style={{ ...card, background: '#fffdf7', border: `2px solid ${C.warn}` }}>
+      <b>{f.id ? '修改手動交易' : '手動新增交易'}</b>
+      <span style={{ fontSize: 12, color: C.muted, marginLeft: 8 }}>之後匯入網銀檔，裡面有同一天、同金額的交易，這筆會自動被取代，不會重複。</span>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0 18px', marginTop: 10 }}>
+        <div style={row}><span style={lab}>帳戶</span><select style={{ ...input, flex: 1 }} value={f.account_id} onChange={set('account_id')}><option value="">請選</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.alias}</option>)}</select></div>
+        <div style={row}><span style={lab}>日期</span><input type="date" style={input} value={f.txn_date} onChange={set('txn_date')} /><input style={{ ...input, width: 80 }} placeholder="時間" value={f.txn_time || ''} onChange={set('txn_time')} /></div>
+        <div style={row}><span style={lab}>存入／支出</span>
+          <label style={{ fontSize: 13 }}><input type="radio" checked={f.direction === 'in'} onChange={() => setF({ ...f, direction: 'in' })} /> 存入</label>
+          <label style={{ fontSize: 13 }}><input type="radio" checked={f.direction === 'out'} onChange={() => setF({ ...f, direction: 'out' })} /> 支出</label></div>
+        <div style={row}><span style={lab}>金額</span><input type="number" style={{ ...input, flex: 1 }} value={f.amount} onChange={set('amount')} /></div>
+        <div style={row}><span style={lab}>摘要</span><input style={{ ...input, flex: 1 }} placeholder="例：現金存款" value={f.summary} onChange={set('summary')} /></div>
+        <div style={row}><span style={lab}>備註</span><input style={{ ...input, flex: 1 }} placeholder="例：存款人、店名" value={f.memo} onChange={set('memo')} /></div>
+        <div style={row}><span style={lab}>餘額</span><input type="number" style={{ ...input, flex: 1 }} placeholder="存摺上的餘額（可不填）" value={f.balance} onChange={set('balance')} /></div>
+        <div style={row}><span style={lab}>類別</span><select style={{ ...input, flex: 1 }} value={f.category} onChange={set('category')}><option value="">（自動分類）</option>{meta.categories.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+        <div style={row}><span style={lab}>門市</span><select style={{ ...input, flex: 1 }} value={f.store_erpid} onChange={set('store_erpid')}><option value="">—</option>{storeOpts}</select></div>
+        <div style={row}><span style={lab}>說明</span><input style={{ ...input, flex: 1 }} value={f.note} onChange={set('note')} /></div>
+      </div>
+      {err && <div style={{ color: C.danger, fontSize: 13, marginBottom: 6 }}>⚠ {err}</div>}
+      <button style={btn(C.primary)} disabled={busy} onClick={save}>{busy ? '儲存中…' : '儲存'}</button>
+      <button style={{ ...ghost, marginLeft: 6 }} onClick={onClose}>取消</button>
+    </div>
+  );
+}
+
 function StoresTab({ meta, onOpen }) {
   const [ym, setYm] = useState(thisYm());
   const [cats, setCats] = useState(['現金存入']);
