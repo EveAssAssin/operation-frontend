@@ -55,7 +55,7 @@ export default function VendorManagePage() {
   const [sorting, setSorting] = useState(null);   // null＝一般模式；陣列＝排序中的廠商 id 順序
   const [dragId, setDragId] = useState(null);
   const [savingOrder, setSavingOrder] = useState(false);
-  const { start, overlay } = useCoachMarks(TOUR, 'tour_vendor_manage_v1', true);
+  const { start, overlay } = useCoachMarks(TOUR, 'tour_vendor_manage_v1', true, '廠商管理怎麼用');
   const load = useCallback(async () => { setErr(''); try { const r = await vendorManageApi.list(); setList(r.data || []); } catch (e) { setErr(e.message || '讀取失敗'); } }, []);
   useEffect(() => { load(); }, [load]);
   const shown = list.filter((v) => !q || (v.name + (v.tax_id || '') + (v.contact_name || '')).includes(q));

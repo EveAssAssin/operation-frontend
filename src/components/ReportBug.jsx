@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
+import { availableTours } from './help/CoachMarks';
 
 const PET = 'https://lohas-pet.onrender.com';
 const SYS = 'operation';
@@ -225,6 +226,16 @@ export default function ReportBug({ user, onClose }) {
           </>
         ) : (
           <>
+            {availableTours().length > 0 && (
+              <div style={S.tours}>
+                <div style={{ fontSize: 13, color: '#8b7d68', marginBottom: 6 }}>不知道怎麼用？看這一頁的教學：</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {availableTours().map((t, i) => (
+                    <button key={i} style={S.tourBtn} onClick={() => { onClose(); setTimeout(() => t.start(), 150); }}>📖 {t.label}</button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={S.title}>回報問題／優化需求</div>
             <div style={S.kinds}>
               {KINDS.map(k => (
@@ -306,7 +317,7 @@ export function ReportFab({ onOpen, hidden }) {
   if (hidden) return null;
   return createPortal(
     <button type="button" data-yaya="op-report-fab"
-      title="回報問題／優化需求（可拖曳移到別的位置）"
+      title="回報問題／優化需求／看這頁的教學（可拖曳移到別的位置）"
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
       style={{
         position: 'fixed', right: pos.r, bottom: pos.b, zIndex: 2147483000,
@@ -322,6 +333,8 @@ const S = {
   mask: { position: 'fixed', inset: 0, background: 'rgba(30,24,16,.45)', zIndex: 2147483001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
   box: { background: '#fff', borderRadius: 12, width: 'min(520px, 100%)', maxHeight: '90vh', overflowY: 'auto', padding: 22, boxShadow: '0 12px 40px rgba(0,0,0,.25)' },
   title: { fontSize: 18, fontWeight: 700, color: '#50422d', marginBottom: 12 },
+  tours: { background: '#f0f7ff', border: '1px solid #bee3f8', borderRadius: 8, padding: 10, marginBottom: 14 },
+  tourBtn: { padding: '7px 14px', borderRadius: 8, border: 'none', background: '#2b6cb0', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 14 },
   p: { fontSize: 14, color: '#4a4033', lineHeight: 1.7 },
   kinds: { display: 'flex', gap: 8, marginBottom: 10 },
   kind: { flex: 1, padding: '9px 8px', borderRadius: 8, border: '1px solid #cdbea2', background: '#faf8f5', color: '#50422d', cursor: 'pointer', fontSize: 14 },

@@ -1,19 +1,36 @@
 // components/help/CoachMarks.jsx —— 矇版使用說明（2026-10-20）
 // steps: [{ sel: 'CSS 選擇器（通常 [data-tour="…"]）', title, body }]；找不到元素的那一步改成畫面中間的說明框
-// storageKey：第一次進頁面自動跑一次，看過就記在 localStorage；外面放「📖 使用說明」按鈕呼叫 start() 重看
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+// 2026-11-24 營運：不再自動跳出（每次打開都跳很煩）→ 只有使用者按了才顯示：
+//   ① 右下角 🐞 打開 →「📖 這一頁的教學」按鈕（這裡登記的 start）② 頁面上原本的「📖 使用說明」按鈕
+// 第三個參數 available：這一頁現在有沒有這份教學（例如月報總覽／單店各一份）；true＝登記到 🐞 的教學清單
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-export function useCoachMarks(steps, storageKey, autoStart = true) {
+// ── 目前頁面可用的教學（給 ReportBug 的教學按鈕用）──
+const registry = new Map();   // id → { label, start }
+let seq = 0;
+export function availableTours() { return [...registry.values()]; }
+/** 不是 useCoachMarks 的說明（例如自己做的說明框）也登記到 🐞 的教學清單 */
+export function useRegisterTour(label, start, available = true) {
+  const id = useRef(null);
+  if (id.current == null) id.current = `g${++seq}`;
+  useEffect(() => {
+    if (!available) return undefined;
+    const k = id.current; registry.set(k, { label, start });
+    return () => { registry.delete(k); };
+  }, [label, start, available]);
+}
+
+export function useCoachMarks(steps, storageKey, available = true, label) {
   const [idx, setIdx] = useState(-1);
   const start = useCallback(() => setIdx(0), []);
+  const id = useRef(null);
+  if (id.current == null) id.current = `t${++seq}`;
   useEffect(() => {
-    if (!autoStart) return undefined;
-    let seen = false;
-    try { seen = !!localStorage.getItem(storageKey); } catch (e) { /* */ }
-    if (seen) return undefined;
-    const t = setTimeout(() => setIdx(0), 900);
-    return () => clearTimeout(t);
-  }, [storageKey, autoStart]);
+    if (!available || !steps || !steps.length) return undefined;
+    registry.set(id.current, { label: label || (steps[0] && steps[0].title) || '使用說明', start });
+    const k = id.current;
+    return () => { registry.delete(k); };
+  }, [available, steps, label, start]);
   const close = useCallback(() => { setIdx(-1); try { localStorage.setItem(storageKey, '1'); } catch (e) { /* */ } }, [storageKey]);
   const overlay = idx >= 0 && idx < steps.length
     ? <CoachOverlay step={steps[idx]} i={idx} n={steps.length} onPrev={() => setIdx(idx - 1)} onNext={() => (idx + 1 >= steps.length ? close() : setIdx(idx + 1))} onClose={close} />

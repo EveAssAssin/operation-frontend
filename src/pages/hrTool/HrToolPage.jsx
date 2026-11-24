@@ -44,7 +44,7 @@ export default function HrToolPage() {
   const [sel, setSel] = useState(null);
   const [err, setErr] = useState('');
   const [showSettings, setShowSettings] = useState(false);
-  const { start, overlay } = useCoachMarks(TOUR, 'tour_hr_tool_v1', true);
+  const { start, overlay } = useCoachMarks(TOUR, 'tour_hr_tool_v1', true, '人事工具怎麼用');
   const load = useCallback(async () => {
     setErr('');
     try { const r = await hrToolApi.list(tab); setList(r.data || []); } catch (e) { setErr(await errText(e)); }

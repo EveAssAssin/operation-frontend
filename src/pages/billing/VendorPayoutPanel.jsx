@@ -152,7 +152,7 @@ export default function VendorPayoutPanel({ onOpenRequest, canManageBanks }) {
   const [sel, setSel] = useState({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
-  const { start, overlay } = useCoachMarks(TOUR, 'tour_vendor_payout_v1', true);
+  const { start, overlay } = useCoachMarks(TOUR, 'tour_vendor_payout_v1', true, '廠商出款怎麼用');
 
   const load = useCallback(async () => {
     try {

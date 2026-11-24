@@ -85,7 +85,7 @@ export default function VendorRequestsPage() {
   useEffect(() => { load(); }, [load]);
   const [noBank, setNoBank] = useState(false);
   useEffect(() => { vendorApi.listBankAccounts().then(r => setNoBank(Array.isArray(r?.data) && r.data.length === 0)).catch(() => {}); }, []);
-  const { start: startTour, overlay: tourOverlay } = useCoachMarks(TOUR_LIST, 'tour_vendor_requests_v1', true);
+  const { start: startTour, overlay: tourOverlay } = useCoachMarks(TOUR_LIST, 'tour_vendor_requests_v1', true, '請款怎麼用');
 
   return (
     <div>
@@ -229,7 +229,7 @@ function DetailModal({ requestId, onClose }) {
   }, [requestId]);
   useEffect(() => { load(); }, [load]);
   const editableForTour = !!data && (data.status === 'draft' || data.status === 'rejected');
-  const { start: startTour, overlay: tourOverlay } = useCoachMarks(TOUR_DETAIL, 'tour_vendor_request_detail_v1', editableForTour);
+  const { start: startTour, overlay: tourOverlay } = useCoachMarks(TOUR_DETAIL, 'tour_vendor_request_detail_v1', editableForTour, '請款單怎麼填');
 
   async function submit() {
     if (!window.confirm('送出後將無法編輯，確定送審？')) return;

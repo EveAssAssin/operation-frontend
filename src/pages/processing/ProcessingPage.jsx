@@ -1,7 +1,8 @@
 // pages/processing/ProcessingPage.jsx — 加工中心開帳（2026-10-20；2026-10-30 改依下單日期、週期上月 21～本月 20 日）
 // 獨立入口 /processing：加工中心主管用獨立帳密登入（proc_token）；營運部帳號（operation_token）也能直接進
 // 流程：選月份 → 填這個月收到、還沒設金額的品項 → 看各店 → 點店看逐單、追加金額 → 正確就「開帳」（寫進門市月報 代工中心代工費）
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRegisterTour } from '../../components/help/CoachMarks';
 import axios from 'axios';
 
 const isLocal = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
@@ -452,7 +453,8 @@ function Accounts() {
 export default function ProcessingPage() {
   const [me, setMe] = useState(undefined);
   const [tab, setTab] = useState('months');
-  const [guide, setGuide] = useState(() => { try { return !localStorage.getItem('proc_guide_seen'); } catch { return true; } });
+  const [guide, setGuide] = useState(false);   // 2026-11-24：不自動跳，按「？說明」或右下 🐞 →「加工說明」才開
+  useRegisterTour('加工系統怎麼用', useCallback(() => setGuide(true), []));
   const check = async () => { const r = await call(() => http.get('/me')); setMe(r.success ? r.data : null); };
   useEffect(() => { check(); }, []);
   const tabs = useMemo(() => [['months', '開帳'], ['prices', '主檔金額']].concat(me && me.kind === 'system' && me.role === 'super_admin' ? [['accounts', '帳號']] : []), [me]);

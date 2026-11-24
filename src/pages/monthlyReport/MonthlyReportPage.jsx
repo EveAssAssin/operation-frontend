@@ -45,8 +45,8 @@ export default function MonthlyReportPage() {
   const [vOpen, setVOpen] = useState({});   // 明細列 key → 展開憑證
   const [formFiles, setFormFiles] = useState([]);   // 手填／調帳一起送的憑證
 
-  const tourAll = useCoachMarks(TOUR_OVERVIEW, 'tour_monthly_report_v1', !store);
-  const tourStore = useCoachMarks(TOUR_STORE, 'tour_monthly_report_store_v1', !!store);
+  const tourAll = useCoachMarks(TOUR_OVERVIEW, 'tour_monthly_report_v1', !store, '月報總覽怎麼看');
+  const tourStore = useCoachMarks(TOUR_STORE, 'tour_monthly_report_store_v1', !!store, '單店月報怎麼填');
 
   const loadOverview = useCallback(async () => {
     setLoading(true); setErr('');
