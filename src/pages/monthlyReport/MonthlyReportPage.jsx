@@ -110,6 +110,16 @@ export default function MonthlyReportPage() {
                 <span style={S.tag(SRC_COLOR[l.source_name] || '#718096')}>{l.source_name}</span>
                 {l.fee_ym && l.fee_ym !== ym && <span style={S.tag('#805ad5')}>{l.fee_ym} 帳</span>}
                 <span style={{ flex: 1 }}>{String(l.ref_title || '').replace(/^｜|｜$/g, '')}
+                  {(l.detail_items || []).length > 0 && (
+                    <button style={{ ...S.linkBtn, marginLeft: 6 }} onClick={(e) => { e.stopPropagation(); const k = 'd' + l.source + l.ref_id; setVOpen((o) => ({ ...o, [k]: !o[k] })); }}>
+                      {vOpen['d' + l.source + l.ref_id] ? '▲ 收起' : `▼ 全部 ${l.detail_items.length} 項`}
+                    </button>
+                  )}
+                  {vOpen['d' + l.source + l.ref_id] && (
+                    <div style={{ margin: '4px 0 2px', padding: '6px 8px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 12, lineHeight: 1.7 }}>
+                      {l.detail_items.map((i, n) => <div key={n}>{i.name} × {i.qty}{i.amount != null ? `　${fmt(i.amount)}` : ''}</div>)}
+                    </div>
+                  )}
                   {l.subject_name && <span style={S.tag(l.subject_set ? '#2c7a7b' : '#a0aec0')} title={l.subject_set ? '會計科目' : '沒選過，暫用這格的預設科目'}>{l.subject_set ? '' : '預設・'}{l.subject_name}</span>}
                   {!closed && !l.subject_set && (l.source === 'bill' || String(l.source || '').startsWith('manual_')) && (
                     <SubjectSelect ledgerCode={l.source === 'bill' ? undefined : (l.ledger_code || row.code)} value="" placeholder="補選科目" style={{ fontSize: 12, padding: 2 }}
