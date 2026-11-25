@@ -8,7 +8,7 @@ import DocEditor from './DocEditor';
 import { applyOps, changeLabel } from './docOps';
 import RelatedEdits, { RelatedList } from './RelatedEdits';
 import RefGenerate from './RefGenerate';
-import ClarifyCard, { composeWithAnswers } from './Clarify';
+import ClarifyCard, { composeWithAnswers, ContextUsed } from './Clarify';
 import { C, card, input, btn, btnP, btnD, btnOk, btnSm, RiskBadge, StatusBadge, Field, clone, fmtTime } from './ui';
 import { uiAlert, uiConfirm } from '../../components/uiDialog';   // 陷阱 143：App 內建瀏覽器沒有 alert／confirm
 
@@ -203,7 +203,9 @@ export function AssistPanel({ versionId, doc, onApply }) {
   const runAssist = async (entry, message) => {
     patchEntry(entry.id, { waiting: true });
     setBusy('ai');
-    const r = await api.assist(versionId, { message, image_url: entry.img, doc });
+    // 確認方向時已經查過哪些系統 → 直接沿用，不用再挑一次（2026-11-25）
+    const topics = (entry.clarify?.context || []).map(c => c.key);
+    const r = await api.assist(versionId, { message, image_url: entry.img, doc, ...(topics.length ? { context_topics: topics } : {}) });
     setBusy('');
     patchEntry(entry.id, { waiting: false, clarifyDone: true, result: r?.success ? r.data : null, error: r?.success ? null : (r?.message || 'AI 失敗') });
   };
@@ -261,6 +263,7 @@ export function AssistPanel({ versionId, doc, onApply }) {
             {x.result && (
               <div style={{ background: '#f6f1ea', borderRadius: 10, padding: 8, marginTop: 6 }}>
                 <div><b>我的理解：</b>{x.result.understanding}</div>
+                <ContextUsed list={x.result.context} errors={x.result.context_errors} />
                 {x.result.found?.length > 0 && (
                   <div style={{ marginTop: 4, fontSize: 12 }}>相關條文：{x.result.found.map(f => <span key={f.code} title={f.why} style={{ fontFamily: 'monospace', background: '#fff', border: `1px solid ${C.line}`, borderRadius: 6, padding: '0 4px', marginRight: 3 }}>{f.code}</span>)}</div>
                 )}

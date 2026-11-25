@@ -26,6 +26,7 @@ export default function ClarifyCard({ data, answers, setAnswers, busy, onConfirm
     <div style={{ background: '#fffaf0', border: '1px solid #fbd38d', borderRadius: 10, padding: compact ? 8 : 10, marginTop: 8, fontSize: 13 }}>
       <div style={{ fontWeight: 700, color: '#975a16' }}>🤔 {qs.length ? '開始寫之前，想先跟你確認' : '我理解的方向，對嗎？'}</div>
       {data.understanding && <div style={{ marginTop: 4 }}><b>我的理解：</b>{data.understanding}</div>}
+      <ContextUsed list={data.context} />
       {(data.plan || []).length > 0 && (
         <div style={{ marginTop: 4 }}>
           <b>{compact ? '打算這樣改：' : '打算的大綱：'}</b>
@@ -54,6 +55,19 @@ export default function ClarifyCard({ data, answers, setAnswers, busy, onConfirm
         {onSkip && <button style={{ ...btn, ...btnSm }} disabled={busy} onClick={onSkip}>不用問了，直接寫</button>}
         {qs.length > 0 && <span style={{ fontSize: 11, color: C.mid }}>沒回答的題目 AI 會自行判斷或留（請填）</span>}
       </div>
+    </div>
+  );
+}
+
+/** 編輯助理這次查了哪些系統（2026-11-25：規範編輯助理可唯讀查市場部／教育訓練／企劃部／營運部的實際設定） */
+export function ContextUsed({ list, errors }) {
+  const used = Array.isArray(list) ? list : [];
+  const bad = Object.keys(errors || {});
+  if (!used.length && !bad.length) return null;
+  return (
+    <div style={{ marginTop: 4, fontSize: 12, color: '#2c5282' }}>
+      🔎 已對照系統資料：{used.length ? used.map(c => <span key={c.key} title={c.source} style={{ background: '#ebf8ff', border: '1px solid #bee3f8', borderRadius: 6, padding: '0 5px', marginRight: 3 }}>{c.title}</span>) : '（沒有查到）'}
+      {bad.length > 0 && <span style={{ color: '#975a16', marginLeft: 4 }}>（{bad.length} 項查不到，沒有用）</span>}
     </div>
   );
 }
